@@ -28,11 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (active) { setSession(null); setUser(null); }
       } finally { if (active) setLoading(false); }
     };
-    const onChange = () => { void restore(); };
     void restore();
-    window.addEventListener("ruta-clara-auth", onChange);
-    window.addEventListener("storage", onChange);
-    return () => { active = false; window.removeEventListener("ruta-clara-auth", onChange); window.removeEventListener("storage", onChange); };
+    const onStorage = () => { void restore(); };
+    window.addEventListener("storage", onStorage);
+    return () => { active = false; window.removeEventListener("storage", onStorage); };
   }, []);
   const value = useMemo<AuthContextValue>(() => ({
     user, session, loading, configured: isSupabaseConfigured,
