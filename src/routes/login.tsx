@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/state/AuthProvider";
 export const Route = createFileRoute("/login")({ component: LoginPage });
 function LoginPage() {
@@ -13,7 +13,7 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  if (user && !loading) { void navigate({ to: "/" }); return null; }
+  useEffect(() => { if (user && !loading) void navigate({ to: "/" }); }, [user, loading, navigate]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setMessage(""); setBusy(true);
     try {
