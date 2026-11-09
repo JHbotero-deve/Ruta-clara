@@ -42,7 +42,7 @@ function Deliveries() {
   }
   return <AppShell title="Entregas" subtitle={done + " de " + stops.length + " completadas"}>
     <Progress value={stops.length ? done / stops.length * 100 : 0} />
-    {role !== "driver" && <section className="rounded-lg border bg-card p-4">
+    {role && role !== "driver" && <section className="rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between"><h2 className="font-semibold">Nueva entrega</h2><Button size="sm" variant="outline" onClick={() => setShowForm(!showForm)}><Plus className="mr-1 h-4 w-4" />{showForm ? "Cerrar" : "Agregar"}</Button></div>
       {showForm && <form onSubmit={submit} className="mt-4 space-y-3">
         <input required placeholder="Dirección de entrega" value={address} onChange={e => setAddress(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm" />
