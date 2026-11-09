@@ -27,6 +27,7 @@ create table if not exists public.deliveries (
   address text not null,
   status text not null default 'pending' check (status in ('pending','completed','skipped','removed')),
   notes text not null default '',
+  sort_order integer not null default 0,
   completed_at timestamptz,
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
@@ -69,13 +70,11 @@ alter table public.memberships enable row level security;
 alter table public.deliveries enable row level security;
 revoke all on public.organizations,public.profiles,public.memberships,public.deliveries from anon;
 grant select,update on public.organizations to authenticated;
-grant select,update on public.profiles to authenticated;
-grant select on public.memberships to authenticated;
+grant select on public.profiles,public.memberships to authenticated;
 grant select,insert,update,delete on public.deliveries to authenticated;
 create policy "members read own organization" on public.organizations for select to authenticated using (public.is_org_member(id));
 create policy "owners admins update organization" on public.organizations for update to authenticated using (public.has_org_role(id,array['owner','admin'])) with check (public.has_org_role(id,array['owner','admin']));
 create policy "users read own profile" on public.profiles for select to authenticated using (id = (select auth.uid()));
-create policy "users update own profile" on public.profiles for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()) and organization_id = (select p.organization_id from public.profiles p where p.id = (select auth.uid())));
 create policy "members read organization memberships" on public.memberships for select to authenticated using (public.is_org_member(organization_id));
 create policy "members read organization deliveries" on public.deliveries for select to authenticated using (public.is_org_member(organization_id));
 create policy "admins manage deliveries" on public.deliveries for insert to authenticated with check (public.has_org_role(organization_id,array['owner','admin']) and created_by = (select auth.uid()));
