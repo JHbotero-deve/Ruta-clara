@@ -139,7 +139,7 @@ begin
   invite_code := nullif(trim(new.raw_user_meta_data->>'invite_code'),'');
   if invite_code is not null then
     select * into invite_row from public.organization_invites
-    where token_hash = extensions.digest(invite_code,'sha256') and used_at is null and expires_at > now()
+    where token_hash = md5(invite_code) and used_at is null and expires_at > now()
     for update;
     if invite_row.id is null then raise exception 'Código de invitación inválido o vencido'; end if;
     new_org := invite_row.organization_id;
