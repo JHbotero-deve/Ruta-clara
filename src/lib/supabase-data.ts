@@ -67,3 +67,15 @@ export async function transitionDelivery(id: string, action: DeliveryAction, cur
 export async function reorderDeliveries(ids: string[]) {
   await Promise.all(ids.map((id, index) => request("deliveries?id=eq." + id, { method: "PATCH", body: JSON.stringify({ sort_order: index }) })));
 }
+
+export async function listTeamMembers() {
+  const membership = await getMyMembership();
+  const [profiles, memberships] = await Promise.all([
+    request<{ id: string; full_name: string; email: string }[]>("profiles?select=id,full_name,email&organization_id=eq." + membership.organizationId),
+    request<{ user_id: string; role: "owner" | "admin" | "driver" }[]>("memberships?select=user_id,role&organization_id=eq." + membership.organizationId),
+  ]);
+  return memberships.map(member => ({ ...member, ...profiles.find(profile => profile.id === member.user_id) }));
+}
+export async function createTeamInvite(role: "admin" | "driver") {
+  return request<string>("rpc/create_organization_invite", { method: "POST", body: JSON.stringify({ target_role: role }) });
+}
