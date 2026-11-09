@@ -1,4 +1,3 @@
-create extension if not exists pgcrypto with schema extensions;
 create table if not exists public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(trim(name)) between 2 and 120),
@@ -101,7 +100,7 @@ alter table public.deliveries add column if not exists sort_order integer not nu
 create table if not exists public.organization_invites (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  token_hash bytea not null unique,
+  token_hash text not null unique,
   role text not null check (role in ('admin','driver')),
   created_by uuid not null references auth.users(id),
   expires_at timestamptz not null default now() + interval '7 days',
@@ -120,9 +119,9 @@ begin
   if target_role not in ('admin','driver') then raise exception 'Rol de invitación no permitido'; end if;
   select organization_id into current_org from public.profiles where id = (select auth.uid());
   if current_org is null or not public.has_org_role(current_org,array['owner','admin']) then raise exception 'No tienes permiso para invitar miembros'; end if;
-  invite_code := encode(extensions.gen_random_bytes(24),'hex');
+  invite_code := replace(gen_random_uuid()::text || gen_random_uuid()::text,'-','');
   insert into public.organization_invites(organization_id,token_hash,role,created_by)
-  values (current_org,extensions.digest(invite_code,'sha256'),target_role,(select auth.uid()));
+  values (current_org,md5(invite_code),target_role,(select auth.uid()));
   return invite_code;
 end;
 $$;
