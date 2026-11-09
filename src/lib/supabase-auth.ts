@@ -40,6 +40,7 @@ function saveSession(session: AuthSession | null) {
   if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   else localStorage.removeItem(STORAGE_KEY);
 }
+let refreshPromise: Promise<AuthSession> | null = null;
 async function refreshSession(session: AuthSession): Promise<AuthSession> {
   const response = await fetch(endpoint("token?grant_type=refresh_token"), {
     method: "POST", headers: headers(), body: JSON.stringify({ refresh_token: session.refresh_token }),
@@ -53,8 +54,14 @@ export async function getValidSession(): Promise<AuthSession | null> {
   const session = readSession();
   if (!session) return null;
   if (session.expires_at && session.expires_at > Math.floor(Date.now() / 1000) + 60) return session;
-  try { return await refreshSession(session); }
-  catch { saveSession(null); return null; }
+  try {
+    refreshPromise ??= refreshSession(session).finally(() => { refreshPromise = null; });
+    return await refreshPromise;
+  } catch {
+    saveSession(null);
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("ruta-clara-auth-invalid"));
+    return null;
+  }
 }
 export async function signIn(email: string, password: string): Promise<AuthSession> {
   const response = await fetch(endpoint("token?grant_type=password"), {
