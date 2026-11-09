@@ -1,52 +1,54 @@
-// Estado en memoria solo para la demo visual. No persiste nada.
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { transition, type DeliveryAction, type DeliveryState, type OcrFields } from "@/domain/deliveries";
-
+import { listDeliveries, reorderDeliveries, transitionDelivery, updateDelivery, type DeliveryRecord } from "@/lib/supabase-data";
 export interface DemoStop extends OcrFields {
   id: string;
   state: DeliveryState;
   ambiguous?: boolean;
+  assigned_to?: string | null;
 }
-
-const seed: DemoStop[] = [
-  { id: "d1", recipientName: "Cliente DEMO 01", unitName: "Conjunto DEMO Alfa", address: "Calle 10 # 5-20, Bogotá", state: "completed" },
-  { id: "d2", recipientName: "Cliente DEMO 02", unitName: "Torre DEMO Beta", address: "Carrera 7 # 45-10, Bogotá", state: "completed" },
-  { id: "d3", recipientName: "Cliente DEMO 03", unitName: "Edificio DEMO Gamma", address: "Calle 72 # 11-30, Bogotá", state: "pending" },
-  { id: "d4", recipientName: "Cliente DEMO 04", unitName: "Conjunto DEMO Delta", address: "Cl 10 # 5-20, Bogotá", state: "pending" },
-  { id: "d5", recipientName: "Cliente DEMO 05", unitName: "", address: "Av. Calle 26 # 68-35, Bogotá", state: "pending" },
-  { id: "d6", recipientName: "Cliente DEMO 06", unitName: "Unidad DEMO Épsilon", address: "Calle 80 sur, Bogotá", state: "pending", ambiguous: true },
-  { id: "d7", recipientName: "Cliente DEMO 07", unitName: "Torre DEMO Zeta", address: "Carrera 15 # 93-60, Bogotá", state: "skipped" },
-];
-
-let stops = seed;
+let stops: DemoStop[] = [];
+let loading = false;
 const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((l) => l());
-
+const emit = () => listeners.forEach(listener => listener());
+function mapRecord(row: DeliveryRecord): DemoStop {
+  return { id: row.id, address: row.address, recipientName: row.recipient_name, unitName: row.unit_name, state: row.status, assigned_to: row.assigned_to };
+}
+async function load() {
+  if (loading) return;
+  loading = true;
+  try { stops = (await listDeliveries()).map(mapRecord); }
+  finally { loading = false; emit(); }
+}
 export const demoStore = {
-  subscribe(l: () => void) {
-    listeners.add(l);
-    return () => listeners.delete(l);
-  },
+  subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
   get: () => stops,
-  update(id: string, patch: Partial<OcrFields>) {
-    stops = stops.map((s) => (s.id === id ? { ...s, ...patch } : s));
+  async update(id: string, patch: Partial<OcrFields>) {
+    const updated = await updateDelivery(id, patch);
+    if (updated) stops = stops.map(stop => stop.id === id ? mapRecord(updated) : stop);
     emit();
   },
-  act(id: string, action: DeliveryAction) {
-    stops = stops.map((s) => (s.id === id ? { ...s, state: transition(s.state, action) } : s));
+  async act(id: string, action: DeliveryAction) {
+    const current = stops.find(stop => stop.id === id);
+    if (!current) return;
+    transition(current.state, action);
+    const updated = await transitionDelivery(id, action, current.state);
+    if (updated) stops = stops.map(stop => stop.id === id ? mapRecord(updated) : stop);
     emit();
   },
-  move(id: string, dir: -1 | 1) {
-    const i = stops.findIndex((s) => s.id === id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= stops.length) return;
+  async move(id: string, direction: -1 | 1) {
+    const index = stops.findIndex(stop => stop.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= stops.length) return;
     const next = [...stops];
-    [next[i], next[j]] = [next[j]!, next[i]!];
+    [next[index], next[target]] = [next[target]!, next[index]!];
     stops = next;
     emit();
+    await reorderDeliveries(stops.map(stop => stop.id));
   },
 };
-
 export function useDemoStops() {
-  return useSyncExternalStore(demoStore.subscribe, demoStore.get, () => seed);
+  const value = useSyncExternalStore(demoStore.subscribe, demoStore.get, () => []);
+  useEffect(() => { void load().catch(error => console.error("No se pudieron cargar las entregas:", error)); }, []);
+  return value;
 }
