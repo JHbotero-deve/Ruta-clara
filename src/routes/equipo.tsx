@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { createTeamInvite, listTeamMembers } from "@/lib/supabase-data";
+import { createTeamInvite, getMyMembership, listTeamMembers } from "@/lib/supabase-data";
 type Member = Awaited<ReturnType<typeof listTeamMembers>>[number];
 export const Route = createFileRoute("/equipo")({ component: TeamPage });
 function TeamPage() {
@@ -10,6 +10,7 @@ function TeamPage() {
   const [role, setRole] = useState<"driver" | "admin">("driver");
   const [invite, setInvite] = useState("");
   const [loading, setLoading] = useState(true);
+  const [canInvite, setCanInvite] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function refresh() {
@@ -18,7 +19,7 @@ function TeamPage() {
     catch (err) { setError(err instanceof Error ? err.message : "No se pudo cargar el equipo."); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); void getMyMembership().then(m => setCanInvite(m.role === "owner" || m.role === "admin")); }, []);
   async function generateInvite() {
     setBusy(true); setError(""); setInvite("");
     try { setInvite(await createTeamInvite(role)); }
