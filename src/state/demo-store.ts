@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { transition, type DeliveryAction, type DeliveryState, type OcrFields } from "@/domain/deliveries";
-import { listDeliveries, reorderDeliveries, transitionDelivery, updateDelivery, type DeliveryRecord } from "@/lib/supabase-data";
+import { createDelivery, listDeliveries, reorderDeliveries, transitionDelivery, updateDelivery, type DeliveryRecord } from "@/lib/supabase-data";
 export interface DemoStop extends OcrFields {
   id: string;
   state: DeliveryState;
@@ -23,6 +23,11 @@ async function load() {
 export const demoStore = {
   subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
   get: () => stops,
+  async add(fields: OcrFields, assignedTo?: string) {
+    const created = await createDelivery(fields, assignedTo);
+    if (created) stops = [...stops, mapRecord(created)];
+    emit();
+  },
   async update(id: string, patch: Partial<OcrFields>) {
     const updated = await updateDelivery(id, patch);
     if (updated) stops = stops.map(stop => stop.id === id ? mapRecord(updated) : stop);
