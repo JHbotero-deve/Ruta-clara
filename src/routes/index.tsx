@@ -8,7 +8,7 @@ import { pageHead } from "@/lib/seo";
 import { useDemoStops } from "@/state/demo-store";
 
 export const Route = createFileRoute("/")({
-  head: pageHead("Inicio", "Resumen de entregas del día en Ruta Clara (datos DEMO)."),
+  head: pageHead("Inicio", "Resumen de entregas de tu empresa."),
   component: Index,
 });
 
@@ -19,7 +19,7 @@ function Index() {
   const done = stops.filter((s) => s.state === "completed").length;
 
   return (
-    <AppShell title="Resumen del día" subtitle="Ruta DEMO · sin datos reales">
+    <AppShell title="Resumen del día" subtitle="Datos sincronizados con tu empresa">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Entregas totales" value={stops.length} />
         <Stat label="Pendientes" value={stops.filter((s) => s.state === "pending").length} />
