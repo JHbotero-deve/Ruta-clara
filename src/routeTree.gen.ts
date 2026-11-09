@@ -6,6 +6,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EntregasRouteImport } from './routes/entregas'
+import { Route as EquipoRouteImport } from './routes/equipo'
 import { Route as EscanerRouteImport } from './routes/escaner'
 import { Route as HistorialRouteImport } from './routes/historial'
 import { Route as LoginRouteImport } from './routes/login'
@@ -14,6 +15,7 @@ import { Route as RutaRouteImport } from './routes/ruta'
 import { Route as SeguridadRouteImport } from './routes/seguridad'
 const IndexRoute = IndexRouteImport.update({ id: '/', path: '/', getParentRoute: () => rootRouteImport } as any)
 const EntregasRoute = EntregasRouteImport.update({ id: '/entregas', path: '/entregas', getParentRoute: () => rootRouteImport } as any)
+const EquipoRoute = EquipoRouteImport.update({ id: '/equipo', path: '/equipo', getParentRoute: () => rootRouteImport } as any)
 const EscanerRoute = EscanerRouteImport.update({ id: '/escaner', path: '/escaner', getParentRoute: () => rootRouteImport } as any)
 const HistorialRoute = HistorialRouteImport.update({ id: '/historial', path: '/historial', getParentRoute: () => rootRouteImport } as any)
 const LoginRoute = LoginRouteImport.update({ id: '/login', path: '/login', getParentRoute: () => rootRouteImport } as any)
@@ -23,6 +25,8 @@ const SeguridadRoute = SeguridadRouteImport.update({ id: '/seguridad', path: '/s
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/entregas': typeof EntregasRoute
+  '/equipo': typeof EquipoRoute
+  '/equipo': typeof EquipoRoute
   '/escaner': typeof EscanerRoute
   '/historial': typeof HistorialRoute
   '/login': typeof LoginRoute
@@ -44,15 +48,16 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/entregas' | '/escaner' | '/historial' | '/login' | '/revision' | '/ruta' | '/seguridad'
+  fullPaths: '/' | '/entregas' | '/equipo' | '/escaner' | '/historial' | '/login' | '/revision' | '/ruta' | '/seguridad'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/entregas' | '/escaner' | '/historial' | '/login' | '/revision' | '/ruta' | '/seguridad'
-  id: '__root__' | '/' | '/entregas' | '/escaner' | '/historial' | '/login' | '/revision' | '/ruta' | '/seguridad'
+  to: '/' | '/entregas' | '/equipo' | '/escaner' | '/historial' | '/login' | '/revision' | '/ruta' | '/seguridad'
+  id: '__root__' | '/' | '/entregas' | '/equipo' | '/escaner' | '/historial' | '/login' | '/revision' | '/ruta' | '/seguridad'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EntregasRoute: typeof EntregasRoute
+  EquipoRoute: typeof EquipoRoute
   EscanerRoute: typeof EscanerRoute
   HistorialRoute: typeof HistorialRoute
   LoginRoute: typeof LoginRoute
@@ -64,6 +69,7 @@ declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/': { id: '/'; path: '/'; fullPath: '/'; preLoaderRoute: typeof IndexRouteImport; parentRoute: typeof rootRouteImport }
     '/entregas': { id: '/entregas'; path: '/entregas'; fullPath: '/entregas'; preLoaderRoute: typeof EntregasRouteImport; parentRoute: typeof rootRouteImport }
+    '/equipo': { id: '/equipo'; path: '/equipo'; fullPath: '/equipo'; preLoaderRoute: typeof EquipoRouteImport; parentRoute: typeof rootRouteImport }
     '/escaner': { id: '/escaner'; path: '/escaner'; fullPath: '/escaner'; preLoaderRoute: typeof EscanerRouteImport; parentRoute: typeof rootRouteImport }
     '/historial': { id: '/historial'; path: '/historial'; fullPath: '/historial'; preLoaderRoute: typeof HistorialRouteImport; parentRoute: typeof rootRouteImport }
     '/login': { id: '/login'; path: '/login'; fullPath: '/login'; preLoaderRoute: typeof LoginRouteImport; parentRoute: typeof rootRouteImport }
@@ -73,7 +79,7 @@ declare module '@tanstack/react-router' {
   }
 }
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute, EntregasRoute, EscanerRoute, HistorialRoute, LoginRoute, RevisionRoute, RutaRoute, SeguridadRoute,
+  IndexRoute, EntregasRoute, EquipoRoute, EscanerRoute, HistorialRoute, LoginRoute, RevisionRoute, RutaRoute, SeguridadRoute,
 }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
 import type { getRouter } from './router.tsx'
