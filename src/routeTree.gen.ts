@@ -26,7 +26,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/entregas': typeof EntregasRoute
   '/equipo': typeof EquipoRoute
-  '/equipo': typeof EquipoRoute
   '/escaner': typeof EscanerRoute
   '/historial': typeof HistorialRoute
   '/login': typeof LoginRoute
@@ -39,6 +38,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/entregas': typeof EntregasRoute
+  '/equipo': typeof EquipoRoute
   '/escaner': typeof EscanerRoute
   '/historial': typeof HistorialRoute
   '/login': typeof LoginRoute
