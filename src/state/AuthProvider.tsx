@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void restore();
     const onStorage = () => { void restore(); };
     window.addEventListener("storage", onStorage);
+    window.addEventListener("ruta-clara-auth-invalid", onStorage);
     return () => { active = false; window.removeEventListener("storage", onStorage); };
   }, []);
   const value = useMemo<AuthContextValue>(() => ({
