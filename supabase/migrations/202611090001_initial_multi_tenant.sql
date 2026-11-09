@@ -159,3 +159,20 @@ $$;
 drop policy if exists "users read own profile" on public.profiles;
 create policy "members read organization profiles" on public.profiles for select to authenticated
 using (public.is_org_member(organization_id));
+
+create or replace function public.validate_delivery_assignee()
+returns trigger language plpgsql set search_path = public
+as $$
+begin
+  if new.assigned_to is not null and not exists (
+    select 1 from public.memberships m
+    where m.organization_id = new.organization_id and m.user_id = new.assigned_to
+  ) then
+    raise exception 'El repartidor asignado no pertenece a esta empresa';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists validate_delivery_assignee_trigger on public.deliveries;
+create trigger validate_delivery_assignee_trigger before insert or update of assigned_to,organization_id
+on public.deliveries for each row execute procedure public.validate_delivery_assignee();
