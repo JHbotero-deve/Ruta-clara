@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Navigation } from "lucide-react";
 import { AppShell, DemoBadge, Stat } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { pageHead } from "@/lib/seo";
+import { getMyMembership } from "@/lib/supabase-data";
 import { demoStore, useDemoStops } from "@/state/demo-store";
 
 export const Route = createFileRoute("/ruta")({
@@ -14,6 +16,8 @@ const PINS: [number, number][] = [[18, 70], [30, 40], [48, 58], [60, 25], [72, 6
 
 function RoutePage() {
   const stops = useDemoStops().filter((s) => s.state !== "removed");
+  const [canReorder, setCanReorder] = useState(false);
+  useEffect(() => { void getMyMembership().then((membership) => setCanReorder(membership.role !== "driver")); }, []);
   return (
     <AppShell title="Ruta" subtitle="Orden manual · optimización: Próximamente">
       <div className="map-grid relative aspect-video overflow-hidden rounded-xl border">
@@ -42,8 +46,8 @@ function RoutePage() {
               <p className="truncate text-sm font-medium">{s.address}</p>
               <p className="truncate text-xs text-muted-foreground">{s.recipientName} · {s.unitName || "Sin unidad"}</p>
             </div>
-            <Button size="icon" variant="ghost" aria-label="Subir" disabled={i === 0} onClick={() => demoStore.move(s.id, -1)}><ArrowUp className="h-4 w-4" /></Button>
-            <Button size="icon" variant="ghost" aria-label="Bajar" disabled={i === stops.length - 1} onClick={() => demoStore.move(s.id, 1)}><ArrowDown className="h-4 w-4" /></Button>
+            {canReorder && <><Button size="icon" variant="ghost" aria-label="Subir" disabled={i === 0} onClick={() => void demoStore.move(s.id, -1)}><ArrowUp className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" aria-label="Bajar" disabled={i === stops.length - 1} onClick={() => void demoStore.move(s.id, 1)}><ArrowDown className="h-4 w-4" /></Button></>}
           </li>
         ))}
       </ol>
