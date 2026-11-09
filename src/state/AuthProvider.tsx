@@ -6,7 +6,7 @@ interface AuthContextValue {
   loading: boolean;
   configured: boolean;
   signIn(email: string, password: string): Promise<void>;
-  signUp(email: string, password: string, fullName: string, companyName: string): Promise<boolean>;
+  signUp(email: string, password: string, fullName: string, companyName: string, inviteCode: string): Promise<boolean>;
   signOut(): Promise<void>;
 }
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user, session, loading, configured: isSupabaseConfigured,
     async signIn(email, password) { const next = await authSignIn(email, password); setSession(next); setUser(next.user); },
     async signUp(email, password, fullName, companyName) {
-      const next = await authSignUp(email, password, fullName, companyName);
+      const next = await authSignUp(email, password, fullName, companyName, inviteCode);
       if (next) { setSession(next); setUser(next.user); return true; }
       return false;
     },
