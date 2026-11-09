@@ -38,5 +38,5 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
 }
 export function Stat({ label, value, tone = "default" }: { label: string; value: ReactNode; tone?: "default" | "success" | "warning" }) {
   const toneCls = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-foreground";
-  return <div className="rounded-lg border bg-card p-3"><p className="text-xs text-muted-foreground">{label}</p><p className={\`font-display text-2xl font-semibold \${toneCls}\`}>{value}</p></div>;
+  return <div className="rounded-lg border bg-card p-3"><p className="text-xs text-muted-foreground">{label}</p><p className={"font-display text-2xl font-semibold " + toneCls}>{value}</p></div>;
 }
