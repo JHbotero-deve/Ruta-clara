@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     user, session, loading, configured: isSupabaseConfigured,
     async signIn(email, password) { const next = await authSignIn(email, password); setSession(next); setUser(next.user); },
-    async signUp(email, password, fullName, companyName) {
+    async signUp(email, password, fullName, companyName, inviteCode) {
       const next = await authSignUp(email, password, fullName, companyName, inviteCode);
       if (next) { setSession(next); setUser(next.user); return true; }
       return false;
