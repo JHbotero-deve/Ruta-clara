@@ -39,7 +39,6 @@ function saveSession(session: AuthSession | null) {
   if (typeof window === "undefined") return;
   if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   else localStorage.removeItem(STORAGE_KEY);
-  window.dispatchEvent(new Event("ruta-clara-auth"));
 }
 async function refreshSession(session: AuthSession): Promise<AuthSession> {
   const response = await fetch(endpoint("token?grant_type=refresh_token"), {
