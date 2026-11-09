@@ -95,3 +95,68 @@ end;
 $$;
 revoke all on function public.update_assigned_delivery_status(uuid,text) from public;
 grant execute on function public.update_assigned_delivery_status(uuid,text) to authenticated;
+
+alter table public.profiles add column if not exists email text not null default '';
+alter table public.deliveries add column if not exists sort_order integer not null default 0;
+create table if not exists public.organization_invites (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  token_hash bytea not null unique,
+  role text not null check (role in ('admin','driver')),
+  created_by uuid not null references auth.users(id),
+  expires_at timestamptz not null default now() + interval '7 days',
+  used_at timestamptz,
+  used_by uuid references auth.users(id),
+  created_at timestamptz not null default now()
+);
+alter table public.organization_invites enable row level security;
+revoke all on public.organization_invites from anon,authenticated;
+create or replace function public.create_organization_invite(target_role text)
+returns text language plpgsql security definer set search_path = public
+as $$
+declare current_org uuid;
+declare invite_code text;
+begin
+  if target_role not in ('admin','driver') then raise exception 'Rol de invitación no permitido'; end if;
+  select organization_id into current_org from public.profiles where id = (select auth.uid());
+  if current_org is null or not public.has_org_role(current_org,array['owner','admin']) then raise exception 'No tienes permiso para invitar miembros'; end if;
+  invite_code := encode(gen_random_bytes(24),'hex');
+  insert into public.organization_invites(organization_id,token_hash,role,created_by)
+  values (current_org,digest(invite_code,'sha256'),target_role,(select auth.uid()));
+  return invite_code;
+end;
+$$;
+revoke all on function public.create_organization_invite(text) from public;
+grant execute on function public.create_organization_invite(text) to authenticated;
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public
+as $$
+declare new_org uuid;
+declare org_name text;
+declare invite_code text;
+declare invite_row public.organization_invites;
+declare new_role text;
+begin
+  invite_code := nullif(trim(new.raw_user_meta_data->>'invite_code'),'');
+  if invite_code is not null then
+    select * into invite_row from public.organization_invites
+    where token_hash = digest(invite_code,'sha256') and used_at is null and expires_at > now()
+    for update;
+    if invite_row.id is null then raise exception 'Código de invitación inválido o vencido'; end if;
+    new_org := invite_row.organization_id;
+    new_role := invite_row.role;
+    update public.organization_invites set used_at = now(), used_by = new.id where id = invite_row.id;
+  else
+    org_name := coalesce(nullif(trim(new.raw_user_meta_data->>'company_name'),''),'Empresa sin nombre');
+    insert into public.organizations(name) values (org_name) returning id into new_org;
+    new_role := 'owner';
+  end if;
+  insert into public.profiles(id,organization_id,full_name,email)
+  values (new.id,new_org,coalesce(new.raw_user_meta_data->>'full_name',''),coalesce(new.email,''));
+  insert into public.memberships(organization_id,user_id,role) values (new_org,new.id,new_role);
+  return new;
+end;
+$$;
+drop policy if exists "users read own profile" on public.profiles;
+create policy "members read organization profiles" on public.profiles for select to authenticated
+using (public.is_org_member(organization_id));
