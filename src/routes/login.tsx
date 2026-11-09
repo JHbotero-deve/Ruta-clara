@@ -10,6 +10,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,7 +20,7 @@ function LoginPage() {
     try {
       if (mode === "login") { await signIn(email.trim(), password); await navigate({ to: "/" }); }
       else {
-        const authenticated = await signUp(email.trim(), password, fullName.trim(), companyName.trim());
+        const authenticated = await signUp(email.trim(), password, fullName.trim(), companyName.trim(), inviteCode.trim());
         if (authenticated) await navigate({ to: "/" });
         else setMessage("Cuenta creada. Revisa tu correo para confirmar la dirección antes de iniciar sesión.");
       }
@@ -38,7 +39,8 @@ function LoginPage() {
         <form onSubmit={submit} className="mt-5 space-y-4">
           {mode === "signup" && <>
             <label className="block text-sm font-medium">Nombre completo<input required value={fullName} onChange={e => setFullName(e.target.value)} autoComplete="name" className="mt-1 h-10 w-full rounded-md border bg-background px-3" /></label>
-            <label className="block text-sm font-medium">Empresa<input required value={companyName} onChange={e => setCompanyName(e.target.value)} autoComplete="organization" className="mt-1 h-10 w-full rounded-md border bg-background px-3" /></label>
+            <label className="block text-sm font-medium">Empresa (si crearás una empresa nueva)<input required={!inviteCode.trim()} value={companyName} onChange={e => setCompanyName(e.target.value)} autoComplete="organization" className="mt-1 h-10 w-full rounded-md border bg-background px-3" /></label>
+            <label className="block text-sm font-medium">Código de invitación (opcional)<input value={inviteCode} onChange={e => setInviteCode(e.target.value)} autoComplete="off" className="mt-1 h-10 w-full rounded-md border bg-background px-3" /></label>
           </>}
           <label className="block text-sm font-medium">Correo electrónico<input required type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" className="mt-1 h-10 w-full rounded-md border bg-background px-3" /></label>
           <label className="block text-sm font-medium">Contraseña<input required minLength={8} type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} className="mt-1 h-10 w-full rounded-md border bg-background px-3" /></label>
