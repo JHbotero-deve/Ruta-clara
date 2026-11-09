@@ -178,5 +178,5 @@ begin
 end;
 $$;
 drop trigger if exists validate_delivery_assignee_trigger on public.deliveries;
-create trigger validate_delivery_assignee_trigger before insert or update of assigned_to,organization_id
+create trigger validate_delivery_assignee_trigger before insert or update of assigned_to,organization_id,created_by
 on public.deliveries for each row execute procedure public.validate_delivery_assignee();
