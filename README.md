@@ -10,7 +10,7 @@ PWA móvil en español para gestión de entregas de última milla con autenticac
 1. Crea un proyecto en Supabase.
 2. Ejecuta \`supabase/migrations/202611090001_initial_multi_tenant.sql\` en SQL Editor.
 3. Copia \`.env.example\` a \`.env.local\` y agrega la URL y la clave publicable/anon de Supabase.
-4. Configura la URL de retorno y confirmación de correo en Authentication > URL Configuration de Supabase.
+4. Configura la confirmación de correo en Authentication > URL Configuration.
 5. Ejecuta \`bun install\`, \`bun run dev\`, \`bun run test\` y \`bun run build\`.
 ## Variables de entorno
 - \`VITE_SUPABASE_URL\`: URL pública del proyecto Supabase.
@@ -19,12 +19,13 @@ Nunca agregues \`service_role\`, contraseñas de base de datos ni secretos de se
 ## Modelo de acceso
 - El primer usuario que se registra crea una organización y queda como \`owner\`.
 - Los roles definidos son \`owner\`, \`admin\` y \`driver\`.
+- Propietarios y administradores generan invitaciones de un solo uso, válidas por siete días.
+- Un usuario invitado se incorpora a la organización y recibe el rol de la invitación.
 - Los miembros solo consultan registros de su organización.
-- Propietarios y administradores gestionan entregas.
+- Propietarios y administradores gestionan entregas y asignaciones.
 - Los repartidores cambian el estado únicamente de las entregas asignadas mediante una función SQL controlada.
-La creación de usuarios adicionales y asignación de repartidores requiere implementar el flujo de invitaciones antes de operar con un equipo real.
-## Alcance pendiente
-- Invitaciones y administración de miembros.
-- Pruebas de integración con un proyecto Supabase real.
-- Escáner OCR local, geocodificación y optimización de rutas.
-- Despliegue con variables de entorno configuradas.
+## Pendiente antes de producción
+- Ejecutar la migración y probar el aislamiento entre dos organizaciones reales.
+- Probar registro, confirmación de correo, invitaciones y los tres roles.
+- Configurar variables de entorno en el hosting.
+- Completar escáner OCR local, geocodificación y optimización de rutas.
