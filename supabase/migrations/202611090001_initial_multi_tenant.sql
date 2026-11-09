@@ -122,7 +122,7 @@ begin
   if current_org is null or not public.has_org_role(current_org,array['owner','admin']) then raise exception 'No tienes permiso para invitar miembros'; end if;
   invite_code := encode(extensions.gen_random_bytes(24),'hex');
   insert into public.organization_invites(organization_id,token_hash,role,created_by)
-  values (current_org,extensions.extensions.digest(invite_code,'sha256'),target_role,(select auth.uid()));
+  values (current_org,extensions.digest(invite_code,'sha256'),target_role,(select auth.uid()));
   return invite_code;
 end;
 $$;
@@ -140,7 +140,7 @@ begin
   invite_code := nullif(trim(new.raw_user_meta_data->>'invite_code'),'');
   if invite_code is not null then
     select * into invite_row from public.organization_invites
-    where token_hash = digest(invite_code,'sha256') and used_at is null and expires_at > now()
+    where token_hash = extensions.digest(invite_code,'sha256') and used_at is null and expires_at > now()
     for update;
     if invite_row.id is null then raise exception 'Código de invitación inválido o vencido'; end if;
     new_org := invite_row.organization_id;
