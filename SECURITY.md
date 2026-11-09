@@ -1,32 +1,20 @@
 # SECURITY — Ruta Clara
-
-Estado: versión visual DEMO. Cámara y OCR **no** están activos. Los controles descritos son requisitos para la integración futura y deben pasar pruebas de seguridad antes de habilitarse.
-
-## Activos
-- Texto impreso de la zona inferior de la etiqueta: dirección, cliente/destinatario, nombre de unidad (datos personales).
-- Imagen capturada (temporal).
-- Claves de servicios de validación/rutas (solo backend).
-
-## Amenazas y controles
-
-| Amenaza | Control |
-|---|---|
-| Lectura de QR / códigos de barras / identificadores privados de Mercado Libre | Sin librerías QR/barcode en dependencias; sin detector de códigos; OCR solo sobre el recorte de la zona inferior autorizada; zonas superiores excluidas en la guía visual. |
-| OCR produce campos extra (ids, números de envío) | Allowlist estricta `address`, `recipientName`, `unitName` en `sanitizeOcrResult`; todo lo demás se rechaza y no se infiere. |
-| Exfiltración de imágenes | OCR local en el dispositivo; prohibido enviar imágenes a APIs externas. |
-| Persistencia de imágenes | No se guarda la imagen completa; el recorte temporal se descarta tras extraer texto. |
-| Recorte incorrecto incluye códigos | Si no se aísla la zona autorizada, se detiene el proceso y se pide recaptura manual. |
-| Permisos excesivos | Cámara solo al pulsar "Iniciar escaneo"; sin geolocalización hasta "Recalcular desde GPS". |
-| Exposición de claves API | Claves únicamente en funciones de servidor; nunca en el bundle del cliente. |
-| Fuga en logs | Los eventos registran acción/estado, nunca nombres, direcciones ni imágenes. |
-| Falsa sensación de seguridad | La UI no muestra sellos de seguridad; indica "lectura local", "zona autorizada detectada" y "códigos excluidos por diseño". |
-
-## Verificaciones antes de habilitar el escáner
-1. Auditoría de dependencias: ningún paquete de QR/barcode (zxing, quagga, jsqr, html5-qrcode, BarcodeDetector, etc.).
-2. Prueba de red: escanear sin tráfico saliente con imágenes.
-3. Prueba de allowlist con salidas OCR maliciosas.
-4. Prueba de recorte con etiquetas sintéticas (nunca reales).
-5. Revisión de almacenamiento: sin imágenes en IndexedDB/localStorage/caché.
-
-## Reporte
-Reporte vulnerabilidades al responsable del proyecto en privado.
+## Autenticación y aislamiento
+- Supabase Auth emite y renueva tokens de sesión.
+- La aplicación usa únicamente la clave publicable/anon en el navegador.
+- No se incluye ni se debe incluir la clave \`service_role\` en el frontend.
+- Cada usuario recibe una organización propia al registrarse.
+- Las tablas \`organizations\`, \`profiles\`, \`memberships\` y \`deliveries\` tienen Row Level Security habilitado.
+- Las políticas validan la membresía y el rol en PostgreSQL; ocultar botones en la interfaz no sustituye la autorización de base de datos.
+- El rol \`driver\` cambia estados solo en entregas asignadas mediante \`update_assigned_delivery_status\`.
+## Datos de entrega
+Los campos permitidos en el flujo OCR siguen siendo \`address\`, \`recipientName\` y \`unitName\`. No leer QR, códigos de barras ni identificadores codificados. Las imágenes no deben enviarse a APIs externas ni persistirse.
+## Antes de producción
+1. Ejecutar la migración en un proyecto Supabase nuevo y verificar todas las políticas RLS.
+2. Probar que un usuario de una organización no puede leer ni modificar filas de otra.
+3. Probar roles owner, admin y driver, incluida la asignación de entregas.
+4. Configurar confirmación de correo, recuperación de contraseña y URLs permitidas.
+5. Revisar dependencias y ejecutar pruebas automatizadas.
+6. Configurar HTTPS, variables de entorno y protección de despliegue.
+7. Habilitar cámara/OCR solo después de pruebas de recorte, privacidad y tráfico de red.
+Reporta vulnerabilidades al responsable del proyecto en privado.
