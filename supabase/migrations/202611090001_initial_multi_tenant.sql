@@ -75,7 +75,8 @@ create policy "members read own organization" on public.organizations for select
 create policy "owners admins update organization" on public.organizations for update to authenticated using (public.has_org_role(id,array['owner','admin'])) with check (public.has_org_role(id,array['owner','admin']));
 create policy "users read own profile" on public.profiles for select to authenticated using (id = (select auth.uid()));
 create policy "members read organization memberships" on public.memberships for select to authenticated using (public.is_org_member(organization_id));
-create policy "members read organization deliveries" on public.deliveries for select to authenticated using (public.is_org_member(organization_id));
+drop policy if exists "members read organization deliveries" on public.deliveries;
+create policy "members read allowed deliveries" on public.deliveries for select to authenticated using (public.has_org_role(organization_id,array['owner','admin']) or assigned_to = (select auth.uid()));
 create policy "admins manage deliveries" on public.deliveries for insert to authenticated with check (public.has_org_role(organization_id,array['owner','admin']) and created_by = (select auth.uid()));
 create policy "admins update deliveries" on public.deliveries for update to authenticated using (public.has_org_role(organization_id,array['owner','admin'])) with check (public.has_org_role(organization_id,array['owner','admin']));
 create policy "admins delete deliveries" on public.deliveries for delete to authenticated using (public.has_org_role(organization_id,array['owner','admin']));
@@ -164,6 +165,9 @@ create or replace function public.validate_delivery_assignee()
 returns trigger language plpgsql set search_path = public
 as $$
 begin
+  if tg_op = 'UPDATE' and (new.organization_id <> old.organization_id or new.created_by <> old.created_by) then
+    raise exception 'No se puede cambiar la empresa ni el creador de una entrega';
+  end if;
   if new.assigned_to is not null and not exists (
     select 1 from public.memberships m
     where m.organization_id = new.organization_id and m.user_id = new.assigned_to
