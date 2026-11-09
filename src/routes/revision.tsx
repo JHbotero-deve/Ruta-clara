@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { MAX_STOPS, findDuplicateIds, reviewStatus, type ReviewStatus } from "@/domain/deliveries";
+import { MAX_STOPS, findDuplicateIds, reviewStatus, type OcrFields, type ReviewStatus } from "@/domain/deliveries";
 import { pageHead } from "@/lib/seo";
 import { demoStore, useDemoStops } from "@/state/demo-store";
 
@@ -25,6 +25,16 @@ function Review() {
   const stops = useDemoStops().filter((s) => s.state !== "removed").slice(0, MAX_STOPS);
   const dups = findDuplicateIds(stops);
   const [confirmed, setConfirmed] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, Partial<OcrFields>>>({});
+  function updateDraft(id: string, field: keyof OcrFields, value: string) {
+    setDrafts((current) => ({ ...current, [id]: { ...current[id], [field]: value } }));
+  }
+  async function saveDraft(id: string) {
+    const patch = drafts[id];
+    if (!patch) return;
+    await demoStore.update(id, patch);
+    setDrafts((current) => { const next = { ...current }; delete next[id]; return next; });
+  }
 
   return (
     <AppShell title="Revisión de lectura" subtitle={`${stops.length} de ${MAX_STOPS} entregas · edite antes de confirmar`}>
@@ -41,10 +51,11 @@ function Review() {
                 <Badge variant={st.variant}>{st.label}</Badge>
               </div>
               <div className="grid gap-2 md:grid-cols-3">
-                <Input aria-label="Cliente" placeholder="Cliente" value={s.recipientName} onChange={(e) => demoStore.update(s.id, { recipientName: e.target.value })} />
-                <Input aria-label="Unidad" placeholder="Unidad" value={s.unitName} onChange={(e) => demoStore.update(s.id, { unitName: e.target.value })} />
-                <Input aria-label="Dirección" placeholder="Dirección" value={s.address} onChange={(e) => demoStore.update(s.id, { address: e.target.value })} />
+                <Input aria-label="Cliente" placeholder="Cliente" value={drafts[s.id]?.recipientName ?? s.recipientName} onChange={(e) => updateDraft(s.id, "recipientName", e.target.value)} />
+                <Input aria-label="Unidad" placeholder="Unidad" value={drafts[s.id]?.unitName ?? s.unitName} onChange={(e) => updateDraft(s.id, "unitName", e.target.value)} />
+                <Input aria-label="Dirección" placeholder="Dirección" value={drafts[s.id]?.address ?? s.address} onChange={(e) => updateDraft(s.id, "address", e.target.value)} />
               </div>
+              {drafts[s.id] && <Button size="sm" onClick={() => void saveDraft(s.id)}>Guardar cambios</Button>}
             </div>
           );
         })}
