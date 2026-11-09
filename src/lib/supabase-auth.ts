@@ -65,10 +65,10 @@ export async function signIn(email: string, password: string): Promise<AuthSessi
   saveSession(session);
   return session;
 }
-export async function signUp(email: string, password: string, fullName: string, companyName: string): Promise<AuthSession | null> {
+export async function signUp(email: string, password: string, fullName: string, companyName: string, inviteCode = ""): Promise<AuthSession | null> {
   const response = await fetch(endpoint("signup"), {
     method: "POST", headers: headers(),
-    body: JSON.stringify({ email, password, data: { full_name: fullName, company_name: companyName } }),
+    body: JSON.stringify({ email, password, data: { full_name: fullName, company_name: companyName, invite_code: inviteCode || null } }),
   });
   const data = await parseResponse<Partial<AuthSession> & { user?: AuthUser; expires_in?: number }>(response);
   if (!data.access_token || !data.refresh_token || !data.user) return null;
