@@ -1,0 +1,183 @@
+import json
+import urllib.parse
+import urllib.request
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+
+from database import get_db
+from src.auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_active_user,
+    get_password_hash,
+)
+from src.models import (
+    User,
+    Location,
+    Reference,
+    UserCreate,
+    UserResponse,
+    LocationCreate,
+    LocationResponse,
+    ReferenceCreate,
+    ReferenceResponse,
+    Token,
+)
+from src.route_optimizer import calculate_optimal_route
+
+router = APIRouter()
+
+# =====================================================================
+# Authentication & User Endpoints (Opcionales)
+# =====================================================================
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.username == user_in.username).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered",
+        )
+
+    hashed_pw = get_password_hash(user_in.password)
+    new_user = User(
+        username=user_in.username,
+        email=user_in.email,
+        hashed_password=hashed_pw,
+        disabled=user_in.disabled or False,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+
+@router.post("/token", response_model=Token)
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/users/me", response_model=UserResponse)
+def read_users_me(current_user: User = Depends(get_current_active_user)):
+    return current_user
+
+
+# =====================================================================
+# Geocoding & Address / Building Scanner Endpoint
+# =====================================================================
+
+@router.get("/geocode", tags=["Geocoding"])
+def search_address(query: str = Query(..., description="Dirección o nombre del edificio a buscar")):
+    """Escanea y busca la latitud, longitud y dirección exacta de un edificio o calle."""
+    try:
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&format=json&limit=5&addressdetails=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
+
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            results = []
+            for item in data:
+                results.append({
+                    "display_name": item.get("display_name"),
+                    "latitude": float(item.get("lat")),
+                    "longitude": float(item.get("lon")),
+                    "type": item.get("type"),
+                    "class": item.get("class")
+                })
+            return results
+    except Exception as e:
+        # Fallback si está sin internet
+        return [{
+            "display_name": f"Resultado simulado offline para: {query}",
+            "latitude": 4.6097,
+            "longitude": -74.0817,
+            "type": "building",
+            "class": "place"
+        }]
+
+
+# =====================================================================
+# Location Endpoints (Acceso Libre Sin Bloqueo de Token)
+# =====================================================================
+
+@router.get("/locations", response_model=List[LocationResponse])
+def read_locations(db: Session = Depends(get_db)):
+    locations = db.query(Location).all()
+    return locations
+
+
+@router.post("/locations", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
+def create_location(
+    location: LocationCreate,
+    db: Session = Depends(get_db)
+):
+    db_location = Location(
+        name=location.name,
+        latitude=location.latitude,
+        longitude=location.longitude,
+        address=location.address,
+    )
+    db.add(db_location)
+    db.commit()
+    db.refresh(db_location)
+    return db_location
+
+
+# =====================================================================
+# Reference Endpoints (Acceso Libre Sin Bloqueo de Token)
+# =====================================================================
+
+@router.get("/references", response_model=List[ReferenceResponse])
+def read_references(db: Session = Depends(get_db)):
+    references = db.query(Reference).all()
+    return references
+
+
+@router.post("/references", response_model=ReferenceResponse, status_code=status.HTTP_201_CREATED)
+def create_reference(
+    reference: ReferenceCreate,
+    db: Session = Depends(get_db)
+):
+    # Verify location exists
+    loc = db.query(Location).filter(Location.id == reference.location_id).first()
+    if not loc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Location with id {reference.location_id} not found"
+        )
+    db_reference = Reference(
+        description=reference.description,
+        location_id=reference.location_id,
+    )
+    db.add(db_reference)
+    db.commit()
+    db.refresh(db_reference)
+    return db_reference
+
+
+# =====================================================================
+# Route Optimization Endpoint (Acceso Libre Sin Bloqueo de Token)
+# =====================================================================
+
+@router.get("/optimal_route", response_model=List[LocationResponse])
+def get_optimal_route(db: Session = Depends(get_db)):
+    locations = db.query(Location).all()
+    if not locations:
+        return []
+    optimal_route_list = calculate_optimal_route(locations)
+    return optimal_route_list

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruta Clara - Guía de Navegación y Mapa Interactivo</title>
+    <link rel="stylesheet" href="/static/leaflet.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+
+        .navbar {
+            background-color: #0f172a;
+            color: #ffffff;
+            padding: 15px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .badge-free {
+            background-color: #10b981;
+            color: white;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+            min-height: calc(100vh - 80px);
+        }
+
+        @media (max-width: 950px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sidebar {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        .card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .card h2 {
+            font-size: 14px;
+            margin: 0 0 10px 0;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 3px;
+            color: #475569;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        input:focus {
+            outline: 2px solid #2563eb;
+            border-color: transparent;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 9px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn-success {
+            background-color: #059669;
+        }
+
+        .btn-success:hover {
+            background-color: #047857;
+        }
+
+        .btn-nav {
+            background-color: #ea580c;
+            margin-top: 6px;
+            font-size: 11px;
+            padding: 6px;
+        }
+
+        .btn-nav:hover {
+            background-color: #c2410c;
+        }
+
+        .search-results {
+            margin-top: 6px;
+            max-height: 140px;
+            overflow-y: auto;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: white;
+            display: none;
+        }
+
+        .search-item {
+            padding: 7px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .search-item:hover {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 650px;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-step-item {
+            padding: 10px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-left: 4px solid #ea580c;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .nav-step-item strong {
+            color: #0f172a;
+            font-size: 13px;
+        }
+
+        .hint-text {
+            font-size: 10px;
+            color: #64748b;
+            margin-top: 3px;
+        }
+
+        .total-summary {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="navbar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="/static/logo.svg" alt="Ruta Clara Logo" style="width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            <h1>🗺️ Ruta Clara - Guía de Navegación Paso a Paso</h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="/static/logo.svg" download="ruta_clara_logo.svg" class="badge-free" style="text-decoration: none; background-color: #2563eb; cursor: pointer; display: flex; align-items: center; gap: 4px;">📥 Descargar Logo</a>
+            <span class="badge-free">GPS Integrado</span>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <!-- TARJETA: BUSCADOR / ESCÁNER DE DIRECCIÓN Y EDIFICIO -->
+            <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
+                <h2>🔍 Escanear Dirección o Edificio</h2>
+                <div class="form-group">
+                    <label for="searchAddress">Buscar Edificio, Calle o Lugar</label>
+                    <input type="text" id="searchAddress" placeholder="Ej. Centro Comercial Andino, Bogotá" onkeyup="if(event.key==='Enter') searchLocation()">
+                    <div class="hint-text">Escribe la dirección y presiona Buscar para ubicarla en el mapa.</div>
+                </div>
+                <button type="button" class="btn" onclick="searchLocation()">🔍 Buscar Dirección</button>
+                <div id="searchResults" class="search-results"></div>
+            </div>
+
+            <!-- TARJETA: FORMULARIO REGISTRAR UBICACIÓN -->
+            <div class="card">
+                <h2>➕ Agregar a la Ruta</h2>
+                <form id="addLocationForm" onsubmit="handleAddLocation(event)">
+                    <div class="form-group">
+                        <label for="locName">Nombre de la Parada</label>
+                        <input type="text" id="locName" placeholder="Ej. Cliente 1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="locAddress">Dirección o Edificio</label>
+                        <input type="text" id="locAddress" placeholder="Ej. Calle 100 # 15-20">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div class="form-group">
+                            <label for="locLat">Latitud</label>
+                            <input type="number" step="any" id="locLat" placeholder="4.6097" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="locLng">Longitud</label>
+                            <input type="number" step="any" id="locLng" placeholder="-74.0817" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Guardar Parada</button>
+                </form>
+            </div>
+
+            <!-- TARJETA: GUÍA DE NAVEGACIÓN PASO A PASO -->
+            <div class="card" style="flex: 1;">
+                <h2>🧭 Guía de Navegación Paso a Paso</h2>
+                <button class="btn" onclick="loadOptimalRoute()" style="margin-bottom: 10px; background:#475569;">🔄 Actualizar Guía</button>
+                <div id="totalSummary" class="total-summary" style="display:none;">Distancia total estimada: <span id="totalDistKm">0</span> km</div>
+                <div class="nav-steps" id="navStepsList">
+                    <p style="font-size: 12px; color: #64748b; text-align: center;">Calculando ruta y guía de navegación...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+    <script src="/static/leaflet.js"></script>
+    <script>
+        let map;
+        let markersGroup = L.layerGroup();
+        let polylineGroup = L.layerGroup();
+        let tempMarker = null;
+
+        function initMap() {
+            map = L.map('map').setView([4.6097, -74.0817], 12);
+
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            markersGroup.addTo(map);
+            polylineGroup.addTo(map);
+
+            map.on('click', function(e) {
+                const lat = e.latlng.lat.toFixed(6);
+                const lng = e.latlng.lng.toFixed(6);
+
+                document.getElementById('locLat').value = lat;
+                document.getElementById('locLng').value = lng;
+                if (!document.getElementById('locName').value) {
+                    document.getElementById('locName').value = `Ubicación Mapa (${lat}, ${lng})`;
+                }
+
+                if (tempMarker) map.removeLayer(tempMarker);
+                tempMarker = L.marker([lat, lng]).addTo(map).bindPopup('Punto seleccionado').openPopup();
+            });
+
+            loadOptimalRoute();
+        }
+
+        async function searchLocation() {
+            const query = document.getElementById('searchAddress').value.trim();
+            if (!query) {
+                alert('Ingresa una dirección o nombre de edificio.');
+                return;
+            }
+
+            const resultsContainer = document.getElementById('searchResults');
+            resultsContainer.style.display = 'block';
+            resultsContainer.innerHTML = '<div class="search-item" style="color:#64748b;">Buscando...</div>';
+
+            try {
+                const res = await fetch(`/geocode?query=${encodeURIComponent(query)}`);
+                const data = await res.json();
+
+                resultsContainer.innerHTML = '';
+                if (!data || data.length === 0) {
+                    resultsContainer.innerHTML = '<div class="search-item" style="color:#ef4444;">Sin resultados.</div>';
+                    return;
+                }
+
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'search-item';
+                    div.innerHTML = `<strong>${item.display_name.split(',')[0]}</strong><br/><span style="color:#64748b; font-size:10px;">${item.display_name}</span>`;
+                    div.onclick = () => selectSearchResult(item);
+                    resultsContainer.appendChild(div);
+                });
+            } catch (err) {
+                console.error('Error:', err);
+                resultsContainer.innerHTML = '<div class="search-item" style="color:#ef4444;">Error de conexión.</div>';
+            }
+        }
+
+        function selectSearchResult(item) {
+            document.getElementById('searchResults').style.display = 'none';
+            document.getElementById('locName').value = item.display_name.split(',')[0];
+            document.getElementById('locAddress').value = item.display_name;
+            document.getElementById('locLat').value = item.latitude;
+            document.getElementById('locLng').value = item.longitude;
+
+            map.setView([item.latitude, item.longitude], 16);
+
+            if (tempMarker) map.removeLayer(tempMarker);
+            tempMarker = L.marker([item.latitude, item.longitude])
+                .addTo(map)
+                .bindPopup(`<b>${item.display_name.split(',')[0]}</b>`)
+                .openPopup();
+        }
+
+        async function loadOptimalRoute() {
+            try {
+                const res = await fetch('/optimal_route');
+                if (!res.ok) throw new Error('Error al cargar ruta');
+                const locations = await res.json();
+                renderNavigationGuide(locations);
+            } catch (err) {
+                console.error('Error:', err);
+                document.getElementById('navStepsList').innerHTML =
+                    '<p style="color:#ef4444; font-size:12px; text-align:center;">Error al conectar con el servidor.</p>';
+            }
+        }
+
+        function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radio de la tierra en km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function renderNavigationGuide(locations) {
+            markersGroup.clearLayers();
+            polylineGroup.clearLayers();
+            if (tempMarker) map.removeLayer(tempMarker);
+
+            const stepsContainer = document.getElementById('navStepsList');
+            const totalSummary = document.getElementById('totalSummary');
+            stepsContainer.innerHTML = '';
+
+            if (!locations || locations.length === 0) {
+                totalSummary.style.display = 'none';
+                stepsContainer.innerHTML = '<p style="color:#64748b; font-size:12px; text-align:center;">No hay paradas en la ruta. Agrega ubicaciones arriba.</p>';
+                return;
+            }
+
+            let totalDist = 0;
+            const points = [];
+
+            locations.forEach((loc, idx) => {
+                points.push([loc.latitude, loc.longitude]);
+
+                const markerIcon = L.divIcon({
+                    className: 'custom-icon',
+                    html: `<div style="background:#ea580c; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                let addrStr = loc.address ? `<br/><span style="color:#475569; font-size:11px;">${loc.address}</span>` : '';
+                const marker = L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
+                    .bindPopup(`<b>Parada ${idx + 1}: ${loc.name}</b>${addrStr}`);
+                markersGroup.addLayer(marker);
+            });
+
+            // Dibujar línea de ruta
+            if (points.length > 1) {
+                const polyline = L.polyline(points, {
+                    color: '#ea580c',
+                    weight: 4,
+                    opacity: 0.85,
+                    dashArray: '8, 8'
+                });
+                polylineGroup.addLayer(polyline);
+                map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+            } else if (points.length === 1) {
+                map.setView(points[0], 14);
+            }
+
+            // Generar pasos de navegación
+            locations.forEach((loc, idx) => {
+                let distText = "Punto de partida";
+                let segmentDist = 0;
+                if (idx > 0) {
+                    const prev = locations[idx - 1];
+                    segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
+                    totalDist += segmentDist;
+                    distText = `Distancia desde la parada anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                }
+
+                // Enlace GPS para Google Maps
+                const gpsUrl = `https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`;
+
+                const stepEl = document.createElement('div');
+                stepEl.className = 'nav-step-item';
+                stepEl.innerHTML = `
+                    <strong>Paso ${idx + 1}: ${loc.name}</strong>
+                    ${loc.address ? `<br/><span style="color:#475569; font-size:11px;">${loc.address}</span>` : ''}
+                    <br/><span style="color:#64748b; font-size:11px;">${distText}</span>
+                    <br/><a href="${gpsUrl}" target="_blank" class="btn btn-nav">🧭 Guiar con GPS (Google Maps)</a>
+                `;
+                stepsContainer.appendChild(stepEl);
+            });
+
+            if (locations.length > 1) {
+                totalSummary.style.display = 'block';
+                document.getElementById('totalDistKm').innerText = totalDist.toFixed(2);
+            } else {
+                totalSummary.style.display = 'none';
+            }
+        }
+
+        async function handleAddLocation(e) {
+            e.preventDefault();
+            const name = document.getElementById('locName').value.trim();
+            const address = document.getElementById('locAddress').value.trim();
+            const lat = parseFloat(document.getElementById('locLat').value);
+            const lng = parseFloat(document.getElementById('locLng').value);
+
+            if (!name || isNaN(lat) || isNaN(lng)) {
+                alert('Por favor ingresa datos válidos');
+                return;
+            }
+
+            try {
+                const response = await fetch('/locations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, address, latitude: lat, longitude: lng })
+                });
+
+                if (response.ok) {
+                    document.getElementById('addLocationForm').reset();
+                    loadOptimalRoute();
+                } else {
+                    alert('Error al guardar la parada');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error de conexión al guardar');
+            }
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+
+</html>
