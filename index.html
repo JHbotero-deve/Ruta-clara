@@ -4,89 +4,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ruta Clara - Guía de Navegación y Mapa Interactivo</title>
+    <title>Ruta Clara - Escáner Continuo y Optimización GPS</title>
     <link rel="stylesheet" href="/static/leaflet.css" />
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #059669;
+            --warning: #ea580c;
+            --bg-main: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
         * {
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #f8fafc;
-            color: #1e293b;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
+        /* Navbar Superior */
         .navbar {
             background-color: #0f172a;
             color: #ffffff;
-            padding: 15px 24px;
+            height: 64px;
+            padding: 0 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ffffff;
+            padding: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         .navbar h1 {
-            margin: 0;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
-        .badge-free {
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-download-logo {
+            background-color: #2563eb;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-download-logo:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .badge-status {
             background-color: #10b981;
             color: white;
-            font-size: 12px;
+            font-size: 11px;
             padding: 4px 10px;
             border-radius: 12px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .main-layout {
+        /* Layout Principal Full Screen */
+        .app-container {
             display: grid;
-            grid-template-columns: 400px 1fr;
-            gap: 20px;
-            padding: 20px;
-            max-width: 1600px;
-            margin: 0 auto;
-            min-height: calc(100vh - 80px);
+            grid-template-columns: 420px 1fr;
+            height: calc(100vh - 64px);
+            width: 100vw;
+            overflow: hidden;
         }
 
-        @media (max-width: 950px) {
-            .main-layout {
+        @media (max-width: 1024px) {
+            .app-container {
                 grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                height: calc(200vh - 64px);
+                overflow-y: auto;
             }
         }
 
+        /* Sidebar de Control */
         .sidebar {
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            max-height: calc(100vh - 120px);
+            height: 100%;
             overflow-y: auto;
+            padding: 20px;
+            gap: 16px;
         }
 
         .card {
             background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
         }
 
         .card h2 {
             font-size: 14px;
-            margin: 0 0 10px 0;
-            color: #0f172a;
+            font-weight: 700;
+            color: var(--text-main);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .form-group {
@@ -96,297 +167,394 @@
         label {
             display: block;
             font-size: 11px;
-            font-weight: 600;
-            margin-bottom: 3px;
+            font-weight: 700;
+            margin-bottom: 4px;
             color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         input {
             width: 100%;
-            padding: 8px;
+            padding: 9px 12px;
             border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            background: #ffffff;
+            transition: all 0.2s;
         }
 
         input:focus {
-            outline: 2px solid #2563eb;
-            border-color: transparent;
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
 
         .btn {
             width: 100%;
-            padding: 9px;
-            background-color: #2563eb;
+            padding: 10px;
+            background-color: var(--primary);
             color: white;
             border: none;
-            border-radius: 6px;
-            font-size: 12px;
+            border-radius: 8px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, transform 0.1s;
         }
 
         .btn:hover {
-            background-color: #1d4ed8;
+            background-color: var(--primary-dark);
+        }
+
+        .btn:active {
+            transform: scale(0.99);
         }
 
         .btn-success {
-            background-color: #059669;
+            background-color: var(--success);
         }
 
         .btn-success:hover {
             background-color: #047857;
         }
 
-        .btn-nav {
-            background-color: #ea580c;
+        .btn-camera {
+            background-color: #7c3aed;
             margin-top: 6px;
-            font-size: 11px;
-            padding: 6px;
+        }
+        .btn-camera:hover {
+            background-color: #6d28d9;
+        }
+
+        .btn-nav {
+            background-color: var(--warning);
+            margin-top: 8px;
+            font-size: 12px;
+            padding: 8px;
+            text-decoration: none;
+            display: block;
+            text-align: center;
+            border-radius: 6px;
+            color: white;
+            font-weight: 600;
+            transition: background 0.2s;
         }
 
         .btn-nav:hover {
             background-color: #c2410c;
         }
 
-        .search-results {
-            margin-top: 6px;
-            max-height: 140px;
-            overflow-y: auto;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            background: white;
-            display: none;
-        }
-
-        .search-item {
-            padding: 7px 10px;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 11px;
-            cursor: pointer;
-        }
-
-        .search-item:hover {
-            background-color: #eff6ff;
-            color: #1d4ed8;
-        }
-
+        /* Contenedor del Mapa */
         #map {
             width: 100%;
             height: 100%;
-            min-height: 650px;
-            border-radius: 12px;
-            border: 1px solid #cbd5e1;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            background: #e2e8f0;
         }
 
-        .nav-steps {
+        /* Guía de Navegación */
+        .nav-container {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(100vh - 460px);
+            padding-right: 4px;
         }
 
         .nav-step-item {
-            padding: 10px;
+            padding: 12px;
             background: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-left: 4px solid #ea580c;
-            border-radius: 6px;
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--warning);
+            border-radius: 8px;
             font-size: 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
         }
 
         .nav-step-item strong {
-            color: #0f172a;
+            color: var(--text-main);
             font-size: 13px;
-        }
-
-        .hint-text {
-            font-size: 10px;
-            color: #64748b;
-            margin-top: 3px;
         }
 
         .total-summary {
             background: #ecfdf5;
             border: 1px solid #a7f3d0;
             color: #065f46;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+        }
+
+        .hint-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            line-height: 1.3;
+        }
+
+        /* Scrollbars elegantes */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
 
 <body>
-    <div class="navbar">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <img src="/static/logo.svg" alt="Ruta Clara Logo" style="width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            <h1>🗺️ Ruta Clara - Guía de Navegación Paso a Paso</h1>
+    <!-- BARRA SUPERIOR PROFESIONAL -->
+    <header class="navbar">
+        <div class="brand-container">
+            <img src="/static/logo.svg" alt="Ruta Clara Logo" class="brand-logo">
+            <h1>Ruta Clara - Escáner Continuo y GPS</h1>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <a href="/static/logo.svg" download="ruta_clara_logo.svg" class="badge-free" style="text-decoration: none; background-color: #2563eb; cursor: pointer; display: flex; align-items: center; gap: 4px;">📥 Descargar Logo</a>
-            <span class="badge-free">GPS Integrado</span>
+        <div class="nav-actions">
+            <a href="/static/logo.svg" download="ruta_clara_logo.svg" class="btn-download-logo" title="Descargar Logo Oficial">
+                📥 Descargar Logo
+            </a>
+            <span class="badge-status">Modo Campo Rápido</span>
         </div>
-    </div>
+    </header>
 
-    <div class="main-layout">
-        <div class="sidebar">
-            <!-- TARJETA: BUSCADOR / ESCÁNER DE DIRECCIÓN Y EDIFICIO -->
+    <!-- LAYOUT PRINCIPAL -->
+    <div class="app-container">
+        <!-- BARRA LATERAL (ESCÁNER CONTINUO Y GUÍA) -->
+        <aside class="sidebar">
+            <!-- ESCÁNER CONTINUO DE RUTA -->
             <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
-                <h2>🔍 Escanear Dirección o Edificio</h2>
-                <div class="form-group">
-                    <label for="searchAddress">Buscar Edificio, Calle o Lugar</label>
-                    <input type="text" id="searchAddress" placeholder="Ej. Centro Comercial Andino, Bogotá" onkeyup="if(event.key==='Enter') searchLocation()">
-                    <div class="hint-text">Escribe la dirección y presiona Buscar para ubicarla en el mapa.</div>
+                <div class="card-header">
+                    <h2>⚡ Escáner Continuo de Ruta</h2>
                 </div>
-                <button type="button" class="btn" onclick="searchLocation()">🔍 Buscar Dirección</button>
-                <div id="searchResults" class="search-results"></div>
-            </div>
-
-            <!-- TARJETA: FORMULARIO REGISTRAR UBICACIÓN -->
-            <div class="card">
-                <h2>➕ Agregar a la Ruta</h2>
-                <form id="addLocationForm" onsubmit="handleAddLocation(event)">
+                <form id="continuousScanForm" onsubmit="handleContinuousScan(event)">
                     <div class="form-group">
-                        <label for="locName">Nombre de la Parada</label>
-                        <input type="text" id="locName" placeholder="Ej. Cliente 1" required>
+                        <label for="scanName">Referencia / Nombre (Opcional)</label>
+                        <input type="text" id="scanName" placeholder="Ej. Cliente Juan / Local 12">
                     </div>
                     <div class="form-group">
-                        <label for="locAddress">Dirección o Edificio</label>
-                        <input type="text" id="locAddress" placeholder="Ej. Calle 100 # 15-20">
+                        <label for="scanAddress">Dirección o Edificio a Escanear</label>
+                        <input type="text" id="scanAddress" placeholder="Ej. Calle 100 # 15-20, Bogotá" required autofocus>
+                        <div class="hint-text">Presiona Enter o Añadir para guardar y escanear la siguiente dirección sin salir.</div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <div class="form-group">
-                            <label for="locLat">Latitud</label>
-                            <input type="number" step="any" id="locLat" placeholder="4.6097" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="locLng">Longitud</label>
-                            <input type="number" step="any" id="locLng" placeholder="-74.0817" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-success">Guardar Parada</button>
+                    <button type="submit" class="btn btn-success">➕ Añadir a Ruta y Seguir Escaneando</button>
+                    <button type="button" class="btn btn-camera" onclick="openRearCamera()">📷 Activar Cámara Trasera (GPS)</button>
                 </form>
             </div>
 
-            <!-- TARJETA: GUÍA DE NAVEGACIÓN PASO A PASO -->
-            <div class="card" style="flex: 1;">
-                <h2>🧭 Guía de Navegación Paso a Paso</h2>
-                <button class="btn" onclick="loadOptimalRoute()" style="margin-bottom: 10px; background:#475569;">🔄 Actualizar Guía</button>
+            <!-- GUÍA DE NAVEGACIÓN PASO A PASO -->
+            <div class="card" style="display: flex; flex-direction: column; flex: 1;">
+                <div class="card-header" style="margin-bottom: 8px;">
+                    <h2>🧭 Ruta Óptima y Guía GPS</h2>
+                    <button onclick="loadOptimalRoute()" style="background: none; border: none; color: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer;">🔄 Actualizar</button>
+                </div>
                 <div id="totalSummary" class="total-summary" style="display:none;">Distancia total estimada: <span id="totalDistKm">0</span> km</div>
-                <div class="nav-steps" id="navStepsList">
-                    <p style="font-size: 12px; color: #64748b; text-align: center;">Calculando ruta y guía de navegación...</p>
+                <div class="nav-container" id="navStepsList">
+                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px;">Cargando ruta óptima y guía de navegación...</p>
                 </div>
             </div>
-        </div>
+        </aside>
 
-        <div id="map"></div>
+        <!-- MAPA INTERACTIVO -->
+        <main id="map"></main>
     </div>
 
+    <!-- MODAL DE CÁMARA TRASERA -->
+    <div id="cameraModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; flex-direction:column;">
+        <div style="background:white; padding:20px; border-radius:12px; width:90%; max-width:400px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+            <h3 style="margin-bottom:12px; font-size:16px; color:#0f172a;">📷 Cámara Trasera - Escáner de Campo</h3>
+            <video id="cameraStream" autoplay playsinline style="width:100%; height:260px; background:black; border-radius:8px; object-fit:cover;"></video>
+            <p style="font-size:11px; color:#64748b; margin-top:8px;">Apunta a la fachada y captura para registrar tus coordenadas GPS exactas.</p>
+            <div style="margin-top:14px; display:flex; gap:10px;">
+                <button class="btn btn-success" onclick="captureCameraLocation()">📸 Capturar Ubicación GPS</button>
+                <button class="btn" onclick="closeCamera()" style="background:#ef4444;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE MAPA, ESCÁNER CONTINUO Y OFFLINE -->
     <script src="/static/leaflet.js"></script>
     <script>
         let map;
         let markersGroup = L.layerGroup();
         let polylineGroup = L.layerGroup();
         let tempMarker = null;
+        let mediaStream = null;
 
         function initMap() {
-            map = L.map('map').setView([4.6097, -74.0817], 12);
+            map = L.map('map', { zoomControl: false }).setView([4.6097, -74.0817], 13);
+
+            L.control.zoom({ position: 'topright' }).addTo(map);
 
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
+                attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
 
             markersGroup.addTo(map);
             polylineGroup.addTo(map);
 
-            map.on('click', function(e) {
-                const lat = e.latlng.lat.toFixed(6);
-                const lng = e.latlng.lng.toFixed(6);
-
-                document.getElementById('locLat').value = lat;
-                document.getElementById('locLng').value = lng;
-                if (!document.getElementById('locName').value) {
-                    document.getElementById('locName').value = `Ubicación Mapa (${lat}, ${lng})`;
-                }
+            // Clic en mapa también añade punto rápido
+            map.on('click', async function(e) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                const name = `Parada Mapa (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                const address = `Coordenadas: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
                 if (tempMarker) map.removeLayer(tempMarker);
                 tempMarker = L.marker([lat, lng]).addTo(map).bindPopup('Punto seleccionado').openPopup();
+
+                await saveLocationAutomatically(name, address, lat, lng);
             });
 
             loadOptimalRoute();
         }
 
-        async function searchLocation() {
-            const query = document.getElementById('searchAddress').value.trim();
-            if (!query) {
-                alert('Ingresa una dirección o nombre de edificio.');
+        async function handleContinuousScan(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('scanName').value.trim();
+            const addressInput = document.getElementById('scanAddress').value.trim();
+
+            if (!addressInput) {
+                alert('Por favor ingresa una dirección.');
                 return;
             }
 
-            const resultsContainer = document.getElementById('searchResults');
-            resultsContainer.style.display = 'block';
-            resultsContainer.innerHTML = '<div class="search-item" style="color:#64748b;">Buscando...</div>';
+            const name = nameInput || `Parada #${Date.now().toString().slice(-4)}`;
+            const address = addressInput;
+
+            let lat = 4.6097;
+            let lng = -74.0817;
+
+            // Geocodificar dirección automáticamente mediante Nominatim
+            try {
+                const res = await fetch(`/geocode?query=${encodeURIComponent(address)}`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    lat = data[0].latitude;
+                    lng = data[0].longitude;
+                }
+            } catch (err) {
+                console.warn('Geocodificación offline, usando coordenadas por defecto.');
+            }
+
+            await saveLocationAutomatically(name, address, lat, lng);
+
+            // Limpiar y mantener el foco listo para la SIGUIENTE dirección sin salir
+            document.getElementById('scanName').value = '';
+            document.getElementById('scanAddress').value = '';
+            document.getElementById('scanAddress').focus();
+        }
+
+        async function saveLocationAutomatically(name, address, lat, lng) {
+            const locationData = { name, address, latitude: lat, longitude: lng };
+
+            // Guardar en caché offline
+            let offlineLocations = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
+            offlineLocations.push(locationData);
+            localStorage.setItem('ruta_clara_offline', JSON.stringify(offlineLocations));
 
             try {
-                const res = await fetch(`/geocode?query=${encodeURIComponent(query)}`);
-                const data = await res.json();
-
-                resultsContainer.innerHTML = '';
-                if (!data || data.length === 0) {
-                    resultsContainer.innerHTML = '<div class="search-item" style="color:#ef4444;">Sin resultados.</div>';
-                    return;
-                }
-
-                data.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'search-item';
-                    div.innerHTML = `<strong>${item.display_name.split(',')[0]}</strong><br/><span style="color:#64748b; font-size:10px;">${item.display_name}</span>`;
-                    div.onclick = () => selectSearchResult(item);
-                    resultsContainer.appendChild(div);
+                const response = await fetch('/locations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(locationData)
                 });
+
+                if (response.ok) {
+                    loadOptimalRoute();
+                }
             } catch (err) {
-                console.error('Error:', err);
-                resultsContainer.innerHTML = '<div class="search-item" style="color:#ef4444;">Error de conexión.</div>';
+                console.warn('Modo Offline: Guardado local.');
+                loadOptimalRoute();
             }
         }
 
-        function selectSearchResult(item) {
-            document.getElementById('searchResults').style.display = 'none';
-            document.getElementById('locName').value = item.display_name.split(',')[0];
-            document.getElementById('locAddress').value = item.display_name;
-            document.getElementById('locLat').value = item.latitude;
-            document.getElementById('locLng').value = item.longitude;
+        async function openRearCamera() {
+            const modal = document.getElementById('cameraModal');
+            modal.style.display = 'flex';
+            const video = document.getElementById('cameraStream');
 
-            map.setView([item.latitude, item.longitude], 16);
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: "environment" } }
+                });
+                video.srcObject = mediaStream;
+            } catch (err) {
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" }
+                    });
+                    video.srcObject = mediaStream;
+                } catch (err2) {
+                    alert('No se pudo acceder a la cámara trasera.');
+                    closeCamera();
+                }
+            }
+        }
 
-            if (tempMarker) map.removeLayer(tempMarker);
-            tempMarker = L.marker([item.latitude, item.longitude])
-                .addTo(map)
-                .bindPopup(`<b>${item.display_name.split(',')[0]}</b>`)
-                .openPopup();
+        function closeCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            document.getElementById('cameraModal').style.display = 'none';
+        }
+
+        function captureCameraLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const name = `Parada GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                    const address = "Ubicación capturada con cámara GPS";
+
+                    closeCamera();
+                    map.setView([lat, lng], 16);
+
+                    if (tempMarker) map.removeLayer(tempMarker);
+                    tempMarker = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+
+                    saveLocationAutomatically(name, address, lat, lng);
+                }, err => {
+                    alert('No se pudo obtener la posición GPS.');
+                }, { enableHighAccuracy: true });
+            } else {
+                alert('La geolocalización no es compatible.');
+            }
         }
 
         async function loadOptimalRoute() {
             try {
                 const res = await fetch('/optimal_route');
-                if (!res.ok) throw new Error('Error al cargar ruta');
-                const locations = await res.json();
+                if (!res.ok) throw new Error('Error al cargar la ruta');
+                let locations = await res.json();
+
+                if ((!locations || locations.length === 0) && localStorage.getItem('ruta_clara_offline')) {
+                    locations = JSON.parse(localStorage.getItem('ruta_clara_offline'));
+                }
+
                 renderNavigationGuide(locations);
             } catch (err) {
-                console.error('Error:', err);
-                document.getElementById('navStepsList').innerHTML =
-                    '<p style="color:#ef4444; font-size:12px; text-align:center;">Error al conectar con el servidor.</p>';
+                const offlineLocations = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
+                renderNavigationGuide(offlineLocations);
             }
         }
 
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Radio de la tierra en km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -407,7 +575,7 @@
 
             if (!locations || locations.length === 0) {
                 totalSummary.style.display = 'none';
-                stepsContainer.innerHTML = '<p style="color:#64748b; font-size:12px; text-align:center;">No hay paradas en la ruta. Agrega ubicaciones arriba.</p>';
+                stepsContainer.innerHTML = '<p style="color:var(--text-muted); font-size:12px; text-align:center; padding: 20px;">No hay paradas en la ruta. Usa el escáner continuo.</p>';
                 return;
             }
 
@@ -419,32 +587,30 @@
 
                 const markerIcon = L.divIcon({
                     className: 'custom-icon',
-                    html: `<div style="background:#ea580c; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">${idx + 1}</div>`,
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
+                    html: `<div style="background:#ea580c; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
                 });
 
-                let addrStr = loc.address ? `<br/><span style="color:#475569; font-size:11px;">${loc.address}</span>` : '';
+                let addrStr = loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${loc.address}</span>` : '';
                 const marker = L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
                     .bindPopup(`<b>Parada ${idx + 1}: ${loc.name}</b>${addrStr}`);
                 markersGroup.addLayer(marker);
             });
 
-            // Dibujar línea de ruta
             if (points.length > 1) {
                 const polyline = L.polyline(points, {
                     color: '#ea580c',
-                    weight: 4,
+                    weight: 5,
                     opacity: 0.85,
                     dashArray: '8, 8'
                 });
                 polylineGroup.addLayer(polyline);
-                map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+                map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
             } else if (points.length === 1) {
                 map.setView(points[0], 14);
             }
 
-            // Generar pasos de navegación
             locations.forEach((loc, idx) => {
                 let distText = "Punto de partida";
                 let segmentDist = 0;
@@ -452,19 +618,18 @@
                     const prev = locations[idx - 1];
                     segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
                     totalDist += segmentDist;
-                    distText = `Distancia desde la parada anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                    distText = `Distancia desde parada anterior: <b>${segmentDist.toFixed(2)} km</b>`;
                 }
 
-                // Enlace GPS para Google Maps
                 const gpsUrl = `https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`;
 
                 const stepEl = document.createElement('div');
                 stepEl.className = 'nav-step-item';
                 stepEl.innerHTML = `
                     <strong>Paso ${idx + 1}: ${loc.name}</strong>
-                    ${loc.address ? `<br/><span style="color:#475569; font-size:11px;">${loc.address}</span>` : ''}
-                    <br/><span style="color:#64748b; font-size:11px;">${distText}</span>
-                    <br/><a href="${gpsUrl}" target="_blank" class="btn btn-nav">🧭 Guiar con GPS (Google Maps)</a>
+                    ${loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${loc.address}</span>` : ''}
+                    <br/><span style="color:var(--text-muted); font-size:11px;">${distText}</span>
+                    <a href="${gpsUrl}" target="_blank" class="btn-nav">🧭 Guiar con GPS (Google Maps)</a>
                 `;
                 stepsContainer.appendChild(stepEl);
             });
@@ -474,37 +639,6 @@
                 document.getElementById('totalDistKm').innerText = totalDist.toFixed(2);
             } else {
                 totalSummary.style.display = 'none';
-            }
-        }
-
-        async function handleAddLocation(e) {
-            e.preventDefault();
-            const name = document.getElementById('locName').value.trim();
-            const address = document.getElementById('locAddress').value.trim();
-            const lat = parseFloat(document.getElementById('locLat').value);
-            const lng = parseFloat(document.getElementById('locLng').value);
-
-            if (!name || isNaN(lat) || isNaN(lng)) {
-                alert('Por favor ingresa datos válidos');
-                return;
-            }
-
-            try {
-                const response = await fetch('/locations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, address, latitude: lat, longitude: lng })
-                });
-
-                if (response.ok) {
-                    document.getElementById('addLocationForm').reset();
-                    loadOptimalRoute();
-                } else {
-                    alert('Error al guardar la parada');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                alert('Error de conexión al guardar');
             }
         }
 

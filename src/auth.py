@@ -20,14 +20,20 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        # Bcrypt has a strict 72-byte limit
+        truncated_password = plain_password[:72] if plain_password else ""
+        return pwd_context.verify(truncated_password, hashed_password)
     except Exception:
-        return False
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception:
+            return False
 
 
 def get_password_hash(password: str) -> str:
     try:
-        return pwd_context.hash(password)
+        truncated_password = password[:72] if password else ""
+        return pwd_context.hash(truncated_password)
     except Exception:
         from passlib.hash import pbkdf2_sha256
         return pbkdf2_sha256.hash(password)
