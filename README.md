@@ -1,175 +1,112 @@
-# Ruta Clara 🚚🗺️
+# Ruta Clara
 
-**Ruta Clara** es una API RESTful profesional desarrollada con **FastAPI**, **SQLAlchemy** y **Pydantic** diseñada para la gestión de ubicaciones, referencias y la optimización inteligente de rutas utilizando el algoritmo **Haversine** y resolución óptima del Problema del Viajante (TSP).
+API y aplicación web para registrar ubicaciones, gestionar referencias y ordenar paradas de reparto con FastAPI, SQLAlchemy y Leaflet.
 
----
+## Requisitos
 
-## 📋 Tabla de Contenidos
+- Docker Engine y Docker Compose v2.
+- Git para clonar el repositorio.
 
-1. [Características Principales](#-características-principales)
-2. [Arquitectura del Proyecto](#-arquitectura-del-proyecto)
-3. [Requisitos Previos](#-requisitos-previos)
-4. [Instalación y Configuración](#-instalación-y-configuración)
-5. [Variables de Entorno](#-variables-de-entorno)
-6. [Ejecución con Docker](#-ejecución-con-docker)
-7. [Documentación de la API (Endpoints)](#-documentación-de-la-api-endpoints)
-8. [Visualizador Frontend](#-visualizador-frontend)
-9. [Seguridad y Producción](#-seguridad-y-producción)
+## Inicio rápido
 
----
-
-## 🚀 Características Principales
-
-- **Mapa Interno Integrado (Sin API Keys)**: Motor de mapas interactivo basado en **Leaflet.js** y **OpenStreetMap** servido directamente por la aplicación en `/map` sin depender de Google Maps ni claves externas.
-- **Cálculo y Optimización de Rutas**: Algoritmo `Haversine` para distancias esféricas reales en la Tierra y motor híbrido de optimización de rutas (Fuerza Bruta exacta para $N \le 8$ y heurística *Nearest Neighbor* para conjuntos mayores).
-- **Gestión de Ubicaciones y Referencias**: Modelado ORM completo con SQLAlchemy y validación estricta de datos de entrada/salida mediante esquemas Pydantic v2.
-- **Preparado para Producción**: Configuración flexible con variables de entorno (`DATABASE_URL`, `SECRET_KEY`, `ALLOWED_ORIGINS`), middleware CORS, Dockerfile optimizado y `docker-compose.yml`.
-- **Documentación OpenAPI Automática**: Swagger UI interactivo disponible nativamente en `/docs` y Redoc en `/redoc`.
-
----
-
-## 🏗️ Arquitectura del Proyecto
-
-```text
-ruta clara/
-├── database.py              # Configuración de SQLAlchemy y gestión de la sesión get_db
-├── index.html               # Visualizador web con Google Maps API
-├── requirements.txt         # Dependencias de producción
-├── Dockerfile               # Imagen Docker de producción
-├── docker-compose.yml       # Orquestación de servicios
-├── .env.example             # Plantilla de variables de entorno
-├── .gitignore               # Exclusiones para control de versiones
-├── README.md                # Documentación del proyecto
-└── src/
-    ├── __init__.py
-    ├── main.py              # Punto de entrada FastAPI, CORS y middleware
-    ├── models.py            # Modelos ORM (SQLAlchemy) y Esquemas DTO (Pydantic)
-    ├── auth.py              # Lógica de seguridad, JWT y hashing de contraseñas
-    ├── routes.py            # Enrutador principal de endpoints RESTful
-    └── route_optimizer.py   # Algoritmo Haversine y cálculo de ruta óptima
-```
-
----
-
-## 🛠️ Requisitos Previos
-
-- **Python**: 3.10 o superior.
-- **Docker y Docker Compose** (Opcional, para despliegue en contenedores).
-
----
-
-## 💻 Instalación y Configuración
-
-### 1. Clonar el Repositorio
 ```bash
-git clone https://github.com/tu-usuario/ruta-clara.git
-cd "ruta clara"
-```
-
-### 2. Crear y Activar Entorno Virtual
-```bash
-# Linux/macOS
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Windows (PowerShell)
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-
-### 3. Instalar Dependencias
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 4. Configurar Variables de Entorno
-Copia la plantilla `.env.example` a un archivo `.env`:
-```bash
+git clone https://github.com/JHbotero-deve/Ruta-clara.git
+cd Ruta-clara
 cp .env.example .env
 ```
 
----
+Genera una clave segura y reemplaza `SECRET_KEY` dentro de `.env`:
 
-## 🔑 Variables de Entorno
-
-| Variable | Descripción | Valor por Defecto |
-| :--- | :--- | :--- |
-| `SECRET_KEY` | Clave secreta para firmar tokens JWT | *Cadena generada para desarrollo* |
-| `ALGORITHM` | Algoritmo de firma JWT | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Tiempo de expiración del token (en minutos) | `30` |
-| `DATABASE_URL` | String de conexión a base de datos (SQLite, PostgreSQL, MySQL) | `sqlite:///./app.db` |
-| `ALLOWED_ORIGINS` | Orígenes permitidos para CORS (separados por coma) | `*` |
-
----
-
-## 🐳 Ejecución con Docker
-
-### Con Docker Compose (Recomendado)
 ```bash
-docker-compose up --build -d
-```
-La API estará disponible inmediatamente en `http://localhost:8000`.
-
-### Con Docker CLI
-```bash
-docker build -t ruta-clara-api .
-docker run -d -p 8000:8000 --name ruta-clara-app ruta-clara-api
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
----
+En Windows PowerShell también puedes ejecutar el mismo comando si tienes Python instalado. Luego inicia el contenedor de producción:
 
-## 📖 Documentación de la API (Endpoints)
+```bash
+docker compose up -d --build
+```
 
-Una vez iniciada la aplicación, explora la documentación interactiva Swagger en **`http://localhost:8000/docs`**.
+Abre:
 
-### Resumen de Endpoints Principales
+- Aplicación: http://localhost:8004/map
+- API: http://localhost:8004/docs
+- Estado: http://localhost:8004/health
 
-#### 🔐 Autenticación y Usuarios
-- `POST /register`: Registro de un nuevo usuario.
-- `POST /token`: Autenticación y obtención de Token JWT (`OAuth2PasswordRequestForm`).
-- `GET /users/me`: Información del usuario actual autenticado.
+## Desarrollo con recarga automática
 
-#### 📍 Ubicaciones (`/locations`)
-- `GET /locations`: Obtiene todas las ubicaciones almacenadas.
-- `POST /locations`: Registra una nueva ubicación con nombre, latitud y longitud.
+Para trabajar en el código, usa el archivo de desarrollo adicional. Monta el proyecto dentro del contenedor y activa Uvicorn `--reload`; los cambios en Python, HTML, JavaScript, CSS, JSON y SVG reinician o actualizan el servidor automáticamente.
 
-#### 🔖 Referencias (`/references`)
-- `GET /references`: Lista todas las referencias asociadas a ubicaciones.
-- `POST /references`: Asocia una nueva referencia descriptiva a una ubicación existente.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f web
+```
 
-#### 🛣️ Ruta Óptima (`/optimal_route`)
-- `GET /optimal_route`: Calcula y devuelve la secuencia ordenada de ubicaciones que minimiza la distancia total recorrida.
+Para detener el entorno de desarrollo:
 
----
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+```
 
-## 🗺️ Visualizador Frontend (Mapa Interno Integrado)
+Para volver al modo de producción:
 
-El proyecto incluye un visualizador de mapa interno integrado servido directamente en **`http://localhost:8000/map`** utilizando **Leaflet.js** y **OpenStreetMap** (100% gratuito, autónomo y sin cuotas ni claves de Google Maps).
+```bash
+docker compose up -d --build
+```
 
-1. Abre tu navegador e ingresa a **`http://localhost:8000/map`**.
-2. Introduce tu **Token JWT de acceso** generado en `/token`.
-3. Haz clic en **Cargar Ruta Óptima** para visualizar la secuencia ordenada de paradas, números en cada punto, detalles en popups y la línea trazada de navegación.
+## Operación diaria
 
----
+Reconstruir y reiniciar después de cambios en dependencias o Docker:
 
-## 🛡️ Seguridad y Producción
+```bash
+docker compose up -d --build
+```
 
-- **Generación de SECRET_KEY**: En entornos de producción, genera una clave segura ejecutando:
-  ```bash
-  openssl rand -hex 32
-  ```
-- **Base de Datos en Producción**: Cambia `DATABASE_URL` en `.env` a una instancia manejada como PostgreSQL o MySQL:
-  ```env
-  DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/ruta_clara_db
-  ```
-- **Ejecución del Servidor**: Para despliegues en servidores de producción, utiliza Uvicorn supervisado por Gunicorn:
-  ```bash
-  gunicorn src.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-  ```
+Ver logs:
 
----
+```bash
+docker compose logs -f web
+```
 
-## 📄 Licencia
+Reiniciar sin reconstruir:
 
-Este proyecto está distribuido bajo la licencia MIT.
+```bash
+docker compose restart web
+```
+
+Comprobar estado:
+
+```bash
+docker compose ps
+```
+
+La base SQLite se conserva en el volumen Docker `ruta-clara-data`. `docker compose down` no elimina ese volumen. **No ejecutes `docker compose down -v`** salvo que quieras borrar también la base de datos persistida.
+
+## Variables de entorno
+
+Configura estas variables en `.env`:
+
+| Variable | Uso |
+|---|---|
+| `SECRET_KEY` | Clave privada para firmar tokens. Debe ser única y segura. |
+| `ALLOWED_ORIGINS` | Orígenes CORS permitidos, separados por coma. |
+| `DATABASE_URL` | La composición Docker define SQLite persistente en `/app/data/app.db`. |
+
+## Mapa y funcionamiento sin conexión
+
+Leaflet y sus archivos estáticos se sirven desde el propio proyecto. Esto no significa que el mapa base ni la geocodificación funcionen completamente sin Internet: el paquete de teselas MBTiles del Valle de Aburrá no está incluido en el repositorio y debe instalarse por separado. El endpoint `/offline-map/status` permite comprobar si el archivo está disponible. Sin ese paquete, no se debe considerar listo el mapa geográfico offline.
+
+## Endpoints principales
+
+- `GET /health`: estado de la API.
+- `GET /geocode?query=...`: búsqueda de direcciones.
+- `GET /locations` y `POST /locations`: gestión de ubicaciones.
+- `GET /optimal_route`: cálculo del orden de paradas.
+- `GET /offline-map/status`: estado del paquete MBTiles.
+- `GET /docs`: documentación interactiva OpenAPI.
+
+## Notas
+
+- El puerto público de Docker es `8004`; el puerto interno del contenedor es `8000`.
+- No publiques el archivo `.env` ni compartas la clave `SECRET_KEY`.
+- El modo de desarrollo con `--reload` no debe utilizarse como configuración de producción.
