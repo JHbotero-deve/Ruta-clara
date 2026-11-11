@@ -178,13 +178,17 @@
                 box-shadow: 0 1px 3px rgba(0,0,0,0.03);
             }
             .map-card-wrapper {
+                display: none; /* Oculto por defecto en celular para espacio 100% limpio */
                 margin: 0;
-                height: 440px;
+                height: 400px;
                 flex-shrink: 0;
                 border-radius: 12px;
             }
+            .map-card-wrapper.mobile-visible {
+                display: flex; /* Visible cuando el usuario pulsa Ver Mapa */
+            }
             #map {
-                height: 380px;
+                height: 340px;
             }
         }
 
@@ -424,8 +428,9 @@
                         <button onclick="clearAllLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer;" title="Borrar toda la ruta">🗑️ Borrar Ruta</button>
                     </div>
                 </div>
-                <div style="margin-bottom: 8px;">
-                    <button onclick="downloadWeeklyHistory()" class="btn" style="background:#0284c7; color:white; font-size:11px; padding:6px 10px; width:100%; border-radius:6px; font-weight:600;">📥 Descargar Historial Semanal (CSV)</button>
+                <div style="margin-bottom: 8px; display:flex; gap:6px;">
+                    <button onclick="downloadWeeklyHistory()" class="btn" style="background:#0284c7; color:white; font-size:11px; padding:6px 10px; flex:1; border-radius:6px; font-weight:600;">📥 Descargar CSV</button>
+                    <button onclick="toggleMobileMap()" id="toggleMapBtn" class="btn" style="background:#475569; color:white; font-size:11px; padding:6px 10px; flex:1; border-radius:6px; font-weight:600;">🗺️ Ver Mapa</button>
                 </div>
                 <div id="totalSummary" class="total-summary" style="display:none;">Distancia total estimada: <span id="totalDistKm">0</span> km</div>
                 <div class="nav-container" id="navStepsList">
@@ -767,6 +772,19 @@
 
         function downloadWeeklyHistory() {
             window.location.href = '/export/weekly_routes';
+        }
+
+        function toggleMobileMap() {
+            const mapCard = document.querySelector('.map-card-wrapper');
+            const btn = document.getElementById('toggleMapBtn');
+            if (mapCard.classList.contains('mobile-visible')) {
+                mapCard.classList.remove('mobile-visible');
+                btn.innerText = '🗺️ Ver Mapa';
+            } else {
+                mapCard.classList.add('mobile-visible');
+                btn.innerText = '🗺️ Ocultar Mapa';
+                setTimeout(() => { map.invalidateSize(); }, 200);
+            }
         }
 
         // Registrar Service Worker para PWA (modo offline e instalación en celular)
