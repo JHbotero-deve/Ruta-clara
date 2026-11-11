@@ -417,9 +417,15 @@
 
             <!-- GUÍA DE NAVEGACIÓN PASO A PASO -->
             <div class="card" style="display: flex; flex-direction: column; flex: 1;">
-                <div class="card-header" style="margin-bottom: 8px;">
+                <div class="card-header" style="margin-bottom: 6px;">
                     <h2>🧭 Ruta Óptima y Guía GPS</h2>
-                    <button onclick="loadOptimalRoute()" style="background: none; border: none; color: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer;">🔄 Actualizar</button>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="loadOptimalRoute()" style="background: none; border: none; color: var(--primary); font-size: 11px; font-weight: 600; cursor: pointer;" title="Actualizar">🔄 Actualizar</button>
+                        <button onclick="clearAllLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer;" title="Borrar toda la ruta">🗑️ Borrar Ruta</button>
+                    </div>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <button onclick="downloadWeeklyHistory()" class="btn" style="background:#0284c7; color:white; font-size:11px; padding:6px 10px; width:100%; border-radius:6px; font-weight:600;">📥 Descargar Historial Semanal (CSV)</button>
                 </div>
                 <div id="totalSummary" class="total-summary" style="display:none;">Distancia total estimada: <span id="totalDistKm">0</span> km</div>
                 <div class="nav-container" id="navStepsList">
@@ -701,9 +707,14 @@
                 const stepEl = document.createElement('div');
                 stepEl.className = 'nav-step-item';
                 stepEl.innerHTML = `
-                    <strong>Paso ${idx + 1}: ${loc.name}</strong>
-                    ${loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${loc.address}</span>` : ''}
-                    <br/><span style="color:var(--text-muted); font-size:11px;">${distText}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
+                        <div style="flex:1;">
+                            <strong>Paso ${idx + 1}: ${loc.name}</strong>
+                            ${loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${loc.address}</span>` : ''}
+                            <br/><span style="color:var(--text-muted); font-size:11px;">${distText}</span>
+                        </div>
+                        <button onclick="deleteLocation(${loc.id})" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:600; cursor:pointer; flex-shrink:0;" title="Eliminar parada">❌ Eliminar</button>
+                    </div>
                     <a href="${gpsUrl}" target="_blank" class="btn-nav">🧭 Guiar con GPS (Google Maps)</a>
                 `;
                 stepsContainer.appendChild(stepEl);
@@ -715,6 +726,37 @@
             } else {
                 totalSummary.style.display = 'none';
             }
+        }
+
+        // Gestión de Ruta e Historial Semanal
+        async function deleteLocation(id) {
+            if (!confirm('¿Estás seguro de eliminar esta parada de la ruta?')) return;
+            try {
+                await fetch(`/locations/${id}`, { method: 'DELETE' });
+                let offline = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
+                offline = offline.filter(l => l.id !== id);
+                localStorage.setItem('ruta_clara_offline', JSON.stringify(offline));
+                loadOptimalRoute();
+            } catch (err) {
+                console.error(err);
+                alert('Error al eliminar la parada');
+            }
+        }
+
+        async function clearAllLocations() {
+            if (!confirm('¿Estás seguro de borrar toda la ruta actual?')) return;
+            try {
+                await fetch('/locations', { method: 'DELETE' });
+                localStorage.removeItem('ruta_clara_offline');
+                loadOptimalRoute();
+            } catch (err) {
+                console.error(err);
+                alert('Error al limpiar la ruta');
+            }
+        }
+
+        function downloadWeeklyHistory() {
+            window.location.href = '/export/weekly_routes';
         }
 
         // Registrar Service Worker para PWA (modo offline e instalación en celular)

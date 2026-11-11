@@ -1,10 +1,12 @@
 import json
+import csv
+import os
+from datetime import datetime
 import urllib.parse
 import urllib.request
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from fastapi.responses import FileResponse
 
 from database import get_db
 from src.auth import (
@@ -111,6 +113,20 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
         }]
 
 
+LOG_FILE = "weekly_routes_log.csv"
+
+def log_location_to_file(name: str, address: str, lat: float, lng: float):
+    file_exists = os.path.isfile(LOG_FILE)
+    try:
+        with open(LOG_FILE, mode="a", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["Fecha/Hora", "Nombre/Referencia", "Dirección", "Latitud", "Longitud"])
+            writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), name, address, lat, lng])
+    except Exception as e:
+        print("Error logging location to file:", e)
+
+
 # =====================================================================
 # Location Endpoints (Acceso Libre Sin Bloqueo de Token)
 # =====================================================================
@@ -135,7 +151,37 @@ def create_location(
     db.add(db_location)
     db.commit()
     db.refresh(db_location)
+
+    # Registrar automáticamente en archivo CSV para historial semanal
+    log_location_to_file(location.name, location.address or "", location.latitude, location.longitude)
+
     return db_location
+
+
+@router.delete("/locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_location(location_id: int, db: Session = Depends(get_db)):
+    loc = db.query(Location).filter(Location.id == location_id).first()
+    if not loc:
+        raise HTTPException(status_code=404, detail="Location not found")
+    db.delete(loc)
+    db.commit()
+    return None
+
+
+@router.delete("/locations", status_code=status.HTTP_204_NO_CONTENT)
+def clear_all_locations(db: Session = Depends(get_db)):
+    db.query(Location).delete()
+    db.commit()
+    return None
+
+
+@router.get("/export/weekly_routes")
+def export_weekly_routes():
+    if not os.path.isfile(LOG_FILE):
+        with open(LOG_FILE, mode="w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Fecha/Hora", "Nombre/Referencia", "Dirección", "Latitud", "Longitud"])
+    return FileResponse(path=LOG_FILE, filename="rutas_semana_registros.csv", media_type="text/csv")
 
 
 # =====================================================================
