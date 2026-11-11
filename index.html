@@ -113,13 +113,51 @@
             letter-spacing: 0.5px;
         }
 
-        /* Layout Principal Full Screen */
+        /* Layout Principal con Cuadro de Mapa No Invasivo */
         .app-container {
             display: grid;
             grid-template-columns: 420px 1fr;
             height: calc(100vh - 64px);
             width: 100vw;
             overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        .map-card-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin: 16px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            overflow: hidden;
+            height: calc(100vh - 96px);
+        }
+
+        .map-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 0 4px;
+        }
+
+        .map-header h2 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #map {
+            width: 100%;
+            flex: 1;
+            border-radius: 8px;
+            background: #e2e8f0;
         }
 
         @media (max-width: 1024px) {
@@ -128,21 +166,25 @@
                 flex-direction: column;
                 height: calc(100vh - 64px);
                 width: 100vw;
-                overflow: hidden;
+                overflow-y: auto;
+                padding: 12px;
+                gap: 12px;
             }
             .sidebar {
                 width: 100%;
-                max-height: 42vh;
-                overflow-y: auto;
+                max-height: none;
+                border-bottom: none;
+                border-radius: 12px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            }
+            .map-card-wrapper {
+                margin: 0;
+                height: 440px;
                 flex-shrink: 0;
-                border-right: none;
-                border-bottom: 1px solid var(--border);
-                padding: 12px;
+                border-radius: 12px;
             }
             #map {
-                width: 100%;
-                flex: 1;
-                min-height: 250px;
+                height: 380px;
             }
         }
 
@@ -267,13 +309,6 @@
             background-color: #c2410c;
         }
 
-        /* Contenedor del Mapa */
-        #map {
-            width: 100%;
-            height: 100%;
-            background: #e2e8f0;
-        }
-
         /* Guía de Navegación */
         .nav-container {
             display: flex;
@@ -389,8 +424,14 @@
             </div>
         </aside>
 
-        <!-- MAPA INTERACTIVO -->
-        <main id="map"></main>
+        <!-- MAPA DENTRO DE UN CUADRO NO INVASIVO -->
+        <div class="map-card-wrapper">
+            <div class="map-header">
+                <h2>🗺️ Vista de Mapa y Ubicaciones</h2>
+                <span style="font-size: 11px; color: var(--text-muted);">Tiempo Real</span>
+            </div>
+            <div id="map"></div>
+        </div>
     </div>
 
     <!-- MODAL DE CÁMARA TRASERA -->
