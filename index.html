@@ -561,8 +561,8 @@
                 return;
             }
 
-            const name = nameInput ? `${nameInput} (Ref: ${refInput})` : `Ref: ${refInput}`;
-            const fullAddress = `${addressInput} — Ref: ${refInput}`;
+            const name = nameInput ? `${nameInput} — Ref: ${refInput}` : `${addressInput} — Ref: ${refInput}`;
+            const fullAddress = `${addressInput} (Ref: ${refInput})`;
 
             let lat = null;
             let lng = null;
