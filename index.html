@@ -3,9 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ruta Clara - Escáner Continuo y Optimización GPS</title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
     <link rel="stylesheet" href="/static/leaflet.css" />
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         :root {
             --primary: #2563eb;
@@ -46,6 +51,7 @@
             align-items: center;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             z-index: 1000;
+            flex-shrink: 0;
         }
 
         .brand-container {
@@ -75,23 +81,24 @@
             gap: 12px;
         }
 
-        .btn-download-logo {
-            background-color: #2563eb;
+        .btn-install-app {
+            background-color: #059669;
             color: white;
             padding: 6px 14px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
-            text-decoration: none;
+            border: none;
+            cursor: pointer;
             display: flex;
             align-items: center;
             gap: 6px;
             transition: background 0.2s, transform 0.1s;
-            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 2px 4px rgba(5, 150, 105, 0.3);
         }
 
-        .btn-download-logo:hover {
-            background-color: #1d4ed8;
+        .btn-install-app:hover {
+            background-color: #047857;
             transform: translateY(-1px);
         }
 
@@ -117,10 +124,25 @@
 
         @media (max-width: 1024px) {
             .app-container {
-                grid-template-columns: 1fr;
-                grid-template-rows: 1fr 1fr;
-                height: calc(200vh - 64px);
+                display: flex;
+                flex-direction: column;
+                height: calc(100vh - 64px);
+                width: 100vw;
+                overflow: hidden;
+            }
+            .sidebar {
+                width: 100%;
+                max-height: 42vh;
                 overflow-y: auto;
+                flex-shrink: 0;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 12px;
+            }
+            #map {
+                width: 100%;
+                flex: 1;
+                min-height: 250px;
             }
         }
 
@@ -323,9 +345,9 @@
             <h1>Ruta Clara - Escáner Continuo y GPS</h1>
         </div>
         <div class="nav-actions">
-            <a href="/static/logo.svg" download="ruta_clara_logo.svg" class="btn-download-logo" title="Descargar Logo Oficial">
-                📥 Descargar Logo
-            </a>
+            <button id="installAppBtn" onclick="installPWA()" class="btn-install-app" title="Instalar Aplicación en tu dispositivo">
+                📲 Instalar App
+            </button>
             <span class="badge-status">Modo Campo Rápido</span>
         </div>
     </header>
@@ -641,6 +663,45 @@
                 totalSummary.style.display = 'none';
             }
         }
+
+        // Registrar Service Worker para PWA (modo offline e instalación en celular)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(reg => console.log('Service Worker registrado con éxito:', reg.scope))
+                    .catch(err => console.log('Error al registrar Service Worker:', err));
+            });
+        }
+
+        // Lógica de Instalación PWA
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('installAppBtn');
+            if (installBtn) installBtn.style.display = 'flex';
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Usuario aceptó instalar la PWA');
+                    }
+                    deferredPrompt = null;
+                });
+            } else {
+                alert('📲 Para instalar Ruta Clara en tu dispositivo:\n\n• En Android / PC (Chrome): Toca el menú de los 3 puntos (⋮) en tu navegador y selecciona "Instalar aplicación" o "Añadir a la pantalla de inicio".\n• En iOS (Safari): Toca el botón Compartir y selecciona "Añadir a pantalla de inicio".');
+            }
+        }
+
+        // Ajustar tamaño del mapa al redimensionar la ventana o rotar el celular
+        window.addEventListener('resize', () => {
+            if (map) {
+                setTimeout(() => map.invalidateSize(), 250);
+            }
+        });
 
         window.onload = initMap;
     </script>

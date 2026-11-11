@@ -1,0 +1,15 @@
+{
+  "name": "Ruta Clara - Escáner Continuo y GPS",
+  "short_name": "Ruta Clara",
+  "start_url": "/map",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/static/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
