@@ -1,29 +1,26 @@
-# Byte-compiled / optimized / DLL files
+﻿.venv/
 __pycache__/
 *.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Environment & Distribution / packaging
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Database files
 *.db
-*.sqlite3
-
-# IDE / Editor settings
-.vscode/
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .idea/
-*.swp
-*.swo
-
-# Project artifacts
 .artifacts/
+backups/
+*.bak
+*.bak*
+*_backup*.py
+*_backup*.html
+src/routes_antes_urgencia.py
+weekly_routes_log.csv
+actualizar_escaner.py
+arreglo*.py
+corregir_*.py
+diagnostico_interfaz.py
+integrar_arcgis.py
+probar_valle.py
+reparar_urgente.py
+revisar_ruta_clara.py

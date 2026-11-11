@@ -1,0 +1,10 @@
+.venv/
+.git/
+.env
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+backups/
+index_backup_*.html
+routes_backup_*.py

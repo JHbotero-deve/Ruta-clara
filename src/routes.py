@@ -1,13 +1,20 @@
+import unicodedata
+
+import os
 import json
 import csv
 import time
-import os
-from datetime import datetime
+import sqlite3
 import urllib.parse
 import urllib.request
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from pathlib import Path
+from datetime import datetime
+from typing import List
+
+from fastapi import (
+    APIRouter, Depends, HTTPException, Query, status
+)
+from fastapi.responses import Response, FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -19,46 +26,193 @@ from src.auth import (
     get_password_hash,
 )
 from src.models import (
-    User,
-    Location,
-    Reference,
-    UserCreate,
-    UserResponse,
-    LocationCreate,
-    LocationResponse,
-    ReferenceCreate,
-    ReferenceResponse,
+    User, Location, Reference,
+    UserCreate, UserResponse,
+    LocationCreate, LocationResponse,
+    ReferenceCreate, ReferenceResponse,
     Token,
 )
 from src.route_optimizer import calculate_optimal_route
 
+
 router = APIRouter()
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+MAP_FILE = STATIC_DIR / "offline" / "valle_aburra.mbtiles"
+LOG_FILE = BASE_DIR / "weekly_routes_log.csv"
+
 GEOCODE_CACHE = {}
+GEOCODE_LAST_REQUEST = 0.0
 
-# =====================================================================
-# Authentication & User Endpoints (Opcionales)
-# =====================================================================
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.username == user_in.username).first()
-    if existing_user:
+# ============================================================
+# MBTILES: MAPA OFFLINE DEL VALLE DE ABURRA
+# ============================================================
+
+def get_mbtiles_connection():
+    if not MAP_FILE.is_file():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered",
+            status_code=503,
+            detail="No se encuentra el mapa offline. Instala valle_aburra.mbtiles."
         )
 
-    hashed_pw = get_password_hash(user_in.password)
+    connection = sqlite3.connect(
+        f"file:{MAP_FILE.as_posix()}?mode=ro",
+        uri=True,
+        timeout=10
+    )
+    return connection
+
+
+@router.get("/tiles/{z}/{x}/{y}.png", tags=["Offline Map"])
+def get_offline_tile(z: int, x: int, y: int):
+    """
+    Entrega mosaicos PNG desde MBTiles.
+    Leaflet utiliza coordenadas XYZ; MBTiles almacena filas TMS.
+    """
+
+    if z < 0 or z > 22:
+        raise HTTPException(status_code=404, detail="Zoom inválido")
+
+    tile_count = 1 << z
+
+    if x < 0 or y < 0 or x >= tile_count or y >= tile_count:
+        raise HTTPException(status_code=404, detail="Mosaico fuera de rango")
+
+    # Conversión XYZ -> TMS
+    tms_y = tile_count - 1 - y
+
+    connection = None
+
+    try:
+        connection = get_mbtiles_connection()
+
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            SELECT tile_data
+            FROM tiles
+            WHERE zoom_level = ?
+              AND tile_column = ?
+              AND tile_row = ?
+            LIMIT 1
+            """,
+            (z, x, tms_y)
+        )
+
+        row = cursor.fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="Mosaico no disponible en el mapa descargado"
+            )
+
+        return Response(
+            content=row[0],
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=31536000, immutable"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except sqlite3.Error as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error leyendo MBTiles: {str(error)}"
+        )
+    finally:
+        if connection:
+            connection.close()
+
+
+@router.get("/offline-map/status", tags=["Offline Map"])
+def offline_map_status():
+    """
+    Informa si el mapa offline está instalado y cuántos mosaicos contiene.
+    """
+
+    if not MAP_FILE.is_file():
+        return {
+            "installed": False,
+            "message": "Mapa offline no instalado"
+        }
+
+    connection = get_mbtiles_connection()
+
+    try:
+        cursor = connection.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM tiles")
+        total_tiles = cursor.fetchone()[0]
+
+        cursor.execute(
+            """
+            SELECT MIN(zoom_level), MAX(zoom_level)
+            FROM tiles
+            """
+        )
+        zooms = cursor.fetchone()
+
+        cursor.execute(
+            """
+            SELECT name, value
+            FROM metadata
+            """
+        )
+        metadata = dict(cursor.fetchall())
+
+        return {
+            "installed": True,
+            "file": MAP_FILE.name,
+            "size_mb": round(MAP_FILE.stat().st_size / 1048576, 2),
+            "total_tiles": total_tiles,
+            "min_zoom": zooms[0],
+            "max_zoom": zooms[1],
+            "name": metadata.get("name", "Valle de Aburrá"),
+            "format": metadata.get("format", "png")
+        }
+    finally:
+        connection.close()
+
+
+# ============================================================
+# AUTHENTICATION
+# ============================================================
+
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
+
+    existing_user = (
+        db.query(User)
+        .filter(User.username == user_in.username)
+        .first()
+    )
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already registered"
+        )
+
     new_user = User(
         username=user_in.username,
         email=user_in.email,
-        hashed_password=hashed_pw,
-        disabled=user_in.disabled or False,
+        hashed_password=get_password_hash(user_in.password),
+        disabled=user_in.disabled or False
     )
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
     return new_user
 
 
@@ -67,227 +221,562 @@ def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = authenticate_user(db, form_data.username, form_data.password)
+    user = authenticate_user(
+        db,
+        form_data.username,
+        form_data.password
+    )
+
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer"}
         )
-    access_token = create_access_token(data={"sub": user.username})
-    return {"access_token": access_token, "token_type": "bearer"}
+
+    token = create_access_token(data={"sub": user.username})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 
 @router.get("/users/me", response_model=UserResponse)
-def read_users_me(current_user: User = Depends(get_current_active_user)):
+def read_users_me(
+    current_user: User = Depends(get_current_active_user)
+):
     return current_user
 
 
-# =====================================================================
-# Geocoding & Address / Building Scanner Endpoint
-# =====================================================================
+# ============================================================
+# GEOCODING ONLINE
+# ============================================================
 
 @router.get("/geocode", tags=["Geocoding"])
-def search_address(query: str = Query(..., description="Dirección o nombre del edificio a buscar")):
-    """Escanea y busca la latitud, longitud y dirección exacta de un edificio o calle."""
-    raw_query = query.strip()
+def search_address(query: str = Query(..., min_length=3)):
+    """Busca direcciones colombianas usando Nominatim y Photon."""
 
-    # 0. Reverse Geocoding si se reciben coordenadas "lat, lng"
-    if "," in raw_query and len(raw_query.split(",")) == 2:
-        parts = [p.strip() for p in raw_query.split(",")]
+    global GEOCODE_LAST_REQUEST
+
+    raw_query = " ".join(query.strip().split())
+
+    if not raw_query:
+        raise HTTPException(status_code=400, detail="Dirección vacía")
+
+    cache_key = raw_query.casefold()
+
+    if cache_key in GEOCODE_CACHE:
+        return GEOCODE_CACHE[cache_key]
+
+    def normalize_result(item):
+        address = item.get("address", {})
+
+        municipality = (
+            address.get("city")
+            or address.get("town")
+            or address.get("municipality")
+            or address.get("county")
+            or ""
+        )
+
+        neighborhood = (
+            address.get("suburb")
+            or address.get("neighbourhood")
+            or address.get("quarter")
+            or ""
+        )
+
+        return {
+            "display_name": item.get("display_name", ""),
+            "latitude": float(item["lat"]),
+            "longitude": float(item["lon"]),
+            "municipality": municipality,
+            "neighborhood": neighborhood,
+            "type": item.get("type", ""),
+            "class": item.get("class", "")
+        }
+
+    def normalize_photon(feature):
+        properties = feature.get("properties", {})
+        coordinates = feature.get("geometry", {}).get("coordinates", [])
+
+        if len(coordinates) < 2:
+            return None
+
+        municipality = (
+            properties.get("city")
+            or properties.get("town")
+            or properties.get("county")
+            or properties.get("locality")
+            or ""
+        )
+
+        neighborhood = (
+            properties.get("district")
+            or properties.get("suburb")
+            or properties.get("neighbourhood")
+            or ""
+        )
+
+        name = properties.get("name", "")
+        street = properties.get("street", "")
+        number = properties.get("housenumber", "")
+        postcode = properties.get("postcode", "")
+        state = properties.get("state", "")
+        country = properties.get("country", "Colombia")
+
+        display = ", ".join(
+            str(value) for value in [
+                name, street, number, neighborhood,
+                municipality, state, postcode, country
+            ] if value
+        )
+
+        return {
+            "display_name": display,
+            "latitude": float(coordinates[1]),
+            "longitude": float(coordinates[0]),
+            "municipality": municipality,
+            "neighborhood": neighborhood,
+            "type": properties.get("type", ""),
+            "class": "photon"
+        }
+
+    # Variantes de búsqueda para direcciones del Valle de Aburrá.
+    attempts = [
+        raw_query,
+        f"{raw_query}, Medellín, Antioquia, Colombia",
+        f"{raw_query}, Antioquia, Colombia",
+        f"{raw_query}, Colombia"
+    ]
+
+    attempts = list(dict.fromkeys(attempts))
+    results = []
+
+    # Primera fuente: Nominatim.
+    for search in attempts:
+        elapsed = time.monotonic() - GEOCODE_LAST_REQUEST
+
+        if elapsed < 1.1:
+            time.sleep(1.1 - elapsed)
+
+        params = urllib.parse.urlencode({
+            "q": search,
+            "format": "jsonv2",
+            "limit": 5,
+            "addressdetails": 1,
+            "countrycodes": "co",
+            "accept-language": "es"
+        })
+
+        url = "https://nominatim.openstreetmap.org/search?" + params
+
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "RutaClaraDeliveryApp/3.1"
+            }
+        )
+
         try:
-            lat_val = float(parts[0])
-            lng_val = float(parts[1])
-            url = f"https://nominatim.openstreetmap.org/reverse?lat={lat_val}&lon={lng_val}&format=json"
-            req = urllib.request.Request(url, headers={"User-Agent": "RutaClaraDeliveryApp/2.0"})
-            with urllib.request.urlopen(req, timeout=4) as response:
-                res_data = json.loads(response.read().decode())
-                if res_data and "display_name" in res_data:
-                    return [{
-                        "display_name": res_data.get("display_name"),
-                        "latitude": lat_val,
-                        "longitude": lng_val,
-                        "type": "building",
-                        "class": "place"
-                    }]
+            GEOCODE_LAST_REQUEST = time.monotonic()
+
+            with urllib.request.urlopen(req, timeout=15) as response:
+                data = json.loads(response.read().decode("utf-8"))
+
+            if data:
+                results = [
+                    normalize_result(item)
+                    for item in data
+                    if item.get("lat") and item.get("lon")
+                ]
+
+            if results:
+                break
+
+        except Exception:
+            continue
+
+    # Segunda fuente: Photon, si Nominatim no encuentra resultados.
+    if not results:
+        photon_query = raw_query
+
+        if "colombia" not in photon_query.casefold():
+            photon_query += ", Medellín, Antioquia, Colombia"
+
+        params = urllib.parse.urlencode({
+            "q": photon_query,
+            "limit": 5,
+            "lang": "es"
+        })
+
+        url = "https://photon.komoot.io/api/?" + params
+
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "RutaClaraDeliveryApp/3.1"
+            }
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=20) as response:
+                data = json.loads(response.read().decode("utf-8"))
+
+            for feature in data.get("features", []):
+                result = normalize_photon(feature)
+
+                if result:
+                    results.append(result)
+
         except Exception:
             pass
 
-    def query_nominatim(q):
+
+
+    # ARCGIS FALLBACK RUTA CLARA
+    # Priorizar el municipio solicitado y evitar resultados lejanos.
+    if not results:
         try:
-            encoded_query = urllib.parse.quote(q)
-            url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&format=json&limit=5&addressdetails=1&countrycodes=co"
-            req = urllib.request.Request(url, headers={"User-Agent": "RutaClaraDeliveryApp/2.0"})
-            with urllib.request.urlopen(req, timeout=4) as response:
-                return json.loads(response.read().decode())
-        except Exception:
-            return []
+            import re
 
-    # 1. Formateo y estandarización de direcciones de Colombia (ej. Calle 30 Sur 48 170 Envigado)
-    cleaned = raw_query.replace("#", " ").replace("°", " ").replace("N°", " ").replace("No.", " ")
-    cleaned = cleaned.replace("—", " ")
-    cleaned = " ".join(cleaned.split())
+            municipalities = [
+                "Medellín", "Envigado", "Sabaneta", "Itagüí",
+                "La Estrella", "Caldas", "Bello",
+                "Copacabana", "Girardota", "Barbosa"
+            ]
 
-    if cleaned.lower() in GEOCODE_CACHE:
-        return GEOCODE_CACHE[cleaned.lower()]
+            normalized = raw_query.casefold()
+            requested = next(
+                (m for m in municipalities if m.casefold() in normalized),
+                None
+            )
 
-    # Intentos de búsqueda con Nominatim
-    attempts = [
-        cleaned,
-        f"{cleaned}, Antioquia, Colombia",
-        f"{cleaned}, Medellín, Colombia",
-        f"{cleaned}, Envigado, Colombia",
-        raw_query
-    ]
+            searches = []
 
-    # Si hay números en la dirección (ej. Calle 30 Sur 48-170), intentar también buscar la vía/carrera principal
-    words = cleaned.split()
-    if len(words) >= 3:
-        via_principal = " ".join(words[:3])
-        attempts.append(f"{via_principal}, Colombia")
-        attempts.append(f"{via_principal}, Medellín, Colombia")
+            if requested:
+                searches.append(f"{raw_query}, {requested}, Antioquia, Colombia")
+            else:
+                searches.append(f"{raw_query}, Valle de Aburrá, Antioquia, Colombia")
 
-    attempts = list(dict.fromkeys(attempts))
+            for search_text in searches:
+                params = urllib.parse.urlencode({
+                    "SingleLine": search_text,
+                    "f": "json",
+                    "outFields": "*",
+                    "maxLocations": 5,
+                    "outSR": 4326,
+                    "countryCode": "COL"
+                })
 
-    data = []
-    for attempt in attempts:
-        data = query_nominatim(attempt)
-        if data:
-            break
-        time.sleep(1.1)
+                url = (
+                    "https://geocode.arcgis.com/arcgis/rest/services/"
+                    "World/GeocodeServer/findAddressCandidates?"
+                    + params
+                )
 
-    if data:
-        results = []
-        for item in data:
-            results.append({
-                "display_name": item.get("display_name"),
-                "latitude": float(item.get("lat")),
-                "longitude": float(item.get("lon")),
-                "type": item.get("type"),
-                "class": item.get("class")
-            })
-        if len(GEOCODE_CACHE) > 500:
-            GEOCODE_CACHE.clear()
-        GEOCODE_CACHE[cleaned.lower()] = results
-        return results
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "RutaClaraDeliveryApp/4.1"}
+                )
 
-    # Sin coordenadas reales no se guarda la parada
-    raise HTTPException(
-        status_code=404,
-        detail=f"No se encontró la ubicación para: {raw_query}"
-    )
+                with urllib.request.urlopen(req, timeout=8) as response:
+                    data = json.loads(response.read().decode("utf-8"))
 
-LOG_FILE = "weekly_routes_log.csv"
+                for candidate in data.get("candidates", []):
+                    if candidate.get("score", 0) < 75:
+                        continue
 
-def log_location_to_file(name: str, address: str, lat: float, lng: float):
-    file_exists = os.path.isfile(LOG_FILE)
+                    point = candidate.get("location", {})
+                    attrs = candidate.get("attributes", {})
+
+                    if "x" not in point or "y" not in point:
+                        continue
+
+                    municipality = (
+                        attrs.get("City")
+                        or attrs.get("Subregion")
+                        or ""
+                    )
+
+                    # Validar municipio cuando el usuario lo especifica.
+                    if requested:
+                        def normalize_name(value):
+                            value = unicodedata.normalize(
+                                "NFKD", str(value or "").casefold().strip()
+                            )
+                            return "".join(
+                                char for char in value
+                                if not unicodedata.combining(char)
+                            )
+
+                        if normalize_name(municipality) != normalize_name(requested):
+                            continue
+
+                    lat = float(point["y"])
+                    lon = float(point["x"])
+
+                    # Delimitar aproximadamente el Valle de Aburrá.
+                    if not (6.0 <= lat <= 6.55 and -75.75 <= lon <= -75.25):
+                        continue
+
+                    results.append({
+                        "display_name": (
+                            attrs.get("LongLabel")
+                            or candidate.get("address")
+                        ),
+                        "latitude": lat,
+                        "longitude": lon,
+                        "municipality": municipality,
+                        "neighborhood": (
+                            attrs.get("Nbrhd")
+                            or attrs.get("District")
+                            or ""
+                        ),
+                        "type": attrs.get("Addr_type", ""),
+                        "class": "arcgis",
+                        "score": candidate.get("score")
+                    })
+
+                if results:
+                    break
+
+        except Exception as error:
+            print(f"Error de ArcGIS: {error}")
+
+    if not results:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No se encontró la dirección. "
+                "Intente agregar barrio, municipio y departamento."
+            )
+        )
+
+    if len(GEOCODE_CACHE) > 500:
+        GEOCODE_CACHE.clear()
+
+    GEOCODE_CACHE[cache_key] = results
+
+    return results
+
+
+
+
+# ============================================================
+# WEEKLY CSV HISTORY
+# ============================================================
+
+def log_location_to_file(
+    name: str,
+    address: str,
+    lat: float,
+    lng: float
+):
+    file_exists = LOG_FILE.is_file()
+
     try:
-        with open(LOG_FILE, mode="a", encoding="utf-8", newline="") as f:
-            writer = csv.writer(f)
+        with open(
+            LOG_FILE,
+            mode="a",
+            encoding="utf-8-sig",
+            newline=""
+        ) as file:
+
+            writer = csv.writer(file)
+
             if not file_exists:
-                writer.writerow(["Fecha/Hora", "Nombre/Referencia", "Dirección", "Latitud", "Longitud"])
-            writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), name, address, lat, lng])
-    except Exception as e:
-        print("Error logging location to file:", e)
+                writer.writerow([
+                    "Fecha/Hora",
+                    "Nombre/Referencia",
+                    "Dirección",
+                    "Latitud",
+                    "Longitud"
+                ])
+
+            writer.writerow([
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                name,
+                address,
+                lat,
+                lng
+            ])
+
+    except OSError as error:
+        print("Error CSV:", error)
 
 
-# =====================================================================
-# Location Endpoints (Acceso Libre Sin Bloqueo de Token)
-# =====================================================================
+# ============================================================
+# LOCATIONS
+# ============================================================
 
-@router.get("/locations", response_model=List[LocationResponse])
+@router.get(
+    "/locations",
+    response_model=List[LocationResponse]
+)
 def read_locations(db: Session = Depends(get_db)):
-    locations = db.query(Location).all()
-    return locations
+    return db.query(Location).all()
 
 
-@router.post("/locations", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/locations",
+    response_model=LocationResponse,
+    status_code=status.HTTP_201_CREATED
+)
 def create_location(
     location: LocationCreate,
     db: Session = Depends(get_db)
 ):
+    if not (-90 <= location.latitude <= 90):
+        raise HTTPException(status_code=400, detail="Latitud inválida")
+
+    if not (-180 <= location.longitude <= 180):
+        raise HTTPException(status_code=400, detail="Longitud inválida")
+
     db_location = Location(
         name=location.name,
         latitude=location.latitude,
         longitude=location.longitude,
-        address=location.address,
+        address=location.address
     )
+
     db.add(db_location)
     db.commit()
     db.refresh(db_location)
 
-    # Registrar automáticamente en archivo CSV para historial semanal
-    log_location_to_file(location.name, location.address or "", location.latitude, location.longitude)
+    log_location_to_file(
+        location.name,
+        location.address or "",
+        location.latitude,
+        location.longitude
+    )
 
     return db_location
 
 
-@router.delete("/locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_location(location_id: int, db: Session = Depends(get_db)):
-    loc = db.query(Location).filter(Location.id == location_id).first()
-    if not loc:
+@router.delete(
+    "/locations/{location_id}",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_location(
+    location_id: int,
+    db: Session = Depends(get_db)
+):
+    location = (
+        db.query(Location)
+        .filter(Location.id == location_id)
+        .first()
+    )
+
+    if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    db.delete(loc)
+
+    db.delete(location)
     db.commit()
+
     return None
 
 
-@router.delete("/locations", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/locations",
+    status_code=status.HTTP_204_NO_CONTENT
+)
 def clear_all_locations(db: Session = Depends(get_db)):
     db.query(Location).delete()
     db.commit()
     return None
 
 
+# ============================================================
+# WEEKLY EXPORT
+# ============================================================
+
 @router.get("/export/weekly_routes")
 def export_weekly_routes():
-    if not os.path.isfile(LOG_FILE):
-        with open(LOG_FILE, mode="w", encoding="utf-8", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Fecha/Hora", "Nombre/Referencia", "Dirección", "Latitud", "Longitud"])
-    return FileResponse(path=LOG_FILE, filename="rutas_semana_registros.csv", media_type="text/csv")
+
+    if not LOG_FILE.is_file():
+        with open(
+            LOG_FILE,
+            mode="w",
+            encoding="utf-8-sig",
+            newline=""
+        ) as file:
+
+            writer = csv.writer(file)
+            writer.writerow([
+                "Fecha/Hora",
+                "Nombre/Referencia",
+                "Dirección",
+                "Latitud",
+                "Longitud"
+            ])
+
+    return FileResponse(
+        path=str(LOG_FILE),
+        filename="rutas_semana_registros.csv",
+        media_type="text/csv"
+    )
 
 
-# =====================================================================
-# Reference Endpoints (Acceso Libre Sin Bloqueo de Token)
-# =====================================================================
+# ============================================================
+# REFERENCES
+# ============================================================
 
-@router.get("/references", response_model=List[ReferenceResponse])
+@router.get(
+    "/references",
+    response_model=List[ReferenceResponse]
+)
 def read_references(db: Session = Depends(get_db)):
-    references = db.query(Reference).all()
-    return references
+    return db.query(Reference).all()
 
 
-@router.post("/references", response_model=ReferenceResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/references",
+    response_model=ReferenceResponse,
+    status_code=status.HTTP_201_CREATED
+)
 def create_reference(
     reference: ReferenceCreate,
     db: Session = Depends(get_db)
 ):
-    # Verify location exists
-    loc = db.query(Location).filter(Location.id == reference.location_id).first()
-    if not loc:
+    location = (
+        db.query(Location)
+        .filter(Location.id == reference.location_id)
+        .first()
+    )
+
+    if not location:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location with id {reference.location_id} not found"
+            status_code=404,
+            detail="Location not found"
         )
+
     db_reference = Reference(
         description=reference.description,
-        location_id=reference.location_id,
+        location_id=reference.location_id
     )
+
     db.add(db_reference)
     db.commit()
     db.refresh(db_reference)
+
     return db_reference
 
 
-# =====================================================================
-# Route Optimization Endpoint (Acceso Libre Sin Bloqueo de Token)
-# =====================================================================
+# ============================================================
+# OPTIMAL ROUTE
+# ============================================================
 
-@router.get("/optimal_route", response_model=List[LocationResponse])
+@router.get(
+    "/optimal_route",
+    response_model=List[LocationResponse]
+)
 def get_optimal_route(db: Session = Depends(get_db)):
+
     locations = db.query(Location).all()
+
     if not locations:
         return []
-    optimal_route_list = calculate_optimal_route(locations)
-    return optimal_route_list
+
+    return calculate_optimal_route(locations)
