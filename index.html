@@ -564,29 +564,48 @@
             const name = nameInput ? `${nameInput} (Ref: ${refInput})` : `Ref: ${refInput}`;
             const fullAddress = `${addressInput} — Ref: ${refInput}`;
 
-            let lat = 6.2442;
-            let lng = -75.5812;
+            let lat = null;
+            let lng = null;
 
-            if (navigator.geolocation) {
-                try {
-                    const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000, enableHighAccuracy: true });
-                    });
-                    lat = pos.coords.latitude;
-                    lng = pos.coords.longitude;
-                } catch (e) {}
-            }
-
-            // Geocodificación precisa usando la dirección exacta en Nominatim
+            // 1. Geocodificación precisa con /geocode
             try {
                 const res = await fetch(`/geocode?query=${encodeURIComponent(addressInput)}`);
-                const data = await res.json();
-                if (data && data.length > 0) {
-                    lat = data[0].latitude;
-                    lng = data[0].longitude;
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        lat = data[0].latitude;
+                        lng = data[0].longitude;
+                    }
                 }
             } catch (err) {
-                console.warn('Geocodificación offline, usando posición actual.');
+                console.warn('Servidor offline para geocodificación:', err);
+            }
+
+            // 2. Si la geocodificación no retornó resultado, obtener posición GPS actual o base
+            if (!lat || !lng) {
+                if (navigator.geolocation) {
+                    try {
+                        const pos = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000, enableHighAccuracy: true });
+                        });
+                        lat = pos.coords.latitude;
+                        lng = pos.coords.longitude;
+                    } catch (e) {
+                        lat = 6.2442;
+                        lng = -75.5812;
+                    }
+                } else {
+                    lat = 6.2442;
+                    lng = -75.5812;
+                }
+            }
+
+            // 3. Prevenir solapamiento exacto de ubicaciones repetidas
+            let existingOffline = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
+            let dupCount = existingOffline.filter(l => Math.abs(l.latitude - lat) < 0.00005 && Math.abs(l.longitude - lng) < 0.00005).length;
+            if (dupCount > 0) {
+                lat += (dupCount * 0.0004);
+                lng += (dupCount * 0.0004);
             }
 
             await saveLocationAutomatically(name, fullAddress, lat, lng);
@@ -609,7 +628,6 @@
 
             const addrField = document.getElementById('scanAddress');
             addrField.focus();
-            addrField.click();
         }
 
         async function saveLocationAutomatically(name, address, lat, lng) {
