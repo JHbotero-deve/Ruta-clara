@@ -384,10 +384,10 @@
             <h1>Ruta Clara - Escáner Continuo y GPS</h1>
         </div>
         <div class="nav-actions">
-            <button id="installAppBtn" onclick="installPWA()" class="btn-install-app" title="Instalar Aplicación en tu dispositivo">
+            <button id="installAppBtn" onclick="installPWA()" class="btn-install-app" style="display: none;" title="Instalar Aplicación en tu dispositivo">
                 📲 Instalar App
             </button>
-            <span class="badge-status">Modo Campo Rápido</span>
+            <span id="connectionBadge" class="badge-status" style="background:#10b981;">🟢 En línea</span>
         </div>
     </header>
 
@@ -796,13 +796,45 @@
             });
         }
 
+        // Control de Estado de Conexión y PWA Instalada
+        function updateConnectionStatus() {
+            const badge = document.getElementById('connectionBadge');
+            if (!badge) return;
+            if (navigator.onLine) {
+                badge.innerText = '🟢 En línea';
+                badge.style.background = '#10b981';
+            } else {
+                badge.innerText = '🟡 Modo Offline';
+                badge.style.background = '#f59e0b';
+            }
+        }
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+
+        function checkPWAStatus() {
+            updateConnectionStatus();
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || document.referrer.includes('android-app://');
+            const installBtn = document.getElementById('installAppBtn');
+            if (isStandalone && installBtn) {
+                installBtn.style.display = 'none';
+            }
+        }
+        window.addEventListener('DOMContentLoaded', checkPWAStatus);
+        window.addEventListener('appinstalled', () => {
+            const installBtn = document.getElementById('installAppBtn');
+            if (installBtn) installBtn.style.display = 'none';
+        });
+
         // Lógica de Instalación PWA
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
             const installBtn = document.getElementById('installAppBtn');
-            if (installBtn) installBtn.style.display = 'flex';
+            if (installBtn && !isStandalone) {
+                installBtn.style.display = 'flex';
+            }
         });
 
         function installPWA() {
@@ -810,7 +842,8 @@
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
-                        console.log('Usuario aceptó instalar la PWA');
+                        const installBtn = document.getElementById('installAppBtn');
+                        if (installBtn) installBtn.style.display = 'none';
                     }
                     deferredPrompt = null;
                 });
