@@ -1,7 +1,7 @@
 from typing import Optional, List
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, relationship
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 Base = declarative_base()
 
@@ -106,7 +106,10 @@ class LocationBase(BaseModel):
 
 
 class LocationCreate(LocationBase):
-    pass
+    name: str = Field(min_length=1, max_length=500)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    address: Optional[str] = Field(default=None, max_length=500)
 
 
 class LocationResponse(LocationBase):

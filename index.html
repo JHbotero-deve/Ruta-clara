@@ -394,7 +394,43 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
-    </style>
+    
+        /* ===== Mejora visual profesional ===== */
+        html { -webkit-text-size-adjust: 100%; }
+        body { height: 100vh; height: 100dvh; -webkit-font-smoothing: antialiased; }
+        .navbar { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .brand-container { min-width: 0; }
+        .navbar h1 { font-size: 17px; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .brand-logo { box-shadow: 0 0 0 3px rgba(37,99,235,0.35); flex-shrink: 0; }
+        .tab-navigation { padding: 10px 16px; gap: 8px; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+        .tab-btn { border: 1px solid var(--border); border-radius: 12px; min-height: 44px; }
+        .tab-btn:hover { background: #fff7ed; border-color: #fdba74; }
+        .tab-btn.active { background: linear-gradient(135deg, #f97316, #ea580c); border-color: #ea580c; color: #ffffff; }
+        .card { background: var(--bg-card); border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12); }
+        .map-card-wrapper { border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12); height: calc(100vh - 200px); height: calc(100dvh - 200px); }
+        #map { border-radius: 10px; border: 1px solid var(--border); }
+        input { border-radius: 10px; min-height: 44px; font-size: 16px; }
+        input::placeholder { color: #94a3b8; }
+        input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
+        .btn { min-height: 44px; border-radius: 10px; letter-spacing: 0.2px; box-shadow: 0 1px 2px rgba(15,23,42,0.12); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-nav { border-radius: 8px; min-height: 40px; line-height: 24px; }
+        .nav-container { max-height: 50vh; max-height: 50dvh; min-height: 120px; }
+        .nav-step-item { border-radius: 12px; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .nav-step-item:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -8px rgba(15,23,42,0.25); }
+        .total-summary { border-radius: 12px; }
+        .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 8px 24px -8px rgba(15,23,42,0.35); }
+        @media (max-width: 600px) {
+            .navbar { padding: 0 14px; }
+            .navbar h1 { font-size: 14px; }
+            .app-container { padding: 10px; }
+            .tab-btn { font-size: 12px; padding: 8px 6px; }
+            .map-card-wrapper { height: calc(100vh - 190px); height: calc(100dvh - 190px); min-height: 360px; padding: 8px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; }
+        }
+        </style>
 </head>
 
 <body>
@@ -567,9 +603,11 @@
             let lat = null;
             let lng = null;
 
+            if (e.submitter) e.submitter.disabled = true;
+
             // 1. Geocodificación precisa con /geocode
             try {
-                const res = await fetch(`/geocode?query=${encodeURIComponent(addressInput)}`);
+                const res = await fetch(`/geocode?query=${encodeURIComponent(addressInput)}`, { signal: AbortSignal.timeout(30000) });
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.length > 0) {
@@ -585,18 +623,12 @@
                 console.warn('Servidor offline para geocodificación:', err);
             }
 
-            // 2. Si la geocodificación no retornó coordinadas válidas, usar fallback
+            // 2. Si la geocodificación no retornó coordenadas, no se guarda la parada
             if (!lat || !lng) {
-                lat = 6.2442;
-                lng = -75.5812;
-            }
-
-            // 3. Prevenir solapamiento de ubicaciones idénticas
-            let existingOffline = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
-            let dupCount = existingOffline.filter(l => Math.abs(l.latitude - lat) < 0.0001 && Math.abs(l.longitude - lng) < 0.0001).length;
-            if (dupCount > 0) {
-                lat += (dupCount * 0.0005);
-                lng += (dupCount * 0.0005);
+                alert('⚠️ No se pudo ubicar esa dirección. Revisa que esté completa e incluye la ciudad, ej. Calle 30 Sur 48-170, Envigado.');
+                document.getElementById('scanAddress').focus();
+                if (e.submitter) e.submitter.disabled = false;
+                return;
             }
 
             await saveLocationAutomatically(name, fullAddress, lat, lng);
@@ -619,30 +651,31 @@
 
             const addrField = document.getElementById('scanAddress');
             addrField.focus();
+            if (e.submitter) e.submitter.disabled = false;
         }
 
         async function saveLocationAutomatically(name, address, lat, lng) {
             const locationData = { name, address, latitude: lat, longitude: lng };
 
-            // Guardar en caché offline
-            let offlineLocations = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
-            offlineLocations.push(locationData);
-            localStorage.setItem('ruta_clara_offline', JSON.stringify(offlineLocations));
-
             try {
                 const response = await fetch('/locations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(locationData)
+                    body: JSON.stringify(locationData),
+                    signal: AbortSignal.timeout(10000)
                 });
 
-                if (response.ok) {
-                    loadOptimalRoute();
+                if (!response.ok) {
+                    throw new Error('Error al guardar la parada');
                 }
             } catch (err) {
                 console.warn('Modo Offline: Guardado local.');
-                loadOptimalRoute();
+                let offlineLocations = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
+                offlineLocations.push(locationData);
+                localStorage.setItem('ruta_clara_offline', JSON.stringify(offlineLocations));
             }
+
+            await loadOptimalRoute();
         }
 
         async function openRearCamera() {
@@ -768,9 +801,9 @@
                     iconAnchor: [15, 15]
                 });
 
-                let addrStr = loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${loc.address}</span>` : '';
+                let addrStr = loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${String(loc.address).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>` : '';
                 const marker = L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
-                    .bindPopup(`<b>Parada ${idx + 1}: ${loc.name}</b>${addrStr}`);
+                    .bindPopup(`<b>Parada ${idx + 1}: ${String(loc.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>${addrStr}`);
                 markersGroup.addLayer(marker);
             });
 
@@ -804,8 +837,8 @@
                 stepEl.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
                         <div style="flex:1;">
-                            <strong>Paso ${idx + 1}: ${loc.name}</strong>
-                            ${loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${loc.address}</span>` : ''}
+                            <strong>Paso ${idx + 1}: ${String(loc.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</strong>
+                            ${loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${String(loc.address).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>` : ''}
                             <br/><span style="color:var(--text-muted); font-size:11px;">${distText}</span>
                         </div>
                         <button onclick="deleteLocation(${loc.id})" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:600; cursor:pointer; flex-shrink:0;" title="Eliminar parada">❌ Eliminar</button>
@@ -874,6 +907,7 @@
 
                 setTimeout(() => {
                     if (map) map.invalidateSize();
+                    loadOptimalRoute();
                 }, 200);
             }
         }

@@ -1,5 +1,6 @@
 import json
 import csv
+import time
 import os
 from datetime import datetime
 import urllib.parse
@@ -32,6 +33,8 @@ from src.models import (
 from src.route_optimizer import calculate_optimal_route
 
 router = APIRouter()
+
+GEOCODE_CACHE = {}
 
 # =====================================================================
 # Authentication & User Endpoints (Opcionales)
@@ -122,13 +125,15 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
 
     # 1. Formateo y estandarización de direcciones de Colombia (ej. Calle 30 Sur 48 170 Envigado)
     cleaned = raw_query.replace("#", " ").replace("°", " ").replace("N°", " ").replace("No.", " ")
-    cleaned = cleaned.replace("—", " ").replace("-", " ")
+    cleaned = cleaned.replace("—", " ")
     cleaned = " ".join(cleaned.split())
+
+    if cleaned.lower() in GEOCODE_CACHE:
+        return GEOCODE_CACHE[cleaned.lower()]
 
     # Intentos de búsqueda con Nominatim
     attempts = [
         cleaned,
-        f"{cleaned}, Colombia",
         f"{cleaned}, Antioquia, Colombia",
         f"{cleaned}, Medellín, Colombia",
         f"{cleaned}, Envigado, Colombia",
@@ -142,11 +147,14 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
         attempts.append(f"{via_principal}, Colombia")
         attempts.append(f"{via_principal}, Medellín, Colombia")
 
+    attempts = list(dict.fromkeys(attempts))
+
     data = []
     for attempt in attempts:
         data = query_nominatim(attempt)
         if data:
             break
+        time.sleep(1.1)
 
     if data:
         results = []
@@ -158,21 +166,16 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
                 "type": item.get("type"),
                 "class": item.get("class")
             })
+        if len(GEOCODE_CACHE) > 500:
+            GEOCODE_CACHE.clear()
+        GEOCODE_CACHE[cleaned.lower()] = results
         return results
 
-    # Fallback si OpenStreetMap no encuentra la dirección exacta
-    query_hash = sum(ord(c) for c in raw_query) % 100
-    lat_offset = (query_hash - 50) * 0.0001
-    lng_offset = ((query_hash * 3) % 100 - 50) * 0.0001
-
-    return [{
-        "display_name": f"Dirección registrada: {raw_query}",
-        "latitude": 6.2442 + lat_offset,
-        "longitude": -75.5812 + lng_offset,
-        "type": "building",
-        "class": "place"
-    }]
-
+    # Sin coordenadas reales no se guarda la parada
+    raise HTTPException(
+        status_code=404,
+        detail=f"No se encontró la ubicación para: {raw_query}"
+    )
 
 LOG_FILE = "weekly_routes_log.csv"
 
