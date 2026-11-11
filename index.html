@@ -398,13 +398,17 @@
                 </div>
                 <form id="continuousScanForm" onsubmit="handleContinuousScan(event)">
                     <div class="form-group">
-                        <label for="scanName">Referencia / Nombre (Opcional)</label>
-                        <input type="text" id="scanName" placeholder="Ej. Cliente Juan / Local 12">
+                        <label for="scanAddress">📍 Dirección Exacta <span style="color:#ef4444;">*</span></label>
+                        <input type="text" id="scanAddress" placeholder="Ej. Calle 30 Sur 48-170, Envigado" required autofocus>
                     </div>
                     <div class="form-group">
-                        <label for="scanAddress">Dirección o Edificio a Escanear</label>
-                        <input type="text" id="scanAddress" placeholder="Ej. Calle 100 # 15-20, Bogotá" required autofocus>
-                        <div class="hint-text">Presiona Enter o Añadir para guardar y escanear la siguiente dirección sin salir.</div>
+                        <label for="scanReference">🏷️ Referencia / Apto / Torre <span style="color:#ef4444;">*</span></label>
+                        <input type="text" id="scanReference" placeholder="Ej. 1414 / Apto 302 / Torre 2" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="scanName">👤 Destinatario / Nombre (Opcional)</label>
+                        <input type="text" id="scanName" placeholder="Ej. Manuela González">
+                        <div class="hint-text">Dirección y Referencia son obligatorias para garantizar entrega exacta.</div>
                     </div>
                     <button type="submit" class="btn btn-success">➕ Añadir a Ruta y Seguir Escaneando</button>
                     <button type="button" class="btn btn-camera" onclick="openRearCamera()">📷 Activar Cámara Trasera (GPS)</button>
@@ -487,23 +491,30 @@
 
         async function handleContinuousScan(e) {
             e.preventDefault();
-            const nameInput = document.getElementById('scanName').value.trim();
             const addressInput = document.getElementById('scanAddress').value.trim();
+            const refInput = document.getElementById('scanReference').value.trim();
+            const nameInput = document.getElementById('scanName').value.trim();
 
             if (!addressInput) {
-                alert('Por favor ingresa una dirección.');
+                alert('⚠️ Por favor ingresa la Dirección exacta.');
+                document.getElementById('scanAddress').focus();
+                return;
+            }
+            if (!refInput) {
+                alert('⚠️ Por favor ingresa la Referencia obligatoria (ej. número de apartamento, interior o timbre).');
+                document.getElementById('scanReference').focus();
                 return;
             }
 
-            const name = nameInput || `Parada #${Date.now().toString().slice(-4)}`;
-            const address = addressInput;
+            const name = nameInput ? `${nameInput} (Ref: ${refInput})` : `Ref: ${refInput}`;
+            const fullAddress = `${addressInput} — Ref: ${refInput}`;
 
             let lat = 4.6097;
             let lng = -74.0817;
 
-            // Geocodificar dirección automáticamente mediante Nominatim
+            // Geocodificación precisa usando la dirección exacta en Nominatim
             try {
-                const res = await fetch(`/geocode?query=${encodeURIComponent(address)}`);
+                const res = await fetch(`/geocode?query=${encodeURIComponent(addressInput)}`);
                 const data = await res.json();
                 if (data && data.length > 0) {
                     lat = data[0].latitude;
@@ -513,11 +524,12 @@
                 console.warn('Geocodificación offline, usando coordenadas por defecto.');
             }
 
-            await saveLocationAutomatically(name, address, lat, lng);
+            await saveLocationAutomatically(name, fullAddress, lat, lng);
 
             // Limpiar y mantener el foco listo para la SIGUIENTE dirección sin salir
-            document.getElementById('scanName').value = '';
             document.getElementById('scanAddress').value = '';
+            document.getElementById('scanReference').value = '';
+            document.getElementById('scanName').value = '';
             document.getElementById('scanAddress').focus();
         }
 
