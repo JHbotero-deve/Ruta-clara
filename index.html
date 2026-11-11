@@ -433,18 +433,21 @@
                     <h2>⚡ Escáner Continuo de Ruta</h2>
                 </div>
                 <form id="continuousScanForm" onsubmit="handleContinuousScan(event)">
+                    <div id="scanSuccessAlert" style="display:none; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:8px; padding:10px 14px; font-size:12px; font-weight:700; margin-bottom:12px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+                        ✅ ¡Parada guardada en ruta! Escanea la siguiente...
+                    </div>
                     <div class="form-group">
                         <label for="scanAddress">📍 Dirección Exacta <span style="color:#ef4444;">*</span></label>
-                        <input type="text" id="scanAddress" placeholder="Ej. Calle 30 Sur 48-170, Envigado" required autofocus>
+                        <input type="text" id="scanAddress" placeholder="Ej. Calle 30 Sur 48-170, Envigado" required autofocus enterkeyhint="next">
                     </div>
                     <div class="form-group">
                         <label for="scanReference">🏷️ Referencia / Apto / Torre <span style="color:#ef4444;">*</span></label>
-                        <input type="text" id="scanReference" placeholder="Ej. 1414 / Apto 302 / Torre 2" required>
+                        <input type="text" id="scanReference" placeholder="Ej. 1414 / Apto 302 / Torre 2" required enterkeyhint="send">
                     </div>
                     <div class="form-group">
                         <label for="scanName">👤 Destinatario / Nombre (Opcional)</label>
-                        <input type="text" id="scanName" placeholder="Ej. Manuela González">
-                        <div class="hint-text">Dirección y Referencia son obligatorias para garantizar entrega exacta.</div>
+                        <input type="text" id="scanName" placeholder="Ej. Manuela González" enterkeyhint="send">
+                        <div class="hint-text">Presiona Enter o Añadir para guardar y seguir escaneando sin salir del formulario.</div>
                     </div>
                     <button type="submit" class="btn btn-success">➕ Añadir a Ruta y Seguir Escaneando</button>
                     <button type="button" class="btn btn-camera" onclick="openRearCamera()">📷 Activar Cámara Trasera (GPS)</button>
@@ -454,7 +457,7 @@
             <!-- GUÍA Y DIRECCIONES CAPTURADAS -->
             <div class="card" style="display: flex; flex-direction: column;">
                 <div class="card-header" style="margin-bottom: 6px;">
-                    <h2>📋 Direcciones y Paradas Guardadas</h2>
+                    <h2>📋 Direcciones Guardadas <span id="stopsCountBadge" style="background:#ea580c; color:white; font-size:11px; padding:2px 8px; border-radius:12px; margin-left:6px; font-weight:700;">0</span></h2>
                     <div style="display:flex; gap:8px;">
                         <button onclick="loadOptimalRoute()" style="background: none; border: none; color: var(--primary); font-size: 11px; font-weight: 600; cursor: pointer;">🔄 Actualizar</button>
                         <button onclick="clearAllLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer;">🗑️ Borrar Ruta</button>
@@ -588,11 +591,25 @@
 
             await saveLocationAutomatically(name, fullAddress, lat, lng);
 
-            // Limpiar y mantener el foco listo para la SIGUIENTE dirección sin salir
+            // Calcular conteo acumulado de paradas
+            const count = document.querySelectorAll('#navStepsList .nav-step-item').length;
+
+            // Mostrar alerta de éxito con contador en vivo
+            const alertBox = document.getElementById('scanSuccessAlert');
+            if (alertBox) {
+                alertBox.innerText = `✅ ¡Parada guardada! Llevas ${count} ${count === 1 ? 'paquete' : 'paquetes'} en ruta.`;
+                alertBox.style.display = 'block';
+                setTimeout(() => { alertBox.style.display = 'none'; }, 3000);
+            }
+
+            // Limpiar y mantener el foco listo para la SIGUIENTE dirección de corrido
             document.getElementById('scanAddress').value = '';
             document.getElementById('scanReference').value = '';
             document.getElementById('scanName').value = '';
-            document.getElementById('scanAddress').focus();
+
+            const addrField = document.getElementById('scanAddress');
+            addrField.focus();
+            addrField.click();
         }
 
         async function saveLocationAutomatically(name, address, lat, lng) {
@@ -708,11 +725,17 @@
 
             const stepsContainer = document.getElementById('navStepsList');
             const totalSummary = document.getElementById('totalSummary');
+            const stopsCountBadge = document.getElementById('stopsCountBadge');
+
+            if (stopsCountBadge) {
+                stopsCountBadge.innerText = locations ? locations.length : 0;
+            }
+
             stepsContainer.innerHTML = '';
 
             if (!locations || locations.length === 0) {
                 totalSummary.style.display = 'none';
-                stepsContainer.innerHTML = '<p style="color:var(--text-muted); font-size:12px; text-align:center; padding: 20px;">No hay paradas en la ruta. Usa el escáner continuo.</p>';
+                stepsContainer.innerHTML = '<p style="color:var(--text-muted); font-size:12px; text-align:center; padding: 20px;">No hay paradas en la ruta. Usa el escáner continuo de arriba.</p>';
                 return;
             }
 
