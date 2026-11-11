@@ -1,0 +1,29 @@
+services:
+  web:
+    container_name: ruta-clara-web-dev
+    command:
+      - uvicorn
+      - src.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app
+      - --reload-include
+      - "*.py"
+      - --reload-include
+      - "*.html"
+      - --reload-include
+      - "*.js"
+      - --reload-include
+      - "*.css"
+      - --reload-include
+      - "*.json"
+      - --reload-include
+      - "*.svg"
+    volumes:
+      - .:/app
+      - ruta_clara_data:/app/data
+    restart: unless-stopped
