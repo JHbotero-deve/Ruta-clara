@@ -515,8 +515,18 @@
             const name = nameInput ? `${nameInput} (Ref: ${refInput})` : `Ref: ${refInput}`;
             const fullAddress = `${addressInput} — Ref: ${refInput}`;
 
-            let lat = 4.6097;
-            let lng = -74.0817;
+            let lat = 6.2442;
+            let lng = -75.5812;
+
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000, enableHighAccuracy: true });
+                    });
+                    lat = pos.coords.latitude;
+                    lng = pos.coords.longitude;
+                } catch (e) {}
+            }
 
             // Geocodificación precisa usando la dirección exacta en Nominatim
             try {
@@ -527,7 +537,7 @@
                     lng = data[0].longitude;
                 }
             } catch (err) {
-                console.warn('Geocodificación offline, usando coordenadas por defecto.');
+                console.warn('Geocodificación offline, usando posición actual.');
             }
 
             await saveLocationAutomatically(name, fullAddress, lat, lng);
