@@ -87,29 +87,28 @@ def read_users_me(current_user: User = Depends(get_current_active_user)):
 @router.get("/geocode", tags=["Geocoding"])
 def search_address(query: str = Query(..., description="Dirección o nombre del edificio a buscar")):
     """Escanea y busca la latitud, longitud y dirección exacta de un edificio o calle."""
-    query = query.strip()
+    raw_query = query.strip()
 
     # 0. Reverse Geocoding si se reciben coordenadas "lat, lng"
-    if "," in query:
-        parts = [p.strip() for p in query.split(",")]
-        if len(parts) == 2:
-            try:
-                lat_val = float(parts[0])
-                lng_val = float(parts[1])
-                url = f"https://nominatim.openstreetmap.org/reverse?lat={lat_val}&lon={lng_val}&format=json"
-                req = urllib.request.Request(url, headers={"User-Agent": "RutaClaraDeliveryApp/2.0"})
-                with urllib.request.urlopen(req, timeout=4) as response:
-                    res_data = json.loads(response.read().decode())
-                    if res_data and "display_name" in res_data:
-                        return [{
-                            "display_name": res_data.get("display_name"),
-                            "latitude": lat_val,
-                            "longitude": lng_val,
-                            "type": "building",
-                            "class": "place"
-                        }]
-            except Exception:
-                pass
+    if "," in raw_query and len(raw_query.split(",")) == 2:
+        parts = [p.strip() for p in raw_query.split(",")]
+        try:
+            lat_val = float(parts[0])
+            lng_val = float(parts[1])
+            url = f"https://nominatim.openstreetmap.org/reverse?lat={lat_val}&lon={lng_val}&format=json"
+            req = urllib.request.Request(url, headers={"User-Agent": "RutaClaraDeliveryApp/2.0"})
+            with urllib.request.urlopen(req, timeout=4) as response:
+                res_data = json.loads(response.read().decode())
+                if res_data and "display_name" in res_data:
+                    return [{
+                        "display_name": res_data.get("display_name"),
+                        "latitude": lat_val,
+                        "longitude": lng_val,
+                        "type": "building",
+                        "class": "place"
+                    }]
+        except Exception:
+            pass
 
     def query_nominatim(q):
         try:
@@ -121,18 +120,27 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
         except Exception:
             return []
 
-    # 1. Limpieza de caracteres y formato colombiano
-    cleaned = query.replace("#", " ").replace("°", " ").replace("N°", " ").replace("No.", " ")
+    # 1. Formateo y estandarización de direcciones de Colombia (ej. Calle 30 Sur 48 170 Envigado)
+    cleaned = raw_query.replace("#", " ").replace("°", " ").replace("N°", " ").replace("No.", " ")
     cleaned = cleaned.replace("—", " ").replace("-", " ")
     cleaned = " ".join(cleaned.split())
 
-    # 2. Búsquedas jerárquicas
+    # Intentos de búsqueda con Nominatim
     attempts = [
+        cleaned,
         f"{cleaned}, Colombia",
-        f"{cleaned}, Medellín, Antioquia, Colombia",
-        f"{cleaned}, Envigado, Antioquia, Colombia",
-        f"{query}, Colombia"
+        f"{cleaned}, Antioquia, Colombia",
+        f"{cleaned}, Medellín, Colombia",
+        f"{cleaned}, Envigado, Colombia",
+        raw_query
     ]
+
+    # Si hay números en la dirección (ej. Calle 30 Sur 48-170), intentar también buscar la vía/carrera principal
+    words = cleaned.split()
+    if len(words) >= 3:
+        via_principal = " ".join(words[:3])
+        attempts.append(f"{via_principal}, Colombia")
+        attempts.append(f"{via_principal}, Medellín, Colombia")
 
     data = []
     for attempt in attempts:
@@ -152,13 +160,13 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
             })
         return results
 
-    # 3. Fallback solo si no se encontró en OSM
-    query_hash = sum(ord(c) for c in query) % 100
+    # Fallback si OpenStreetMap no encuentra la dirección exacta
+    query_hash = sum(ord(c) for c in raw_query) % 100
     lat_offset = (query_hash - 50) * 0.0001
     lng_offset = ((query_hash * 3) % 100 - 50) * 0.0001
 
     return [{
-        "display_name": f"Dirección registrada: {query}",
+        "display_name": f"Dirección registrada: {raw_query}",
         "latitude": 6.2442 + lat_offset,
         "longitude": -75.5812 + lng_offset,
         "type": "building",

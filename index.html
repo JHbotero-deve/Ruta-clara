@@ -575,37 +575,28 @@
                     if (data && data.length > 0) {
                         lat = data[0].latitude;
                         lng = data[0].longitude;
+                        // Si el servidor retornó un nombre/dirección formateado, usarlo
+                        if (data[0].display_name && !data[0].display_name.startsWith('Dirección registrada:')) {
+                            console.log('Geocodificación exitosa:', data[0].display_name);
+                        }
                     }
                 }
             } catch (err) {
                 console.warn('Servidor offline para geocodificación:', err);
             }
 
-            // 2. Si la geocodificación no retornó resultado, obtener posición GPS actual o base
+            // 2. Si la geocodificación no retornó coordinadas válidas, usar fallback
             if (!lat || !lng) {
-                if (navigator.geolocation) {
-                    try {
-                        const pos = await new Promise((resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000, enableHighAccuracy: true });
-                        });
-                        lat = pos.coords.latitude;
-                        lng = pos.coords.longitude;
-                    } catch (e) {
-                        lat = 6.2442;
-                        lng = -75.5812;
-                    }
-                } else {
-                    lat = 6.2442;
-                    lng = -75.5812;
-                }
+                lat = 6.2442;
+                lng = -75.5812;
             }
 
-            // 3. Prevenir solapamiento exacto de ubicaciones repetidas
+            // 3. Prevenir solapamiento de ubicaciones idénticas
             let existingOffline = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
-            let dupCount = existingOffline.filter(l => Math.abs(l.latitude - lat) < 0.00005 && Math.abs(l.longitude - lng) < 0.00005).length;
+            let dupCount = existingOffline.filter(l => Math.abs(l.latitude - lat) < 0.0001 && Math.abs(l.longitude - lng) < 0.0001).length;
             if (dupCount > 0) {
-                lat += (dupCount * 0.0004);
-                lng += (dupCount * 0.0004);
+                lat += (dupCount * 0.0005);
+                lng += (dupCount * 0.0005);
             }
 
             await saveLocationAutomatically(name, fullAddress, lat, lng);
