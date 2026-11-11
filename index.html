@@ -685,21 +685,28 @@
             document.getElementById('cameraModal').style.display = 'none';
         }
 
-        function captureCameraLocation() {
+        async function captureCameraLocation() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
+                navigator.geolocation.getCurrentPosition(async position => {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
-                    const name = `Parada GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-                    const address = "Ubicación capturada con cámara GPS";
-
                     closeCamera();
-                    map.setView([lat, lng], 16);
 
-                    if (tempMarker) map.removeLayer(tempMarker);
-                    tempMarker = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+                    let name = "Parada con Cámara";
+                    let address = `Ubicación GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-                    saveLocationAutomatically(name, address, lat, lng);
+                    try {
+                        const res = await fetch(`/geocode?query=${lat},${lng}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && data.length > 0 && data[0].display_name) {
+                                address = data[0].display_name;
+                                name = data[0].display_name.split(',')[0];
+                            }
+                        }
+                    } catch (e) {}
+
+                    await saveLocationAutomatically(name, address, lat, lng);
                 }, err => {
                     alert('No se pudo obtener la posición GPS.');
                 }, { enableHighAccuracy: true });

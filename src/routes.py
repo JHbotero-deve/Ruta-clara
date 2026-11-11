@@ -87,6 +87,30 @@ def read_users_me(current_user: User = Depends(get_current_active_user)):
 @router.get("/geocode", tags=["Geocoding"])
 def search_address(query: str = Query(..., description="Dirección o nombre del edificio a buscar")):
     """Escanea y busca la latitud, longitud y dirección exacta de un edificio o calle."""
+    query = query.strip()
+
+    # 0. Reverse Geocoding si se reciben coordenadas "lat, lng"
+    if "," in query:
+        parts = [p.strip() for p in query.split(",")]
+        if len(parts) == 2:
+            try:
+                lat_val = float(parts[0])
+                lng_val = float(parts[1])
+                url = f"https://nominatim.openstreetmap.org/reverse?lat={lat_val}&lon={lng_val}&format=json"
+                req = urllib.request.Request(url, headers={"User-Agent": "RutaClaraDeliveryApp/2.0"})
+                with urllib.request.urlopen(req, timeout=4) as response:
+                    res_data = json.loads(response.read().decode())
+                    if res_data and "display_name" in res_data:
+                        return [{
+                            "display_name": res_data.get("display_name"),
+                            "latitude": lat_val,
+                            "longitude": lng_val,
+                            "type": "building",
+                            "class": "place"
+                        }]
+            except Exception:
+                pass
+
     def query_nominatim(q):
         try:
             encoded_query = urllib.parse.quote(q)
@@ -97,22 +121,18 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
         except Exception:
             return []
 
-    # 1. Limpieza inicial de caracteres especiales en Colombia
-    cleaned = query.replace("#", "").replace("°", "").replace("N°", "").replace("No.", "")
-    cleaned = cleaned.replace("—", "").replace("-", " ")
-    
-    # Intentar búsqueda exacta
+    # 1. Limpieza de caracteres y formato colombiano
+    cleaned = query.replace("#", " ").replace("°", " ").replace("N°", " ").replace("No.", " ")
+    cleaned = cleaned.replace("—", " ").replace("-", " ")
+    cleaned = " ".join(cleaned.split())
+
+    # 2. Búsquedas jerárquicas
     attempts = [
         f"{cleaned}, Colombia",
         f"{cleaned}, Medellín, Antioquia, Colombia",
+        f"{cleaned}, Envigado, Antioquia, Colombia",
+        f"{query}, Colombia"
     ]
-    
-    # Extraer calle principal sin número de casa para fallback de vía
-    parts = cleaned.split(",")
-    if len(parts) > 0:
-        main_street = parts[0].strip()
-        attempts.append(f"{main_street}, Medellín, Colombia")
-        attempts.append(f"{main_street}, Envigado, Colombia")
 
     data = []
     for attempt in attempts:
@@ -120,31 +140,30 @@ def search_address(query: str = Query(..., description="Dirección o nombre del 
         if data:
             break
 
-    # Calcular offset determinista basado en el texto para evitar solapamiento si cae en fallback
-    query_hash = sum(ord(c) for c in query) % 100
-    lat_offset = (query_hash - 50) * 0.0001
-    lng_offset = ((query_hash * 3) % 100 - 50) * 0.0001
-
     if data:
         results = []
         for item in data:
             results.append({
                 "display_name": item.get("display_name"),
-                "latitude": float(item.get("lat")) + lat_offset,
-                "longitude": float(item.get("lon")) + lng_offset,
+                "latitude": float(item.get("lat")),
+                "longitude": float(item.get("lon")),
                 "type": item.get("type"),
                 "class": item.get("class")
             })
         return results
-    else:
-        # Fallback inteligente centrado en Medellín con offset único por dirección
-        return [{
-            "display_name": f"Dirección aproximada: {query}",
-            "latitude": 6.2442 + lat_offset,
-            "longitude": -75.5812 + lng_offset,
-            "type": "building",
-            "class": "place"
-        }]
+
+    # 3. Fallback solo si no se encontró en OSM
+    query_hash = sum(ord(c) for c in query) % 100
+    lat_offset = (query_hash - 50) * 0.0001
+    lng_offset = ((query_hash * 3) % 100 - 50) * 0.0001
+
+    return [{
+        "display_name": f"Dirección registrada: {query}",
+        "latitude": 6.2442 + lat_offset,
+        "longitude": -75.5812 + lng_offset,
+        "type": "building",
+        "class": "place"
+    }]
 
 
 LOG_FILE = "weekly_routes_log.csv"
