@@ -21,9 +21,10 @@
 ## 🚀 Características Principales
 
 - **Mapa Interno Integrado (Sin API Keys)**: Motor de mapas interactivo basado en **Leaflet.js** y **OpenStreetMap** servido directamente por la aplicación en `/map` sin depender de Google Maps ni claves externas.
-- **Cálculo y Optimización de Rutas**: Algoritmo `Haversine` para distancias esféricas reales en la Tierra y motor híbrido de optimización de rutas (Fuerza Bruta exacta para $N \le 8$ y heurística *Nearest Neighbor* para conjuntos mayores).
+- **Cálculo y Optimización de Rutas**: Algoritmo `Haversine` para distancias esféricas reales en la Tierra y motor híbrido de optimización de rutas (Fuerza Bruta exacta para $N \le 8$ y *Nearest Neighbor* con refinamiento *2-Opt* para conjuntos mayores).
 - **Gestión de Ubicaciones y Referencias**: Modelado ORM completo con SQLAlchemy y validación estricta de datos de entrada/salida mediante esquemas Pydantic v2.
-- **Preparado para Producción**: Configuración flexible con variables de entorno (`DATABASE_URL`, `SECRET_KEY`, `ALLOWED_ORIGINS`), middleware CORS, Dockerfile optimizado y `docker-compose.yml`.
+- **Pruebas Automatizadas y Auditoría**: Suite de pruebas unitarias e integración con Pytest y script de verificación de dependencias de producción.
+- **Preparado para Producción**: Configuración flexible con variables de entorno (`DATABASE_URL`, `SECRET_KEY`, `ALLOWED_ORIGINS`), middleware CORS, usuario sin privilegios en Dockerfile y `docker-compose.yml`.
 - **Documentación OpenAPI Automática**: Swagger UI interactivo disponible nativamente en `/docs` y Redoc en `/redoc`.
 
 ---
@@ -33,20 +34,27 @@
 ```text
 ruta clara/
 ├── database.py              # Configuración de SQLAlchemy y gestión de la sesión get_db
-├── index.html               # Visualizador web con Google Maps API
+├── index.html               # Visualizador web interactivo de rutas y mapas
+├── audit_dependencies.py    # Script de auditoría y verificación de dependencias
 ├── requirements.txt         # Dependencias de producción
-├── Dockerfile               # Imagen Docker de producción
-├── docker-compose.yml       # Orquestación de servicios
+├── Dockerfile               # Imagen Docker de producción (appuser sin root)
+├── docker-compose.yml       # Orquestación de servicios con volumen persistente
+├── run.bat                  # Script de inicio rápido para Windows
 ├── .env.example             # Plantilla de variables de entorno
 ├── .gitignore               # Exclusiones para control de versiones
 ├── README.md                # Documentación del proyecto
-└── src/
+├── src/
+│   ├── __init__.py
+│   ├── main.py              # Punto de entrada FastAPI, CORS y middleware
+│   ├── models.py            # Modelos ORM (SQLAlchemy) y Esquemas DTO (Pydantic)
+│   ├── auth.py              # Lógica de seguridad, JWT y hashing de contraseñas
+│   ├── routes.py            # Enrutador principal de endpoints RESTful
+│   └── route_optimizer.py   # Algoritmo Haversine y optimizador TSP (2-Opt)
+└── tests/
     ├── __init__.py
-    ├── main.py              # Punto de entrada FastAPI, CORS y middleware
-    ├── models.py            # Modelos ORM (SQLAlchemy) y Esquemas DTO (Pydantic)
-    ├── auth.py              # Lógica de seguridad, JWT y hashing de contraseñas
-    ├── routes.py            # Enrutador principal de endpoints RESTful
-    └── route_optimizer.py   # Algoritmo Haversine y cálculo de ruta óptima
+    ├── test_api.py          # Pruebas de integración HTTP de la API
+    ├── test_auth.py         # Pruebas unitarias de seguridad y tokens JWT
+    └── test_route_optimizer.py # Pruebas unitarias de algoritmos de optimización
 ```
 
 ---
@@ -115,6 +123,22 @@ La API estará disponible inmediatamente en `http://localhost:8000`.
 ```bash
 docker build -t ruta-clara-api .
 docker run -d -p 8000:8000 --name ruta-clara-app ruta-clara-api
+```
+
+---
+
+## 🧪 Pruebas Automatizadas y Auditoría
+
+### 1. Auditoría de Dependencias
+Verifica que todas las dependencias requeridas en `requirements.txt` están correctamente instaladas:
+```bash
+python audit_dependencies.py
+```
+
+### 2. Ejecutar la Suite de Pruebas (Pytest)
+Ejecuta las pruebas unitarias y de integración para validar la API, la seguridad y los algoritmos de optimización:
+```bash
+python -m pytest -v
 ```
 
 ---

@@ -1,44 +1,81 @@
 # Script para auditar dependencias
 
-import os
+import re
 import subprocess
+import sys
 
-def generate_requirements():
-    # Generar requirements.txt
-    with open('requirements.txt', 'w') as file:
-        subprocess.run(['pip', 'freeze'], stdout=file)
+
+from typing import Optional
+
+
+def parse_package_name(line: str) -> Optional[str]:
+    """Extract the base package name from a requirements.txt line (stripping extras like [standard])."""
+    line = line.strip()
+    if not line or line.startswith("#") or line.startswith("-"):
+        return None
+    # Split on version specifiers: ==, >=, <=, ~=, !=, >, <
+    match = re.split(r"[><=!~]=?", line)
+    raw_name = match[0].strip() if match and match[0].strip() else None
+    if raw_name:
+        # Strip extras bracket notation e.g. uvicorn[standard] -> uvicorn
+        base_name = re.split(r"\[", raw_name)[0].strip()
+        return base_name
+    return None
+
 
 def check_dependencies():
-    # Verificar dependencias faltantes
-    installed = set()
+    """Verify that all packages in requirements.txt are installed."""
     missing = []
+    installed_info = []
 
-    with open('requirements.txt', 'r') as file:
-        for line in file:
-            package, version = line.strip().split('==')
-            installed.add(package)
+    try:
+        with open("requirements.txt", "r", encoding="utf-8") as file:
+            for line in file:
+                package = parse_package_name(line)
+                if not package:
+                    continue
 
-    for package in installed:
-        try:
-            subprocess.run(['pip', 'show', package], check=True)
-        except subprocess.CalledProcessError:
-            missing.append(package)
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "show", package],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    missing.append(package)
+                else:
+                    # Extract installed version
+                    for info_line in result.stdout.splitlines():
+                        if info_line.startswith("Version:"):
+                            version = info_line.split(":", 1)[1].strip()
+                            installed_info.append(f"  ✅ {package}=={version}")
+                            break
+    except FileNotFoundError:
+        print("❌ No se encontró requirements.txt")
+        return []
 
-    return missing
+    return missing, installed_info
+
 
 def main():
-    # Generar requirements.txt
-    generate_requirements()
+    missing, installed = check_dependencies()
 
-    # Verificar dependencias faltantes
-    missing = check_dependencies()
+    print("=" * 50)
+    print("  Auditoría de Dependencias - Ruta Clara")
+    print("=" * 50)
+
+    if installed:
+        print("\nPaquetes instalados:")
+        for info in installed:
+            print(info)
 
     if missing:
-        print("Dependencias faltantes:")
+        print(f"\n⚠️  Dependencias faltantes ({len(missing)}):")
         for package in missing:
-            print(f"  - {package}")
+            print(f"  ❌ {package}")
+        print(f"\nInstala con: pip install {' '.join(missing)}")
     else:
-        print("No hay dependencias faltantes.")
+        print("\n✅ Todas las dependencias están instaladas.")
+
 
 if __name__ == "__main__":
     main()

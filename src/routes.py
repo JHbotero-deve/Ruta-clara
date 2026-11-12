@@ -1,3 +1,4 @@
+import logging
 import unicodedata
 
 import os
@@ -7,9 +8,10 @@ import time
 import sqlite3
 import urllib.parse
 import urllib.request
+from collections import OrderedDict
 from pathlib import Path
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from fastapi import (
     APIRouter, Depends, HTTPException, Query, status
@@ -26,14 +28,16 @@ from src.auth import (
     get_password_hash,
 )
 from src.models import (
-    User, Location, Reference,
+    User, Location, Reference, DeliveryRoute,
     UserCreate, UserResponse,
-    LocationCreate, LocationResponse,
+    LocationCreate, LocationResponse, LocationUpdateDelivered,
     ReferenceCreate, ReferenceResponse,
+    DeliveryRouteCreate, DeliveryRouteUpdate, DeliveryRouteResponse,
     Token,
 )
 from src.route_optimizer import calculate_optimal_route
 
+logger = logging.getLogger("ruta_clara.routes")
 
 router = APIRouter()
 
@@ -42,7 +46,8 @@ STATIC_DIR = BASE_DIR / "static"
 MAP_FILE = STATIC_DIR / "offline" / "valle_aburra.mbtiles"
 LOG_FILE = BASE_DIR / "weekly_routes_log.csv"
 
-GEOCODE_CACHE = {}
+GEOCODE_CACHE_MAX = 500
+GEOCODE_CACHE: OrderedDict = OrderedDict()
 GEOCODE_LAST_REQUEST = 0.0
 
 
@@ -250,318 +255,240 @@ def read_users_me(
 
 
 # ============================================================
-# GEOCODING ONLINE
+# GEOCODING Y PARSER DE GUÍAS DE ENTREGA (COLOMBIA / VALLE DE ABURRÁ)
 # ============================================================
+
+def clean_address_for_geocoding(raw_text: str) -> str:
+    """
+    Limpia una dirección colombiana para que el geocodificador encuentre la vía exacta.
+    Remueve apartamentos, interiores, oficinas, torres y SN que confunden a los mapas.
+    """
+    import re
+    cleaned = raw_text
+    # Remover patrones de unidades internas
+    patterns = [
+        r'\b(apartamento|apto|apt|ap)\.?\s*(\d+[a-zA-Z]*)',
+        r'\b(oficina|ofc|ofi)\.?\s*(\d+[a-zA-Z]*)',
+        r'\b(torre|tr)\.?\s*(\d+[a-zA-Z]*)',
+        r'\b(interior|int)\.?\s*(\d+[a-zA-Z]*)',
+        r'\b(local|loc)\.?\s*(\d+[a-zA-Z]*)',
+        r'\b(piso|p)\.?\s*(\d+)',
+        r'\bSN\b',
+        r'\bS/N\b',
+        r'\b(bloque|blq)\.?\s*(\d+[a-zA-Z]*)'
+    ]
+    for p in patterns:
+        cleaned = re.sub(p, '', cleaned, flags=re.IGNORECASE)
+
+    # Limpiar espacios repetidos y símbolos huérfanos
+    cleaned = re.sub(r'[,#\s]+', ' ', cleaned).strip()
+    return cleaned
+
+
+def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None) -> List[dict]:
+    """Consulta ArcGIS World Geocoding Service, optimizado para Colombia con respuesta < 0.5s."""
+    results = []
+    try:
+        searches = []
+        if requested_muni:
+            searches.append(f"{search_text}, {requested_muni}, Antioquia, Colombia")
+        searches.append(f"{search_text}, Valle de Aburrá, Antioquia, Colombia")
+        searches.append(f"{search_text}, Colombia")
+
+        for query_str in searches:
+            params = urllib.parse.urlencode({
+                "SingleLine": query_str,
+                "f": "json",
+                "outFields": "*",
+                "maxLocations": 5,
+                "outSR": 4326,
+                "countryCode": "COL"
+            })
+            url = f"https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?{params}"
+            req = urllib.request.Request(url, headers={"User-Agent": "RutaClara/5.0"})
+
+            with urllib.request.urlopen(req, timeout=4) as response:
+                data = json.loads(response.read().decode("utf-8"))
+
+            for candidate in data.get("candidates", []):
+                score = candidate.get("score", 0)
+                if score < 70:
+                    continue
+
+                point = candidate.get("location", {})
+                attrs = candidate.get("attributes", {})
+                if "x" not in point or "y" not in point:
+                    continue
+
+                lat = float(point["y"])
+                lon = float(point["x"])
+
+                # Delimitar aproximadamente el Valle de Aburrá (Medellín, Envigado, etc.)
+                if not (5.8 <= lat <= 6.6 and -75.9 <= lon <= -75.1):
+                    continue
+
+                municipality = attrs.get("City") or attrs.get("Subregion") or ""
+                neighborhood = attrs.get("Nbrhd") or attrs.get("District") or ""
+
+                results.append({
+                    "display_name": attrs.get("LongLabel") or candidate.get("address"),
+                    "latitude": lat,
+                    "longitude": lon,
+                    "municipality": municipality,
+                    "neighborhood": neighborhood,
+                    "type": attrs.get("Addr_type", "PointAddress"),
+                    "class": "arcgis",
+                    "score": score
+                })
+
+            if results:
+                break
+    except Exception as e:
+        logger.warning("ArcGIS Geocoder error: %s", e)
+    return results
+
 
 @router.get("/geocode", tags=["Geocoding"])
 def search_address(query: str = Query(..., min_length=3)):
-    """Busca direcciones colombianas usando Nominatim y Photon."""
-
+    """
+    Busca direcciones colombianas ultra-rápido (< 0.5s) con prioridad ArcGIS
+    y normalización inteligente para nomenclatura del Valle de Aburrá.
+    """
     global GEOCODE_LAST_REQUEST
 
     raw_query = " ".join(query.strip().split())
-
     if not raw_query:
         raise HTTPException(status_code=400, detail="Dirección vacía")
 
     cache_key = raw_query.casefold()
-
     if cache_key in GEOCODE_CACHE:
         return GEOCODE_CACHE[cache_key]
 
-    def normalize_result(item):
-        address = item.get("address", {})
-
-        municipality = (
-            address.get("city")
-            or address.get("town")
-            or address.get("municipality")
-            or address.get("county")
-            or ""
-        )
-
-        neighborhood = (
-            address.get("suburb")
-            or address.get("neighbourhood")
-            or address.get("quarter")
-            or ""
-        )
-
-        return {
-            "display_name": item.get("display_name", ""),
-            "latitude": float(item["lat"]),
-            "longitude": float(item["lon"]),
-            "municipality": municipality,
-            "neighborhood": neighborhood,
-            "type": item.get("type", ""),
-            "class": item.get("class", "")
-        }
-
-    def normalize_photon(feature):
-        properties = feature.get("properties", {})
-        coordinates = feature.get("geometry", {}).get("coordinates", [])
-
-        if len(coordinates) < 2:
-            return None
-
-        municipality = (
-            properties.get("city")
-            or properties.get("town")
-            or properties.get("county")
-            or properties.get("locality")
-            or ""
-        )
-
-        neighborhood = (
-            properties.get("district")
-            or properties.get("suburb")
-            or properties.get("neighbourhood")
-            or ""
-        )
-
-        name = properties.get("name", "")
-        street = properties.get("street", "")
-        number = properties.get("housenumber", "")
-        postcode = properties.get("postcode", "")
-        state = properties.get("state", "")
-        country = properties.get("country", "Colombia")
-
-        display = ", ".join(
-            str(value) for value in [
-                name, street, number, neighborhood,
-                municipality, state, postcode, country
-            ] if value
-        )
-
-        return {
-            "display_name": display,
-            "latitude": float(coordinates[1]),
-            "longitude": float(coordinates[0]),
-            "municipality": municipality,
-            "neighborhood": neighborhood,
-            "type": properties.get("type", ""),
-            "class": "photon"
-        }
-
-    # Variantes de búsqueda para direcciones del Valle de Aburrá.
-    attempts = [
-        raw_query,
-        f"{raw_query}, Medellín, Antioquia, Colombia",
-        f"{raw_query}, Antioquia, Colombia",
-        f"{raw_query}, Colombia"
+    # Detectar municipio solicitado en la consulta
+    municipalities = [
+        "Medellín", "Envigado", "Sabaneta", "Itagüí",
+        "La Estrella", "Caldas", "Bello",
+        "Copacabana", "Girardota", "Barbosa"
     ]
+    normalized_q = raw_query.casefold()
+    requested_muni = next((m for m in municipalities if m.casefold() in normalized_q), None)
 
-    attempts = list(dict.fromkeys(attempts))
-    results = []
+    # 1. Limpieza de dirección (quitar apto 200, SN, oficina, etc. para geocodificar)
+    cleaned_q = clean_address_for_geocoding(raw_query)
 
-    # Primera fuente: Nominatim.
-    for search in attempts:
-        elapsed = time.monotonic() - GEOCODE_LAST_REQUEST
+    # 2. Prioridad 1: ArcGIS (rápido, oficial para Colombia)
+    results = query_arcgis_geocoder(cleaned_q, requested_muni)
+    if not results and cleaned_q != raw_query:
+        results = query_arcgis_geocoder(raw_query, requested_muni)
 
-        if elapsed < 1.1:
-            time.sleep(1.1 - elapsed)
-
-        params = urllib.parse.urlencode({
-            "q": search,
-            "format": "jsonv2",
-            "limit": 5,
-            "addressdetails": 1,
-            "countrycodes": "co",
-            "accept-language": "es"
-        })
-
-        url = "https://nominatim.openstreetmap.org/search?" + params
-
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "RutaClaraDeliveryApp/3.1"
-            }
-        )
-
+    # 3. Prioridad 2 (Fallback): Nominatim si ArcGIS no encontró
+    if not results:
         try:
+            elapsed = time.monotonic() - GEOCODE_LAST_REQUEST
+            if elapsed < 1.0:
+                time.sleep(1.0 - elapsed)
+
+            params = urllib.parse.urlencode({
+                "q": f"{cleaned_q}, Antioquia, Colombia",
+                "format": "jsonv2",
+                "limit": 3,
+                "addressdetails": 1,
+                "countrycodes": "co",
+                "accept-language": "es"
+            })
+            url = f"https://nominatim.openstreetmap.org/search?{params}"
+            req = urllib.request.Request(url, headers={"User-Agent": "RutaClaraDeliveryApp/5.0"})
+
             GEOCODE_LAST_REQUEST = time.monotonic()
-
-            with urllib.request.urlopen(req, timeout=15) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 data = json.loads(response.read().decode("utf-8"))
 
-            if data:
-                results = [
-                    normalize_result(item)
-                    for item in data
-                    if item.get("lat") and item.get("lon")
-                ]
-
-            if results:
-                break
-
-        except Exception:
-            continue
-
-    # Segunda fuente: Photon, si Nominatim no encuentra resultados.
-    if not results:
-        photon_query = raw_query
-
-        if "colombia" not in photon_query.casefold():
-            photon_query += ", Medellín, Antioquia, Colombia"
-
-        params = urllib.parse.urlencode({
-            "q": photon_query,
-            "limit": 5,
-            "lang": "es"
-        })
-
-        url = "https://photon.komoot.io/api/?" + params
-
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "RutaClaraDeliveryApp/3.1"
-            }
-        )
-
-        try:
-            with urllib.request.urlopen(req, timeout=20) as response:
-                data = json.loads(response.read().decode("utf-8"))
-
-            for feature in data.get("features", []):
-                result = normalize_photon(feature)
-
-                if result:
-                    results.append(result)
-
-        except Exception:
-            pass
-
-
-
-    # ARCGIS FALLBACK RUTA CLARA
-    # Priorizar el municipio solicitado y evitar resultados lejanos.
-    if not results:
-        try:
-            import re
-
-            municipalities = [
-                "Medellín", "Envigado", "Sabaneta", "Itagüí",
-                "La Estrella", "Caldas", "Bello",
-                "Copacabana", "Girardota", "Barbosa"
-            ]
-
-            normalized = raw_query.casefold()
-            requested = next(
-                (m for m in municipalities if m.casefold() in normalized),
-                None
-            )
-
-            searches = []
-
-            if requested:
-                searches.append(f"{raw_query}, {requested}, Antioquia, Colombia")
-            else:
-                searches.append(f"{raw_query}, Valle de Aburrá, Antioquia, Colombia")
-
-            for search_text in searches:
-                params = urllib.parse.urlencode({
-                    "SingleLine": search_text,
-                    "f": "json",
-                    "outFields": "*",
-                    "maxLocations": 5,
-                    "outSR": 4326,
-                    "countryCode": "COL"
-                })
-
-                url = (
-                    "https://geocode.arcgis.com/arcgis/rest/services/"
-                    "World/GeocodeServer/findAddressCandidates?"
-                    + params
-                )
-
-                req = urllib.request.Request(
-                    url,
-                    headers={"User-Agent": "RutaClaraDeliveryApp/4.1"}
-                )
-
-                with urllib.request.urlopen(req, timeout=8) as response:
-                    data = json.loads(response.read().decode("utf-8"))
-
-                for candidate in data.get("candidates", []):
-                    if candidate.get("score", 0) < 75:
-                        continue
-
-                    point = candidate.get("location", {})
-                    attrs = candidate.get("attributes", {})
-
-                    if "x" not in point or "y" not in point:
-                        continue
-
-                    municipality = (
-                        attrs.get("City")
-                        or attrs.get("Subregion")
-                        or ""
-                    )
-
-                    # Validar municipio cuando el usuario lo especifica.
-                    if requested:
-                        def normalize_name(value):
-                            value = unicodedata.normalize(
-                                "NFKD", str(value or "").casefold().strip()
-                            )
-                            return "".join(
-                                char for char in value
-                                if not unicodedata.combining(char)
-                            )
-
-                        if normalize_name(municipality) != normalize_name(requested):
-                            continue
-
-                    lat = float(point["y"])
-                    lon = float(point["x"])
-
-                    # Delimitar aproximadamente el Valle de Aburrá.
-                    if not (6.0 <= lat <= 6.55 and -75.75 <= lon <= -75.25):
-                        continue
-
+            for item in data:
+                if item.get("lat") and item.get("lon"):
+                    addr = item.get("address", {})
                     results.append({
-                        "display_name": (
-                            attrs.get("LongLabel")
-                            or candidate.get("address")
-                        ),
-                        "latitude": lat,
-                        "longitude": lon,
-                        "municipality": municipality,
-                        "neighborhood": (
-                            attrs.get("Nbrhd")
-                            or attrs.get("District")
-                            or ""
-                        ),
-                        "type": attrs.get("Addr_type", ""),
-                        "class": "arcgis",
-                        "score": candidate.get("score")
+                        "display_name": item.get("display_name", ""),
+                        "latitude": float(item["lat"]),
+                        "longitude": float(item["lon"]),
+                        "municipality": addr.get("city") or addr.get("town") or addr.get("municipality") or "",
+                        "neighborhood": addr.get("suburb") or addr.get("neighbourhood") or "",
+                        "type": item.get("type", ""),
+                        "class": "nominatim"
                     })
-
-                if results:
-                    break
-
-        except Exception as error:
-            print(f"Error de ArcGIS: {error}")
+        except Exception as e:
+            logger.warning("Nominatim fallback error: %s", e)
 
     if not results:
         raise HTTPException(
             status_code=404,
-            detail=(
-                "No se encontró la dirección. "
-                "Intente agregar barrio, municipio y departamento."
-            )
+            detail="No se encontró la dirección. Intente verificar la nomenclatura o barrio."
         )
 
-    if len(GEOCODE_CACHE) > 500:
-        GEOCODE_CACHE.clear()
-
+    # Guardar en cache LRU
+    while len(GEOCODE_CACHE) >= GEOCODE_CACHE_MAX:
+        GEOCODE_CACHE.popitem(last=False)
     GEOCODE_CACHE[cache_key] = results
 
     return results
 
 
+@router.post("/parse-delivery-label", tags=["Geocoding"])
+def parse_delivery_label_endpoint(payload: dict):
+    """
+    Parsea automáticamente el texto o OCR de una guía de entrega (Mercado Libre / Flex / transportadora):
+    - Tipo: RESIDENCIAL / COMERCIAL
+    - Dirección: Carrera/Calle ...
+    - Distrito: Barrio/Comuna
+    - Referencia: Apto / Torre / Indicaciones
+    - Destinatario: Nombre (ID)
+    """
+    import re
+    text = payload.get("text", "")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Texto vacío")
+
+    # 1. Tipo
+    is_comercial = bool(re.search(r'\bCOMERCIAL\b', text, re.IGNORECASE))
+    is_residencial = bool(re.search(r'\bRESIDENCIAL\b', text, re.IGNORECASE))
+    destination_type = "Comercial" if is_comercial else ("Residencial" if is_residencial else "Residencial")
+
+    # 2. Dirección
+    dir_match = re.search(r'Direcci[oó]n:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
+    direccion = dir_match.group(1).strip() if dir_match else ""
+
+    # 3. Distrito
+    dist_match = re.search(r'Distrito:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
+    distrito = dist_match.group(1).strip() if dist_match else ""
+
+    # 4. Referencia
+    ref_match = re.search(r'Referencia:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
+    referencia = ref_match.group(1).strip() if ref_match else ""
+
+    # 5. Destinatario y Tracking
+    dest_match = re.search(r'Destinatario:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
+    dest_raw = dest_match.group(1).strip() if dest_match else ""
+    tracking_id = ""
+    id_m = re.search(r'\(([^)]+)\)', dest_raw)
+    if id_m:
+        tracking_id = id_m.group(1).strip()
+        destinatario = re.sub(r'\([^)]+\)', '', dest_raw).strip()
+    else:
+        destinatario = dest_raw
+
+    # Si la referencia está vacía pero la dirección tiene apartamento/oficina, extraerlo
+    if not referencia and direccion:
+        match_unit = re.search(r'(apartamento|apto|oficina|ofc|torre|interior|local|sn)\s*[\w\d\s]*', direccion, re.IGNORECASE)
+        if match_unit:
+            referencia = match_unit.group(0).strip()
+
+    return {
+        "tipo": destination_type,
+        "direccion": direccion,
+        "distrito": distrito,
+        "referencia": referencia,
+        "destinatario": destinatario,
+        "tracking_id": tracking_id
+    }
 
 
 # ============================================================
@@ -604,7 +531,125 @@ def log_location_to_file(
             ])
 
     except OSError as error:
-        print("Error CSV:", error)
+        logger.error("Error escribiendo CSV de historial: %s", error)
+
+
+# ============================================================
+# RUTAS DE ENTREGA (DELIVERY ROUTES)
+# ============================================================
+
+def get_or_create_default_route(db: Session) -> DeliveryRoute:
+    route = db.query(DeliveryRoute).filter(DeliveryRoute.is_active == True).first()
+    if not route:
+        route = db.query(DeliveryRoute).first()
+    if not route:
+        route = DeliveryRoute(name="Ruta Principal 1", is_active=True)
+        db.add(route)
+        db.commit()
+        db.refresh(route)
+    return route
+
+
+@router.get(
+    "/delivery-routes",
+    response_model=List[DeliveryRouteResponse],
+    tags=["Delivery Routes"]
+)
+def list_delivery_routes(db: Session = Depends(get_db)):
+    """Lista todas las rutas de entrega con la cantidad de paradas asignadas."""
+    routes = db.query(DeliveryRoute).order_by(DeliveryRoute.created_at.desc()).all()
+    result = []
+    for r in routes:
+        stops_count = db.query(Location).filter(Location.route_id == r.id).count()
+        result.append(DeliveryRouteResponse(
+            id=r.id,
+            name=r.name,
+            created_at=r.created_at,
+            is_active=r.is_active,
+            stops_count=stops_count
+        ))
+    return result
+
+
+@router.post(
+    "/delivery-routes",
+    response_model=DeliveryRouteResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Delivery Routes"]
+)
+def create_delivery_route(
+    route_in: DeliveryRouteCreate,
+    db: Session = Depends(get_db)
+):
+    """Crea una nueva ruta de entrega independiente."""
+    new_route = DeliveryRoute(name=route_in.name.strip(), is_active=True)
+    db.add(new_route)
+    db.commit()
+    db.refresh(new_route)
+    return DeliveryRouteResponse(
+        id=new_route.id,
+        name=new_route.name,
+        created_at=new_route.created_at,
+        is_active=new_route.is_active,
+        stops_count=0
+    )
+
+
+@router.put(
+    "/delivery-routes/{route_id}",
+    response_model=DeliveryRouteResponse,
+    tags=["Delivery Routes"]
+)
+def update_delivery_route(
+    route_id: int,
+    route_update: DeliveryRouteUpdate,
+    db: Session = Depends(get_db)
+):
+    """Actualiza el nombre o estado de una ruta."""
+    route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+
+    if route_update.name is not None:
+        route.name = route_update.name.strip()
+    if route_update.is_active is not None:
+        route.is_active = route_update.is_active
+
+    db.commit()
+    db.refresh(route)
+    stops_count = db.query(Location).filter(Location.route_id == route.id).count()
+    return DeliveryRouteResponse(
+        id=route.id,
+        name=route.name,
+        created_at=route.created_at,
+        is_active=route.is_active,
+        stops_count=stops_count
+    )
+
+
+@router.delete(
+    "/delivery-routes/{route_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Delivery Routes"]
+)
+def delete_delivery_route(
+    route_id: int,
+    db: Session = Depends(get_db)
+):
+    """Elimina una ruta completa y todas sus paradas asociadas."""
+    route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+
+    db.delete(route)
+    db.commit()
+
+    # Si no quedan rutas, crear una por defecto
+    remaining = db.query(DeliveryRoute).count()
+    if remaining == 0:
+        get_or_create_default_route(db)
+
+    return None
 
 
 # ============================================================
@@ -615,8 +660,14 @@ def log_location_to_file(
     "/locations",
     response_model=List[LocationResponse]
 )
-def read_locations(db: Session = Depends(get_db)):
-    return db.query(Location).all()
+def read_locations(
+    route_id: Optional[int] = Query(None, description="Filtrar por ID de ruta"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Location)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
+    return query.all()
 
 
 @router.post(
@@ -634,11 +685,28 @@ def create_location(
     if not (-180 <= location.longitude <= 180):
         raise HTTPException(status_code=400, detail="Longitud inválida")
 
+    # Si no se especifica ruta, asignar a la ruta activa o por defecto
+    target_route_id = location.route_id
+    if target_route_id is None:
+        default_route = get_or_create_default_route(db)
+        target_route_id = default_route.id
+    else:
+        # Validar que exista la ruta
+        route_exists = db.query(DeliveryRoute).filter(DeliveryRoute.id == target_route_id).first()
+        if not route_exists:
+            default_route = get_or_create_default_route(db)
+            target_route_id = default_route.id
+
     db_location = Location(
         name=location.name,
         latitude=location.latitude,
         longitude=location.longitude,
-        address=location.address
+        address=location.address,
+        municipality=location.municipality,
+        neighborhood=location.neighborhood,
+        unit_number=location.unit_number,
+        route_id=target_route_id,
+        delivered=location.delivered or False,
     )
 
     db.add(db_location)
@@ -653,6 +721,27 @@ def create_location(
     )
 
     return db_location
+
+
+@router.patch(
+    "/locations/{location_id}/delivered",
+    response_model=LocationResponse,
+    tags=["Locations"]
+)
+def toggle_location_delivered(
+    location_id: int,
+    payload: LocationUpdateDelivered,
+    db: Session = Depends(get_db)
+):
+    """Marca una parada como entregada o pendiente."""
+    loc = db.query(Location).filter(Location.id == location_id).first()
+    if not loc:
+        raise HTTPException(status_code=404, detail="Parada no encontrada")
+
+    loc.delivered = payload.delivered
+    db.commit()
+    db.refresh(loc)
+    return loc
 
 
 @router.delete(
@@ -682,8 +771,14 @@ def delete_location(
     "/locations",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def clear_all_locations(db: Session = Depends(get_db)):
-    db.query(Location).delete()
+def clear_all_locations(
+    route_id: Optional[int] = Query(None, description="Borrar paradas solo de esta ruta"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Location)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
+    query.delete(synchronize_session=False)
     db.commit()
     return None
 
@@ -772,9 +867,15 @@ def create_reference(
     "/optimal_route",
     response_model=List[LocationResponse]
 )
-def get_optimal_route(db: Session = Depends(get_db)):
+def get_optimal_route(
+    route_id: Optional[int] = Query(None, description="Optimizar paradas de una ruta específica"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Location)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
 
-    locations = db.query(Location).all()
+    locations = query.all()
 
     if not locations:
         return []

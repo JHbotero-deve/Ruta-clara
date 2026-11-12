@@ -4,19 +4,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ruta Clara - Escáner Continuo y Optimización GPS</title>
+    <title>Ruta Clara - Escáner de Guías y GPS Profesional</title>
     <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
     <link rel="stylesheet" href="/static/leaflet.css" />
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#2563eb">
+    <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
             --success: #059669;
             --warning: #ea580c;
+            --danger: #dc2626;
             --bg-main: #f1f5f9;
             --bg-card: #ffffff;
             --text-main: #0f172a;
@@ -31,96 +35,168 @@
             padding: 0;
         }
 
+        html { -webkit-text-size-adjust: 100%; }
         body {
             background-color: var(--bg-main);
             color: var(--text-main);
             height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
         /* Navbar Superior */
         .navbar {
-            background-color: #0f172a;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             color: #ffffff;
-            height: 64px;
-            padding: 0 24px;
+            height: 60px;
+            padding: 0 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             z-index: 1000;
             flex-shrink: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
 
         .brand-container {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
+            min-width: 0;
         }
 
         .brand-logo {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: #ffffff;
             padding: 2px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.35);
+            flex-shrink: 0;
         }
 
         .navbar h1 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .nav-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
         }
 
         .btn-install-app {
             background-color: #059669;
             color: white;
-            padding: 6px 14px;
+            padding: 6px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             border: none;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 6px;
-            transition: background 0.2s, transform 0.1s;
-            box-shadow: 0 2px 4px rgba(5, 150, 105, 0.3);
-        }
-
-        .btn-install-app:hover {
-            background-color: #047857;
-            transform: translateY(-1px);
+            transition: background 0.2s;
         }
 
         .badge-status {
             background-color: #10b981;
             color: white;
-            font-size: 11px;
-            padding: 4px 10px;
+            font-size: 10px;
+            padding: 4px 8px;
             border-radius: 12px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
-        /* BARRA DE PESTAÑAS DE VISTAS (ESCANER VS MAPA) */
+        /* BARRA DE GESTIÓN DE RUTAS */
+        .route-bar {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 6px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1px solid #334155;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .route-selector-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .route-selector-wrap label {
+            color: #94a3b8;
+            font-weight: 700;
+            font-size: 11px;
+            white-space: nowrap;
+            margin: 0;
+        }
+
+        .route-select {
+            background: #1e293b;
+            color: #ffffff;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            flex: 1;
+            max-width: 320px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn-route-action {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: background 0.2s;
+        }
+
+        .btn-route-action:hover { background: #1d4ed8; }
+
+        .btn-route-secondary {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+        }
+
+        /* BARRA DE PESTAÑAS (VISTAS) */
         .tab-navigation {
             display: flex;
-            background: #ffffff;
-            border-bottom: 2px solid #cbd5e1;
-            padding: 8px 16px;
-            gap: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 14px;
+            gap: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
             position: sticky;
             top: 0;
             z-index: 100;
@@ -128,10 +204,10 @@
 
         .tab-btn {
             flex: 1;
-            padding: 10px 14px;
+            padding: 10px 12px;
             font-size: 13px;
             font-weight: 700;
-            border: 2px solid #cbd5e1;
+            border: 1px solid var(--border);
             background: #f8fafc;
             color: #475569;
             border-radius: 10px;
@@ -141,22 +217,23 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            min-height: 42px;
         }
 
         .tab-btn.active {
-            background: #ea580c;
+            background: linear-gradient(135deg, #f97316, #ea580c);
             color: #ffffff;
             border-color: #ea580c;
-            box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.3);
+            box-shadow: 0 4px 8px -1px rgba(234, 88, 12, 0.35);
         }
 
-        /* Layout Principal y Contenedor de Vistas */
+        /* Layout Principal */
         .app-container {
             display: flex;
             flex-direction: column;
-            width: 100vw;
-            min-height: calc(100vh - 120px);
-            padding: 16px;
+            width: 100%;
+            flex: 1;
+            padding: 14px;
             background: #f1f5f9;
             overflow-y: auto;
         }
@@ -167,70 +244,19 @@
             max-width: 900px;
             margin: 0 auto;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
         }
 
         .tab-content.active {
             display: flex;
         }
 
-        .map-card-wrapper {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
-            overflow: hidden;
-            width: 100%;
-            height: calc(100vh - 200px);
-            min-height: 420px;
-        }
-
-        .map-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            padding: 0 4px;
-        }
-
-        .map-header h2 {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        #map {
-            width: 100%;
-            flex: 1;
-            border-radius: 8px;
-            background: #e2e8f0;
-            min-height: 350px;
-        }
-
-        /* Sidebar de Control */
-        .sidebar {
-            background: var(--bg-card);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow-y: auto;
-            padding: 20px;
-            gap: 16px;
-        }
-
         .card {
-            background: #f8fafc;
+            background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 14px;
             padding: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 6px 18px -10px rgba(15,23,42,0.08);
         }
 
         .card-header {
@@ -263,17 +289,18 @@
             letter-spacing: 0.3px;
         }
 
-        input {
+        input, textarea, select {
             width: 100%;
-            padding: 9px 12px;
+            padding: 10px 12px;
             border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            font-size: 13px;
+            border-radius: 10px;
+            font-size: 14px;
             background: #ffffff;
             transition: all 0.2s;
+            min-height: 44px;
         }
 
-        input:focus {
+        input:focus, textarea:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
@@ -285,74 +312,148 @@
             background-color: var(--primary);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
             transition: background 0.2s, transform 0.1s;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
-        .btn:hover {
-            background-color: var(--primary-dark);
+        .btn:hover { background-color: var(--primary-dark); }
+        .btn:active { transform: scale(0.99); }
+        .btn-success { background-color: var(--success); }
+        .btn-success:hover { background-color: #047857; }
+
+        .btn-pro-scanner {
+            background: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+            font-size: 14px;
+            padding: 12px;
+        }
+        .btn-pro-scanner:hover {
+            background: linear-gradient(135deg, #6d28d9 0%, #7e22ce 100%);
         }
 
-        .btn:active {
-            transform: scale(0.99);
-        }
-
-        .btn-success {
-            background-color: var(--success);
-        }
-
-        .btn-success:hover {
-            background-color: #047857;
-        }
-
-        .btn-camera {
-            background-color: #7c3aed;
-            margin-top: 6px;
-        }
-        .btn-camera:hover {
-            background-color: #6d28d9;
-        }
-
-        .btn-nav {
-            background-color: var(--warning);
-            margin-top: 8px;
-            font-size: 12px;
-            padding: 8px;
-            text-decoration: none;
-            display: block;
-            text-align: center;
-            border-radius: 6px;
+        .btn-magic-paste {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
             color: white;
-            font-weight: 600;
-            transition: background 0.2s;
+            font-size: 13px;
+            padding: 11px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
         }
 
-        .btn-nav:hover {
-            background-color: #c2410c;
+        /* Selector de Tipo de Destino (Residencial vs Comercial) */
+        .type-toggle-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
         }
 
-        /* Guía de Navegación */
+        .type-btn {
+            flex: 1;
+            padding: 9px;
+            border: 2px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #475569;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .type-btn.active.res {
+            border-color: #059669;
+            background: #ecfdf5;
+            color: #065f46;
+        }
+
+        .type-btn.active.com {
+            border-color: #2563eb;
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        /* Badges de Tipo */
+        .badge-tag-res {
+            background: #dcfce7;
+            color: #15803d;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-tag-com {
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* CAJA DE REFERENCIA DESTACADA (APTO, TORRE, INDICACIÓN) */
+        .reference-box-highlight {
+            background: #fef08a;
+            border: 1.5px solid #facc15;
+            color: #713f12;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            margin: 6px 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* Lista de Paradas / Guía */
         .nav-container {
             display: flex;
             flex-direction: column;
             gap: 10px;
             flex: 1;
             overflow-y: auto;
-            max-height: calc(100vh - 460px);
-            padding-right: 4px;
+            max-height: 48vh;
+            min-height: 120px;
+            padding-right: 2px;
         }
 
         .nav-step-item {
-            padding: 12px;
+            padding: 14px;
             background: #ffffff;
             border: 1px solid var(--border);
             border-left: 5px solid var(--warning);
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 12px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .nav-step-item.delivered {
+            border-left-color: var(--success);
+            background: #f0fdf4;
         }
 
         .nav-step-item strong {
@@ -360,462 +461,1232 @@
             font-size: 13px;
         }
 
+        .btn-nav-internal {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            margin-top: 6px;
+            box-shadow: 0 2px 4px rgba(37,99,235,0.25);
+            transition: background 0.2s;
+        }
+
+        .btn-delivered-toggle {
+            background: #e2e8f0;
+            color: #334155;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-delivered-toggle.is-delivered {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        /* Mapa y HUD de Navegación */
+        .map-card-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            width: 100%;
+            height: calc(100vh - 190px);
+            height: calc(100dvh - 190px);
+            min-height: 400px;
+            position: relative;
+        }
+
+        .map-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 0 4px;
+        }
+
+        .map-header h2 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #map {
+            width: 100%;
+            flex: 1;
+            border-radius: 10px;
+            background: #e2e8f0;
+            border: 1px solid var(--border);
+        }
+
+        /* HUD FLOTANTE DE NAVEGACIÓN EN TIEMPO REAL */
+        .inapp-nav-hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(15, 23, 42, 0.94);
+            color: white;
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.15);
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        .inapp-nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 8px;
+        }
+
+        .inapp-nav-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: #f8fafc;
+        }
+
+        .inapp-nav-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .inapp-nav-ref {
+            background: #fef08a;
+            color: #713f12;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            display: inline-block;
+            margin-top: 4px;
+        }
+
+        .inapp-nav-dist {
+            font-size: 18px;
+            font-weight: 800;
+            color: #38bdf8;
+            white-space: nowrap;
+        }
+
+        .inapp-nav-controls {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+
+        .btn-nav-hud {
+            flex: 1;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            color: white;
+        }
+
+        .btn-hud-delivered { background: #10b981; }
+        .btn-hud-delivered:hover { background: #059669; }
+        .btn-hud-step { background: #334155; }
+        .btn-hud-close { background: #ef4444; max-width: 44px; }
+
+        /* OVERLAY PROFESIONAL DEL ESCÁNER CONTINUO */
+        .pro-scanner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            background: #000000;
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+        }
+
+        .pro-scanner-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 14px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .pro-scanner-viewfinder {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #cameraStream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+        }
+
+        .scanner-reticle {
+            position: absolute;
+            width: 280px;
+            height: 220px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 16px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s;
+        }
+
+        .scanner-reticle.detected {
+            border-color: #10b981;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4), 0 0 25px #10b981;
+        }
+
+        .scanner-corner {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-color: #38bdf8;
+            border-style: solid;
+        }
+        .sc-tl { top: -2px; left: -2px; border-width: 4px 0 0 4px; border-top-left-radius: 12px; }
+        .sc-tr { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-top-right-radius: 12px; }
+        .sc-bl { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-bottom-left-radius: 12px; }
+        .sc-br { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-bottom-right-radius: 12px; }
+
+        .scanner-laser {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(56,189,248,0) 0%, rgba(56,189,248,1) 50%, rgba(56,189,248,0) 100%);
+            box-shadow: 0 0 10px #38bdf8;
+            animation: laserScan 2s infinite ease-in-out;
+        }
+
+        @keyframes laserScan {
+            0% { top: 10%; opacity: 0.2; }
+            50% { top: 90%; opacity: 1; }
+            100% { top: 10%; opacity: 0.2; }
+        }
+
+        .pro-scanner-bottom {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 20px 24px 20px;
+            background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0) 100%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .btn-capture-big {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: 3px solid rgba(255,255,255,0.4);
+            border-radius: 50px;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn-capture-big:active { transform: scale(0.97); }
+
+        .toast-notify {
+            position: fixed;
+            top: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #10b981;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 700;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { transform: translate(-50%, -20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
         .total-summary {
             background: #ecfdf5;
             border: 1px solid #a7f3d0;
             color: #065f46;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 12px;
             font-weight: 700;
             text-align: center;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
-        .hint-text {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 4px;
-            line-height: 1.3;
-        }
-
-        /* Scrollbars elegantes */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-    
-        /* ===== Mejora visual profesional ===== */
-        html { -webkit-text-size-adjust: 100%; }
-        body { height: 100vh; height: 100dvh; -webkit-font-smoothing: antialiased; }
-        .navbar { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .brand-container { min-width: 0; }
-        .navbar h1 { font-size: 17px; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .brand-logo { box-shadow: 0 0 0 3px rgba(37,99,235,0.35); flex-shrink: 0; }
-        .tab-navigation { padding: 10px 16px; gap: 8px; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
-        .tab-btn { border: 1px solid var(--border); border-radius: 12px; min-height: 44px; }
-        .tab-btn:hover { background: #fff7ed; border-color: #fdba74; }
-        .tab-btn.active { background: linear-gradient(135deg, #f97316, #ea580c); border-color: #ea580c; color: #ffffff; }
-        .card { background: var(--bg-card); border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12); }
-        .map-card-wrapper { border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.12); height: calc(100vh - 200px); height: calc(100dvh - 200px); }
-        #map { border-radius: 10px; border: 1px solid var(--border); }
-        input { border-radius: 10px; min-height: 44px; font-size: 16px; }
-        input::placeholder { color: #94a3b8; }
-        input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
-        .btn { min-height: 44px; border-radius: 10px; letter-spacing: 0.2px; box-shadow: 0 1px 2px rgba(15,23,42,0.12); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-        .btn-nav { border-radius: 8px; min-height: 40px; line-height: 24px; }
-        .nav-container { max-height: 50vh; max-height: 50dvh; min-height: 120px; }
-        .nav-step-item { border-radius: 12px; transition: transform 0.15s ease, box-shadow 0.15s ease; }
-        .nav-step-item:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -8px rgba(15,23,42,0.25); }
-        .total-summary { border-radius: 12px; }
-        .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 8px 24px -8px rgba(15,23,42,0.35); }
         @media (max-width: 600px) {
-            .navbar { padding: 0 14px; }
-            .navbar h1 { font-size: 14px; }
-            .app-container { padding: 10px; }
+            .navbar { padding: 0 12px; }
+            .navbar h1 { font-size: 13px; }
+            .app-container { padding: 8px; }
             .tab-btn { font-size: 12px; padding: 8px 6px; }
-            .map-card-wrapper { height: calc(100vh - 190px); height: calc(100dvh - 190px); min-height: 360px; padding: 8px; }
+            .route-bar { padding: 6px 10px; }
+            .map-card-wrapper { height: calc(100vh - 185px); height: calc(100dvh - 185px); min-height: 340px; padding: 6px; }
         }
-        @media (prefers-reduced-motion: reduce) {
-            * { transition: none !important; animation: none !important; }
-        }
-        </style>
+    </style>
 </head>
 
 <body>
-    <!-- BARRA SUPERIOR PROFESIONAL -->
+    <!-- BARRA SUPERIOR -->
     <header class="navbar">
         <div class="brand-container">
             <img src="/static/logo.svg" alt="Ruta Clara Logo" class="brand-logo">
-            <h1>Ruta Clara - Escáner Continuo y GPS</h1>
+            <h1>Ruta Clara - Escáner de Guías y GPS</h1>
         </div>
         <div class="nav-actions">
-            <button id="installAppBtn" onclick="installPWA()" class="btn-install-app" style="display: none;" title="Instalar Aplicación en tu dispositivo">
+            <button id="installAppBtn" onclick="installPWA()" class="btn-install-app" style="display: none;" title="Instalar Aplicación">
                 📲 Instalar App
             </button>
-            <span id="connectionBadge" class="badge-status" style="background:#10b981;">🟢 En línea</span>
+            <span id="connectionBadge" class="badge-status">🟢 En línea</span>
         </div>
     </header>
 
-    <!-- BARRA DE PESTAÑAS (VISTAS SEPARADAS) -->
+    <!-- BARRA DE GESTIÓN DE MÚLTIPLES RUTAS -->
+    <div class="route-bar">
+        <div class="route-selector-wrap">
+            <label for="routeSelect">🚚 RUTA:</label>
+            <select id="routeSelect" class="route-select" onchange="onRouteSelected(this.value)">
+                <option value="">Cargando rutas...</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 6px;">
+            <button class="btn-route-action" onclick="promptNewRoute()" title="Crear nueva ruta independiente">
+                ➕ Nueva Ruta
+            </button>
+            <button class="btn-route-action btn-route-secondary" onclick="promptRouteOptions()" title="Opciones de ruta actual">
+                ⚙️
+            </button>
+        </div>
+    </div>
+
+    <!-- PESTAÑAS (ESCANER VS MAPA) -->
     <nav class="tab-navigation">
         <button id="tabScannerBtn" class="tab-btn active" onclick="switchTab('scanner')">
-            📦 1. Escáner y Direcciones
+            📦 1. Escáner y Paradas
         </button>
         <button id="tabMapBtn" class="tab-btn" onclick="switchTab('map')">
-            🗺️ 2. Mapa y Arrancar Ruta
+            🗺️ 2. Mapa y Navegador Interno
         </button>
     </nav>
 
-    <!-- LAYOUT PRINCIPAL -->
+    <!-- TOAST DE CONFIRMACIÓN FLOTANTE -->
+    <div id="toastNotify" class="toast-notify">
+        <span id="toastIcon">✅</span>
+        <span id="toastMsg">Parada agregada con éxito</span>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL -->
     <div class="app-container">
 
-        <!-- VISTA 1: ESCÁNER Y DIRECCIONES (PANTALLA PRINCIPAL) -->
+        <!-- VISTA 1: ESCÁNER Y DIRECCIONES -->
         <div id="viewScanner" class="tab-content active">
-            <!-- ESCÁNER CONTINUO DE RUTA -->
+
+            <!-- TARJETA DEL ESCÁNER Y CAPTURA DE GUÍAS -->
             <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
                 <div class="card-header">
-                    <h2>⚡ Escáner Continuo de Ruta</h2>
+                    <h2>⚡ Captura de Guías de Entrega</h2>
+                    <span id="currentRouteBadge" style="background:#2563eb; color:white; font-size:11px; padding:3px 8px; border-radius:10px; font-weight:700;">
+                        Ruta 1
+                    </span>
                 </div>
-                <form id="continuousScanForm" onsubmit="handleContinuousScan(event)">
-                    <div id="scanSuccessAlert" style="display:none; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:8px; padding:10px 14px; font-size:12px; font-weight:700; margin-bottom:12px; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-                        ✅ ¡Parada guardada en ruta! Escanea la siguiente...
-                    </div>
-                    <div class="form-group">
-                        <label for="scanAddress">📍 Dirección Exacta <span style="color:#ef4444;">*</span></label>
-                        <input type="text" id="scanAddress" placeholder="Ej. Calle 30 Sur 48-170, Envigado" required autofocus enterkeyhint="next">
-                    </div>
-                    <div class="form-group">
-                        <label for="scanReference">🏷️ Referencia / Apto / Torre <span style="color:#ef4444;">*</span></label>
-                        <input type="text" id="scanReference" placeholder="Ej. 1414 / Apto 302 / Torre 2" required enterkeyhint="send">
-                    </div>
-                    <div class="form-group">
-                        <label for="scanName">👤 Destinatario / Nombre (Opcional)</label>
-                        <input type="text" id="scanName" placeholder="Ej. Manuela González" enterkeyhint="send">
-                        <div class="hint-text">Presiona Enter o Añadir para guardar y seguir escaneando sin salir del formulario.</div>
-                    </div>
-                    <button type="submit" class="btn btn-success">➕ Añadir a Ruta y Seguir Escaneando</button>
-                    <button type="button" class="btn btn-camera" onclick="openRearCamera()">📷 Activar Cámara Trasera (GPS)</button>
-                </form>
+
+                <!-- Botones de Acción Inmediata -->
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <button type="button" class="btn btn-pro-scanner" onclick="startProScanner()">
+                        📷 Iniciar Cámara Continua (Escanear Guías y QR)
+                    </button>
+                    <button type="button" class="btn-magic-paste" onclick="togglePasteCard()">
+                        📋 Pegar Texto de Guía Completa (Autocompletar Todo)
+                    </button>
+                </div>
+
+                <!-- CAJA DE PEGADO RÁPIDO DE GUÍA (AUTO-COMPLETA EN 1 CLIC) -->
+                <div id="pasteGuideCard" style="display:none; background:#ffffff; border:1.5px solid #0284c7; border-radius:10px; padding:12px; margin-top:12px;">
+                    <label for="rawLabelInput" style="color:#0369a1;">📋 PEGA AQUÍ EL TEXTO DE LA ETIQUETA / GUÍA:</label>
+                    <textarea id="rawLabelInput" rows="4" placeholder="Ejemplo:
+RESIDENCIAL
+Direccion: Carrera 32b 10-110, Medellín
+Distrito: El poblado
+Referencia: Vizcaya real 2. 419
+Destinatario: Lucrecia Inés Vasquez garcés (LUC_VASQUEZ)"></textarea>
+                    <button type="button" class="btn btn-success" style="margin-top:8px;" onclick="processPastedLabel()">
+                        ⚡ Procesar y Guardar Parada en 1 Clic
+                    </button>
+                </div>
+
+                <!-- FORMULARIO ESTRUCTURADO SEGÚN LAS GUÍAS -->
+                <details id="manualFormDetails" style="margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:10px;">
+                    <summary style="font-size:12px; font-weight:700; color:#2563eb; cursor:pointer;">
+                        ✍️ Ver / Editar campos individuales de la guía
+                    </summary>
+                    <form id="deliveryGuideForm" onsubmit="handleGuideFormSubmit(event)" style="margin-top:10px;">
+                        <!-- Tipo de Destino -->
+                        <div class="form-group">
+                            <label>Tipo de Destino</label>
+                            <div class="type-toggle-group">
+                                <button type="button" id="btnTypeRes" class="type-btn active res" onclick="selectDestinationType('Residencial')">
+                                    🏠 RESIDENCIAL
+                                </button>
+                                <button type="button" id="btnTypeCom" class="type-btn com" onclick="selectDestinationType('Comercial')">
+                                    🏢 COMERCIAL
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dirección -->
+                        <div class="form-group">
+                            <label for="guideAddress">📍 Dirección Exacta *</label>
+                            <input type="text" id="guideAddress" placeholder="Ej. Carrera 32b 10-110, Medellín" required enterkeyhint="next">
+                        </div>
+
+                        <!-- Distrito / Barrio -->
+                        <div class="form-group">
+                            <label for="guideDistrict">🏙️ Distrito / Barrio</label>
+                            <input type="text" id="guideDistrict" placeholder="Ej. El poblado / Las Vegas / Centro" enterkeyhint="next">
+                        </div>
+
+                        <!-- Referencia / Apto / Torre -->
+                        <div class="form-group">
+                            <label for="guideReference">🏷️ Referencia / Apto / Torre / Indicación *</label>
+                            <input type="text" id="guideReference" placeholder="Ej. Vizcaya real 2. 419 / 1414 / Apto 200 SN" required enterkeyhint="next">
+                        </div>
+
+                        <!-- Destinatario -->
+                        <div class="form-group">
+                            <label for="guideRecipient">👤 Destinatario (Opcional)</label>
+                            <input type="text" id="guideRecipient" placeholder="Ej. Lucrecia Inés Vasquez garcés" enterkeyhint="send">
+                        </div>
+
+                        <button type="submit" class="btn btn-success">➕ Guardar Parada en esta Ruta</button>
+                    </form>
+                </details>
             </div>
 
-            <!-- GUÍA Y DIRECCIONES CAPTURADAS -->
+            <!-- GUÍA Y LISTA DE DIRECCIONES CAPTURADAS -->
             <div class="card" style="display: flex; flex-direction: column;">
                 <div class="card-header" style="margin-bottom: 6px;">
-                    <h2>📋 Direcciones Guardadas <span id="stopsCountBadge" style="background:#ea580c; color:white; font-size:11px; padding:2px 8px; border-radius:12px; margin-left:6px; font-weight:700;">0</span></h2>
+                    <h2>
+                        📋 Paradas de la Ruta
+                        <span id="stopsCountBadge" style="background:#ea580c; color:white; font-size:11px; padding:2px 8px; border-radius:12px; margin-left:6px; font-weight:700;">0</span>
+                    </h2>
                     <div style="display:flex; gap:8px;">
-                        <button onclick="loadOptimalRoute()" style="background: none; border: none; color: var(--primary); font-size: 11px; font-weight: 600; cursor: pointer;">🔄 Actualizar</button>
-                        <button onclick="clearAllLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer;">🗑️ Borrar Ruta</button>
+                        <button onclick="loadRouteData()" style="background: none; border: none; color: var(--primary); font-size: 11px; font-weight: 700; cursor: pointer;">🔄 Actualizar</button>
+                        <button onclick="clearCurrentRouteLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 700; cursor: pointer;">🗑️ Vaciar Ruta</button>
                     </div>
                 </div>
-                <div style="margin-bottom: 8px;">
-                    <button onclick="downloadWeeklyHistory()" class="btn" style="background:#0284c7; color:white; font-size:11px; padding:6px 10px; width:100%; border-radius:6px; font-weight:600;">📥 Descargar Historial Semanal (CSV)</button>
+
+                <div style="display:flex; gap:8px; margin-bottom: 8px;">
+                    <button onclick="downloadWeeklyHistory()" class="btn" style="background:#0284c7; color:white; font-size:11px; padding:6px 10px; width:100%; border-radius:6px; font-weight:600; min-height:36px;">
+                        📥 Descargar Historial CSV
+                    </button>
                 </div>
+
                 <div class="nav-container" id="navStepsList">
-                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px;">No hay paradas en la ruta. Usa el escáner continuo de arriba.</p>
+                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 24px;">
+                        No hay paradas en esta ruta. Pega una guía o usa la cámara para agregar paquetes.
+                    </p>
                 </div>
-                <button onclick="switchTab('map')" class="btn" style="background:#ea580c; color:white; font-size:13px; font-weight:700; padding:12px; margin-top:12px; width:100%; border-radius:8px;">
-                    🗺️ Ir a Vista 2: Verificar Mapa y Arrancar Ruta ➡️
+
+                <button onclick="switchTab('map')" class="btn" style="background:#ea580c; color:white; font-size:13px; font-weight:700; padding:12px; margin-top:10px; width:100%; border-radius:8px;">
+                    🗺️ Ir a Vista 2: Abrir Mapa Interno y Arrancar Navegación ➡️
                 </button>
             </div>
         </div>
 
-        <!-- VISTA 2: MAPA INTERACTIVO Y NAVEGACIÓN GPS -->
+        <!-- VISTA 2: MAPA INTERACTIVO Y NAVEGACIÓN GPS EN LA APP -->
         <div id="viewMap" class="tab-content">
-            <div class="map-card-wrapper" style="margin:0;">
+            <div class="map-card-wrapper">
                 <div class="map-header">
-                    <h2>🗺️ Mapa de Ruta y Ubicaciones GPS</h2>
-                    <button onclick="switchTab('scanner')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer;">
-                        ⬅️ Volver al Escáner
-                    </button>
+                    <h2>🗺️ Mapa de Entrega y GPS Interno</h2>
+                    <div style="display:flex; gap:6px;">
+                        <button id="btnToggleNav" onclick="toggleRouteNavigation()" style="background:#10b981; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer;">
+                            🚀 Arrancar Navegación
+                        </button>
+                        <button onclick="switchTab('scanner')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:11px; font-weight:600; cursor:pointer;">
+                            ⬅️ Escáner
+                        </button>
+                    </div>
                 </div>
-                <div id="totalSummary" class="total-summary" style="display:none; margin-bottom:8px;">
-                    Distancia total estimada: <span id="totalDistKm">0</span> km
+
+                <div id="totalSummary" class="total-summary" style="display:none;">
+                    Distancia total de la ruta: <span id="totalDistKm">0</span> km
                 </div>
+
                 <div id="map"></div>
+
+                <!-- HUD FLOTANTE DE NAVEGACIÓN INTEGRADA (NO SALE DE LA APP) -->
+                <div id="inAppNavHUD" class="inapp-nav-hud">
+                    <div class="inapp-nav-header">
+                        <div>
+                            <div id="hudStopTitle" class="inapp-nav-title">Parada #1: Destinatario</div>
+                            <div id="hudStopAddress" class="inapp-nav-sub">Dirección y Distrito</div>
+                            <div id="hudStopReference" class="inapp-nav-ref">🏷️ REF: --</div>
+                        </div>
+                        <div id="hudDistance" class="inapp-nav-dist">-- m</div>
+                    </div>
+
+                    <div class="inapp-nav-controls">
+                        <button class="btn-nav-hud btn-hud-step" onclick="navigateStep(-1)" title="Parada anterior">
+                            ◀ Anterior
+                        </button>
+                        <button class="btn-nav-hud btn-hud-delivered" onclick="markCurrentStopDelivered()">
+                            ✅ Entregado y Siguiente
+                        </button>
+                        <button class="btn-nav-hud btn-hud-step" onclick="navigateStep(1)" title="Siguiente parada">
+                            Siguiente ▶
+                        </button>
+                        <button class="btn-nav-hud btn-hud-step" onclick="centerOnUserLocation()" title="Centrar en mi ubicación">
+                            🎯
+                        </button>
+                        <button class="btn-nav-hud btn-hud-close" onclick="stopRouteNavigation()" title="Salir de navegación">
+                            ✖
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
     </div>
 
-    <!-- MODAL DE CÁMARA TRASERA -->
-    <div id="cameraModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; flex-direction:column;">
-        <div style="background:white; padding:20px; border-radius:12px; width:90%; max-width:400px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
-            <h3 style="margin-bottom:12px; font-size:16px; color:#0f172a;">📷 Cámara Trasera - Escáner de Campo</h3>
-            <video id="cameraStream" autoplay playsinline style="width:100%; height:260px; background:black; border-radius:8px; object-fit:cover;"></video>
-            <p style="font-size:11px; color:#64748b; margin-top:8px;">Apunta a la fachada y captura para registrar tus coordenadas GPS exactas.</p>
-            <div style="margin-top:14px; display:flex; gap:10px;">
-                <button class="btn btn-success" onclick="captureCameraLocation()">📸 Capturar Ubicación GPS</button>
-                <button class="btn" onclick="closeCamera()" style="background:#ef4444;">Cerrar</button>
+    <!-- OVERLAY PROFESIONAL DE ESCÁNER CONTINUO -->
+    <div id="proScannerOverlay" class="pro-scanner-overlay">
+        <div class="pro-scanner-top">
+            <div>
+                <div style="font-size:13px; font-weight:800; color:#38bdf8;">⚡ ESCÁNER CONTINUO DE GUÍAS</div>
+                <div id="scannerRouteLabel" style="font-size:11px; color:#cbd5e1;">Ruta Actual: Principal</div>
             </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="scannerCountBadge" style="background:#10b981; color:white; font-size:12px; font-weight:800; padding:4px 10px; border-radius:14px;">
+                    0 paradas
+                </span>
+                <button onclick="stopProScanner()" style="background:rgba(239,68,68,0.85); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;">
+                    ✖ Salir
+                </button>
+            </div>
+        </div>
+
+        <div class="pro-scanner-viewfinder">
+            <video id="cameraStream" autoplay playsinline></video>
+            <div id="scannerReticle" class="scanner-reticle">
+                <div class="scanner-corner sc-tl"></div>
+                <div class="scanner-corner sc-tr"></div>
+                <div class="scanner-corner sc-bl"></div>
+                <div class="scanner-corner sc-br"></div>
+                <div class="scanner-laser"></div>
+                <span id="scannerHint" style="font-size:11px; color:rgba(255,255,255,0.85); background:rgba(0,0,0,0.65); padding:4px 10px; border-radius:6px; position:absolute; bottom:12px; text-align:center;">
+                    Apunta a la guía / código QR o presiona capturar
+                </span>
+            </div>
+        </div>
+
+        <div class="pro-scanner-bottom">
+            <button class="btn-capture-big" onclick="captureContinuousStop()">
+                📸 Capturar Parada en este Punto (GPS)
+            </button>
+            <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
+            </button>
         </div>
     </div>
 
-    <!-- SCRIPT DE MAPA, ESCÁNER CONTINUO Y OFFLINE -->
+    <!-- SCRIPT DE MAPA, PARSER DE GUÍAS Y NAVEGACIÓN -->
     <script src="/static/leaflet.js"></script>
     <script>
+        // ========================================================
+        // ESTADO GLOBAL
+        // ========================================================
         let map;
         let markersGroup = L.layerGroup();
         let polylineGroup = L.layerGroup();
+        let userMarker = null;
+        let navGuidanceLine = null;
         let tempMarker = null;
+
+        let activeRouteId = null;
+        let activeRouteName = "Ruta Principal";
+        let availableRoutes = [];
+        let currentLocations = [];
+        let currentDestinationType = "Residencial";
+
+        // Estado del Escáner Continuo
         let mediaStream = null;
+        let barcodeDetector = null;
+        let barcodeScanInterval = null;
+        let lastScannedCode = null;
+        let lastScanTimestamp = 0;
 
+        // Estado de Navegación Turn-by-Turn
+        let isNavigating = false;
+        let activeNavIndex = 0;
+        let watchPositionId = null;
+        let currentUserLatLng = null;
+
+        // Audio Context para Beeps y Chimes
+        let audioCtx = null;
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioClass) audioCtx = new AudioClass();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playBeep(freq = 900, duration = 0.12) {
+            try {
+                const ctx = getAudioContext();
+                if (!ctx) return;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function playSuccessChime() {
+            playBeep(520, 0.1);
+            setTimeout(() => playBeep(880, 0.18), 120);
+        }
+
+        function triggerHaptic() {
+            if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+        }
+
+        function showToast(msg, icon = '✅') {
+            const toast = document.getElementById('toastNotify');
+            const msgEl = document.getElementById('toastMsg');
+            const iconEl = document.getElementById('toastIcon');
+            if (!toast) return;
+            iconEl.innerText = icon;
+            msgEl.innerText = msg;
+            toast.style.display = 'flex';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+
+        // ========================================================
+        // INICIALIZACIÓN DEL MAPA
+        // ========================================================
         function initMap() {
-            map = L.map('map', { zoomControl: false }).setView([4.6097, -74.0817], 13);
-
+            map = L.map('map', { zoomControl: false }).setView([6.2442, -75.5812], 12);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
+                attribution: '&copy; OpenStreetMap | Ruta Clara'
             }).addTo(map);
 
             markersGroup.addTo(map);
             polylineGroup.addTo(map);
 
-            // Clic en mapa también añade punto rápido
             map.on('click', async function(e) {
                 const lat = e.latlng.lat;
                 const lng = e.latlng.lng;
                 const name = `Parada Mapa (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-                const address = `Coordenadas: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                const address = `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
+                const pinIcon = L.divIcon({
+                    className: 'custom-icon',
+                    html: '<div style="background:#2563eb; color:white; border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:12px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.35);">📍</div>',
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13]
+                });
                 if (tempMarker) map.removeLayer(tempMarker);
-                tempMarker = L.marker([lat, lng]).addTo(map).bindPopup('Punto seleccionado').openPopup();
+                tempMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(map).bindPopup('Punto seleccionado').openPopup();
 
-                await saveLocationAutomatically(name, address, lat, lng);
+                await saveLocationAutomatically({
+                    name,
+                    address,
+                    latitude: lat,
+                    longitude: lng,
+                    unit_number: 'Punto fijado en mapa'
+                });
             });
 
-            loadOptimalRoute();
-        }
-
-
-
-        async function handleContinuousScan(e) {
-            e.preventDefault();
-
-            const form = document.getElementById('continuousScanForm');
-            const button = e.submitter || form.querySelector('button[type="submit"]');
-            const addressField = document.getElementById('scanAddress');
-            const referenceField = document.getElementById('scanReference');
-            const nameField = document.getElementById('scanName');
-
-            if (form.dataset.processing === 'true') return;
-
-            const addressInput = addressField.value.trim();
-            const refInput = referenceField.value.trim();
-            const nameInput = nameField.value.trim();
-
-            if (!addressInput) {
-                alert('Ingresa la dirección.');
-                addressField.focus();
-                return;
-            }
-
-            if (!refInput) {
-                alert('Ingresa la referencia del paquete.');
-                referenceField.focus();
-                return;
-            }
-
-            form.dataset.processing = 'true';
-            if (button) button.disabled = true;
-
-            const originalButtonText = button ? button.innerText : '';
-
-            if (button) button.innerText = 'Procesando...';
-
-            try {
-                const name = nameInput
-                    ? `${nameInput} — Ref: ${refInput}`
-                    : `${addressInput} — Ref: ${refInput}`;
-
-                const fullAddress = `${addressInput} (Ref: ${refInput})`;
-
-                let lat = null;
-                let lng = null;
-
-                // Intentar geocodificación sin bloquear demasiado tiempo.
+            if ('BarcodeDetector' in window) {
                 try {
-                    const controller = new AbortController();
-                    const timeout = setTimeout(() => controller.abort(), 8000);
+                    barcodeDetector = new BarcodeDetector({
+                        formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix']
+                    });
+                } catch (e) {}
+            }
 
-                    try {
-                        const response = await fetch(
-                            `/geocode?query=${encodeURIComponent(addressInput)}`,
-                            { signal: controller.signal }
-                        );
+            loadDeliveryRoutes();
+        }
 
-                        if (response.ok) {
-                            const data = await response.json();
-
-                            if (Array.isArray(data) && data.length > 0) {
-                                const candidate = data.find(item =>
-                                    Number.isFinite(Number(item.latitude)) &&
-                                    Number.isFinite(Number(item.longitude))
-                                );
-
-                                if (candidate) {
-                                    lat = Number(candidate.latitude);
-                                    lng = Number(candidate.longitude);
-                                }
-                            }
-                        }
-                    } finally {
-                        clearTimeout(timeout);
-                    }
-                } catch (error) {
-                    console.warn('Geocodificación pendiente:', error);
+        // ========================================================
+        // GESTOR DE RUTAS
+        // ========================================================
+        async function loadDeliveryRoutes() {
+            try {
+                const res = await fetch('/delivery-routes');
+                if (res.ok) {
+                    availableRoutes = await res.json();
+                } else {
+                    availableRoutes = [{ id: 1, name: 'Ruta Principal 1', stops_count: 0 }];
                 }
+            } catch (e) {
+                availableRoutes = JSON.parse(localStorage.getItem('rc_routes') || '[{"id":1,"name":"Ruta Principal 1","stops_count":0}]');
+            }
 
-                // No perder el paquete si el geocodificador falla.
-                if (lat === null || lng === null) {
-                    alert(
-                        'No se pudo ubicar automáticamente la dirección. ' +
-                        'La parada se guardará pendiente de coordenadas.'
-                    );
+            renderRouteSelector();
 
-                    // Sin coordenadas verificadas no inventar una ubicación.
-                    // El usuario puede reintentar la búsqueda.
-                    addressField.focus();
-                    return;
-                }
+            const savedRouteId = parseInt(localStorage.getItem('rc_active_route_id'));
+            const matched = availableRoutes.find(r => r.id === savedRouteId);
+            if (matched) {
+                activeRouteId = matched.id;
+                activeRouteName = matched.name;
+            } else if (availableRoutes.length > 0) {
+                activeRouteId = availableRoutes[0].id;
+                activeRouteName = availableRoutes[0].name;
+            }
 
-                await saveLocationAutomatically(
-                    name,
-                    fullAddress,
-                    lat,
-                    lng
-                );
+            document.getElementById('routeSelect').value = activeRouteId;
+            updateRouteBadges();
+            loadRouteData();
+        }
 
-                const count = document.querySelectorAll(
-                    '#navStepsList .nav-step-item'
-                ).length;
+        function renderRouteSelector() {
+            const select = document.getElementById('routeSelect');
+            select.innerHTML = '';
+            availableRoutes.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = `🚚 ${r.name} (${r.stops_count || 0} paradas)`;
+                select.appendChild(opt);
+            });
+        }
 
-                const alertBox = document.getElementById('scanSuccessAlert');
+        function updateRouteBadges() {
+            const currentBadge = document.getElementById('currentRouteBadge');
+            const scannerLabel = document.getElementById('scannerRouteLabel');
+            if (currentBadge) currentBadge.innerText = activeRouteName;
+            if (scannerLabel) scannerLabel.innerText = `Ruta: ${activeRouteName}`;
+        }
 
-                if (alertBox) {
-                    alertBox.innerText =
-                        `Parada guardada. Llevas ${count} paquetes en ruta.`;
-                    alertBox.style.display = 'block';
-
-                    setTimeout(() => {
-                        alertBox.style.display = 'none';
-                    }, 3000);
-                }
-
-                addressField.value = '';
-                referenceField.value = '';
-                nameField.value = '';
-
-                addressField.focus();
-
-            } catch (error) {
-                console.error('Error al procesar parada:', error);
-                alert('No se pudo completar el guardado. Conserva los datos e inténtalo nuevamente.');
-            } finally {
-                form.dataset.processing = 'false';
-
-                if (button) {
-                    button.disabled = false;
-                    button.innerText = originalButtonText;
-                }
+        function onRouteSelected(routeIdStr) {
+            const id = parseInt(routeIdStr);
+            if (!id) return;
+            const r = availableRoutes.find(x => x.id === id);
+            if (r) {
+                activeRouteId = r.id;
+                activeRouteName = r.name;
+                localStorage.setItem('rc_active_route_id', activeRouteId);
+                updateRouteBadges();
+                loadRouteData();
+                showToast(`Ruta cambiada a: ${activeRouteName}`, '🚚');
             }
         }
 
-        async function saveLocationAutomatically(name, address, lat, lng) {
-            const locationData = { name, address, latitude: lat, longitude: lng };
+        async function promptNewRoute() {
+            const name = prompt('Nombre de la nueva ruta:\n(Ej. Ruta Envigado Mañana, Ruta Sabaneta, etc.)');
+            if (!name || !name.trim()) return;
 
             try {
-                const response = await fetch('/locations', {
+                const res = await fetch('/delivery-routes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(locationData),
-                    signal: AbortSignal.timeout(10000)
+                    body: JSON.stringify({ name: name.trim() })
                 });
-
-                if (!response.ok) {
-                    throw new Error('Error al guardar la parada');
+                if (res.ok) {
+                    const newRoute = await res.json();
+                    availableRoutes.unshift(newRoute);
+                    activeRouteId = newRoute.id;
+                    activeRouteName = newRoute.name;
+                    localStorage.setItem('rc_active_route_id', activeRouteId);
+                    renderRouteSelector();
+                    document.getElementById('routeSelect').value = activeRouteId;
+                    updateRouteBadges();
+                    loadRouteData();
+                    showToast(`Nueva ruta "${newRoute.name}" creada`, '✨');
                 }
-            } catch (err) {
-                console.warn('Modo Offline: Guardado local.');
-                let offlineLocations = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
-                offlineLocations.push(locationData);
-                localStorage.setItem('ruta_clara_offline', JSON.stringify(offlineLocations));
+            } catch (e) {
+                const localId = Date.now();
+                const newRoute = { id: localId, name: name.trim(), stops_count: 0 };
+                availableRoutes.unshift(newRoute);
+                localStorage.setItem('rc_routes', JSON.stringify(availableRoutes));
+                activeRouteId = localId;
+                activeRouteName = newRoute.name;
+                localStorage.setItem('rc_active_route_id', activeRouteId);
+                renderRouteSelector();
+                document.getElementById('routeSelect').value = activeRouteId;
+                updateRouteBadges();
+                loadRouteData();
+                showToast(`Ruta "${name.trim()}" lista`, '✨');
             }
-
-            await loadOptimalRoute();
         }
 
-        async function openRearCamera() {
-            const modal = document.getElementById('cameraModal');
-            modal.style.display = 'flex';
-            const video = document.getElementById('cameraStream');
+        async function promptRouteOptions() {
+            const action = prompt(`Opciones para "${activeRouteName}":\n\n1: Renombrar ruta\n2: Vaciar paradas de esta ruta\n3: Eliminar ruta completa\n\nEscribe 1, 2 o 3:`);
+            if (action === '1') {
+                const newName = prompt('Nuevo nombre:', activeRouteName);
+                if (newName && newName.trim()) {
+                    try {
+                        await fetch(`/delivery-routes/${activeRouteId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: newName.trim() })
+                        });
+                    } catch (e) {}
+                    activeRouteName = newName.trim();
+                    const r = availableRoutes.find(x => x.id === activeRouteId);
+                    if (r) r.name = activeRouteName;
+                    renderRouteSelector();
+                    document.getElementById('routeSelect').value = activeRouteId;
+                    updateRouteBadges();
+                }
+            } else if (action === '2') {
+                clearCurrentRouteLocations();
+            } else if (action === '3') {
+                if (confirm(`¿Eliminar la ruta "${activeRouteName}" definitivamente?`)) {
+                    try {
+                        await fetch(`/delivery-routes/${activeRouteId}`, { method: 'DELETE' });
+                    } catch (e) {}
+                    await loadDeliveryRoutes();
+                }
+            }
+        }
+
+        // ========================================================
+        // CARGA DE PARADAS
+        // ========================================================
+        async function loadRouteData() {
+            if (!activeRouteId) return;
 
             try {
+                const res = await fetch(`/optimal_route?route_id=${activeRouteId}`);
+                if (!res.ok) throw new Error('Error al cargar paradas');
+                currentLocations = await res.json();
+                renderNavigationGuide(currentLocations);
+                updateStopsCountInSelector();
+            } catch (err) {
+                const allOffline = JSON.parse(localStorage.getItem('rc_offline_locations') || '[]');
+                currentLocations = allOffline.filter(l => l.route_id === activeRouteId || !l.route_id);
+                renderNavigationGuide(currentLocations);
+                updateStopsCountInSelector();
+            }
+        }
+
+        function updateStopsCountInSelector() {
+            const count = currentLocations ? currentLocations.length : 0;
+            const r = availableRoutes.find(x => x.id === activeRouteId);
+            if (r) r.stops_count = count;
+            renderRouteSelector();
+            document.getElementById('routeSelect').value = activeRouteId;
+            const badge = document.getElementById('scannerCountBadge');
+            if (badge) badge.innerText = `${count} paradas`;
+        }
+
+        // ========================================================
+        // PARSER Y PROCESADOR DE GUÍAS DE ENTREGA (MERCADO LIBRE / FLEX)
+        // ========================================================
+        function togglePasteCard() {
+            const card = document.getElementById('pasteGuideCard');
+            card.style.display = card.style.display === 'none' ? 'block' : 'none';
+            if (card.style.display === 'block') {
+                document.getElementById('rawLabelInput').focus();
+            }
+        }
+
+        function selectDestinationType(type) {
+            currentDestinationType = type;
+            const btnRes = document.getElementById('btnTypeRes');
+            const btnCom = document.getElementById('btnTypeCom');
+            if (type === 'Residencial') {
+                btnRes.className = 'type-btn active res';
+                btnCom.className = 'type-btn com';
+            } else {
+                btnRes.className = 'type-btn res';
+                btnCom.className = 'type-btn active com';
+            }
+        }
+
+        async function processPastedLabel() {
+            const text = document.getElementById('rawLabelInput').value.trim();
+            if (!text) {
+                alert('Pega el texto de la etiqueta primero.');
+                return;
+            }
+
+            showToast('Analizando guía de entrega...', '🔍');
+
+            try {
+                const res = await fetch('/parse-delivery-label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+
+                if (!res.ok) throw new Error('Error analizando guía');
+                const parsed = await res.json();
+
+                // Autocompletar formulario
+                document.getElementById('guideAddress').value = parsed.direccion;
+                document.getElementById('guideDistrict').value = parsed.distrito;
+                document.getElementById('guideReference').value = parsed.referencia;
+                document.getElementById('guideRecipient').value = parsed.destinatario;
+                selectDestinationType(parsed.tipo || 'Residencial');
+
+                // Geocodificar de inmediato con dirección + distrito y reintento resiliente
+                let searchGeo = parsed.direccion;
+                if (parsed.distrito && !searchGeo.toLowerCase().includes(parsed.distrito.toLowerCase())) {
+                    searchGeo += `, ${parsed.distrito}`;
+                }
+
+                showToast(`Buscando: ${parsed.direccion}...`, '📍');
+                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+                let geoData = geoRes.ok ? await geoRes.json() : [];
+
+                if ((!geoData || geoData.length === 0) && searchGeo !== parsed.direccion) {
+                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(parsed.direccion)}`);
+                    geoData = geoRes.ok ? await geoRes.json() : [];
+                }
+
+                if (geoData && geoData.length > 0) {
+                    const lat = Number(geoData[0].latitude);
+                    const lng = Number(geoData[0].longitude);
+
+                    // Guardar parada completa
+                    await saveLocationAutomatically({
+                        name: parsed.destinatario || parsed.direccion,
+                        address: parsed.direccion,
+                        latitude: lat,
+                        longitude: lng,
+                        neighborhood: parsed.distrito,
+                        unit_number: parsed.referencia || 'Principal / Directa',
+                        route_id: activeRouteId
+                    });
+
+                    document.getElementById('rawLabelInput').value = '';
+                    togglePasteCard();
+                    showToast(`¡Parada guardada: ${parsed.destinatario || 'Guía'}!`, '🎉');
+                } else {
+                    alert('No se encontraron coordenadas exactas para la dirección. Verifica la nomenclatura.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('No se pudo procesar la guía automáticamente. Verifica los datos.');
+            }
+        }
+
+        async function handleGuideFormSubmit(e) {
+            e.preventDefault();
+            const addr = document.getElementById('guideAddress').value.trim();
+            const dist = document.getElementById('guideDistrict').value.trim();
+            const ref = document.getElementById('guideReference').value.trim() || 'Principal / Directa';
+            const recip = document.getElementById('guideRecipient').value.trim();
+
+            if (!addr) { alert('Ingresa la dirección.'); return; }
+
+            showToast('Geocodificando dirección...', '🔍');
+
+            let searchGeo = addr;
+            if (dist && !searchGeo.toLowerCase().includes(dist.toLowerCase())) {
+                searchGeo += `, ${dist}`;
+            }
+
+            try {
+                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+                let geoData = geoRes.ok ? await geoRes.json() : [];
+
+                if ((!geoData || geoData.length === 0) && searchGeo !== addr) {
+                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(addr)}`);
+                    geoData = geoRes.ok ? await geoRes.json() : [];
+                }
+
+                if (geoData && geoData.length > 0) {
+                    const lat = Number(geoData[0].latitude);
+                    const lng = Number(geoData[0].longitude);
+
+                    await saveLocationAutomatically({
+                        name: recip || addr,
+                        address: addr,
+                        latitude: lat,
+                        longitude: lng,
+                        neighborhood: dist,
+                        unit_number: ref,
+                        route_id: activeRouteId
+                    });
+
+                    document.getElementById('guideAddress').value = '';
+                    document.getElementById('guideDistrict').value = '';
+                    document.getElementById('guideReference').value = '';
+                    document.getElementById('guideRecipient').value = '';
+                    showToast('Parada guardada con éxito', '✅');
+                } else {
+                    alert('No se pudo ubicar la dirección. Revisa la nomenclatura y el distrito/barrio.');
+                }
+            } catch (e) {
+                alert('Error al contactar el servicio de mapas. Inténtalo de nuevo.');
+            }
+        }
+
+        // ========================================================
+        // GUARDADO DE PARADA AUTOMÁTICO
+        // ========================================================
+        async function saveLocationAutomatically(data) {
+            const payload = {
+                name: data.name,
+                address: data.address,
+                latitude: data.latitude,
+                longitude: data.longitude,
+                neighborhood: data.neighborhood || null,
+                unit_number: data.unit_number || null,
+                route_id: activeRouteId,
+                delivered: false
+            };
+
+            let saved = false;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    const response = await fetch('/locations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: AbortSignal.timeout(8000)
+                    });
+                    if (response.ok) {
+                        saved = true;
+                        break;
+                    }
+                } catch (e) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+
+            if (!saved) {
+                let allOffline = JSON.parse(localStorage.getItem('rc_offline_locations') || '[]');
+                payload.id = Date.now();
+                allOffline.push(payload);
+                localStorage.setItem('rc_offline_locations', JSON.stringify(allOffline));
+            }
+
+            playSuccessChime();
+            triggerHaptic();
+            await loadRouteData();
+        }
+
+        // ========================================================
+        // ESCÁNER CONTINUO PROFESIONAL (CÁMARA + QR + GPS)
+        // ========================================================
+        async function startProScanner() {
+            const overlay = document.getElementById('proScannerOverlay');
+            overlay.style.display = 'flex';
+            updateRouteBadges();
+            updateStopsCountInSelector();
+
+            const video = document.getElementById('cameraStream');
+            try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { exact: "environment" } }
+                    video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
+                    audio: false
                 });
                 video.srcObject = mediaStream;
             } catch (err) {
                 try {
                     mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: "environment" }
+                        video: { facingMode: "environment" },
+                        audio: false
                     });
                     video.srcObject = mediaStream;
                 } catch (err2) {
                     alert('No se pudo acceder a la cámara trasera.');
-                    closeCamera();
+                    stopProScanner();
+                    return;
                 }
+            }
+
+            if (barcodeDetector) {
+                startBarcodeDetectionLoop(video);
             }
         }
 
-        function closeCamera() {
+        function stopProScanner() {
+            if (barcodeScanInterval) clearInterval(barcodeScanInterval);
             if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream.getTracks().forEach(t => t.stop());
                 mediaStream = null;
             }
-            document.getElementById('cameraModal').style.display = 'none';
+            document.getElementById('proScannerOverlay').style.display = 'none';
         }
 
-        async function captureCameraLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async position => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    closeCamera();
-
-                    let name = "Parada con Cámara";
-                    let address = `Ubicación GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-
-                    try {
-                        const res = await fetch(`/geocode?query=${lat},${lng}`);
-                        if (res.ok) {
-                            const data = await res.json();
-                            if (data && data.length > 0 && data[0].display_name) {
-                                address = data[0].display_name;
-                                name = data[0].display_name.split(',')[0];
-                            }
+        function startBarcodeDetectionLoop(video) {
+            if (barcodeScanInterval) clearInterval(barcodeScanInterval);
+            barcodeScanInterval = setInterval(async () => {
+                if (!video || video.readyState < 2) return;
+                try {
+                    const barcodes = await barcodeDetector.detect(video);
+                    if (barcodes && barcodes.length > 0) {
+                        const raw = barcodes[0].rawValue;
+                        const now = Date.now();
+                        if (raw && (raw !== lastScannedCode || (now - lastScanTimestamp) > 3000)) {
+                            lastScannedCode = raw;
+                            lastScanTimestamp = now;
+                            onBarcodeDetected(raw);
                         }
-                    } catch (e) {}
+                    }
+                } catch (e) {}
+            }, 300);
+        }
 
-                    await saveLocationAutomatically(name, address, lat, lng);
-                }, err => {
-                    alert('No se pudo obtener la posición GPS.');
-                }, { enableHighAccuracy: true });
-            } else {
-                alert('La geolocalización no es compatible.');
+        async function onBarcodeDetected(codeText) {
+            playBeep(1100, 0.15);
+            triggerHaptic();
+
+            const reticle = document.getElementById('scannerReticle');
+            reticle.classList.add('detected');
+            setTimeout(() => reticle.classList.remove('detected'), 800);
+
+            showToast(`QR detectado: ${codeText.substring(0, 20)}...`, '📦');
+
+            // Si contiene texto de guía, parsearlo; de lo contrario capturar con GPS
+            if (codeText.includes('Direccion:') || codeText.includes('Destinatario:')) {
+                document.getElementById('rawLabelInput').value = codeText;
+                await processPastedLabel();
+            } else if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async pos => {
+                    await saveLocationAutomatically({
+                        name: `Guía: ${codeText}`,
+                        address: `Escaneado QR: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`,
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        unit_number: codeText
+                    });
+                }, async () => {
+                    await saveLocationAutomatically({
+                        name: `Guía: ${codeText}`,
+                        address: codeText,
+                        latitude: 6.2442,
+                        longitude: -75.5812,
+                        unit_number: codeText
+                    });
+                });
             }
         }
 
-        async function loadOptimalRoute() {
-            try {
-                const res = await fetch('/optimal_route');
-                if (!res.ok) throw new Error('Error al cargar la ruta');
-                let locations = await res.json();
-
-                if ((!locations || locations.length === 0) && localStorage.getItem('ruta_clara_offline')) {
-                    locations = JSON.parse(localStorage.getItem('ruta_clara_offline'));
-                }
-
-                renderNavigationGuide(locations);
-            } catch (err) {
-                const offlineLocations = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
-                renderNavigationGuide(offlineLocations);
+        async function captureContinuousStop() {
+            if (!navigator.geolocation) {
+                alert('Geolocalización no disponible');
+                return;
             }
+
+            const hint = document.getElementById('scannerHint');
+            hint.innerText = "⏳ Obteniendo coordenadas GPS precisas...";
+
+            navigator.geolocation.getCurrentPosition(async pos => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                hint.innerText = "Apunta a la guía / código QR o presiona capturar";
+
+                let name = `Parada #${currentLocations.length + 1}`;
+                let address = `Ubicación GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+                try {
+                    const res = await fetch(`/geocode?query=${lat},${lng}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.length > 0) {
+                            address = data[0].display_name;
+                            name = data[0].display_name.split(',')[0];
+                        }
+                    }
+                } catch (e) {}
+
+                await saveLocationAutomatically({
+                    name,
+                    address,
+                    latitude: lat,
+                    longitude: lng,
+                    unit_number: 'Marcado en campo'
+                });
+            }, () => {
+                hint.innerText = "Apunta a la guía / código QR o presiona capturar";
+                alert('No se pudo obtener el GPS.');
+            }, { enableHighAccuracy: true });
         }
 
+        function goToMapFromScanner() {
+            stopProScanner();
+            switchTab('map');
+        }
+
+        // ========================================================
+        // RENDERIZADO DE PARADAS Y MAPA
+        // ========================================================
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -823,8 +1694,7 @@
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
         function renderNavigationGuide(locations) {
@@ -836,15 +1706,16 @@
             const totalSummary = document.getElementById('totalSummary');
             const stopsCountBadge = document.getElementById('stopsCountBadge');
 
-            if (stopsCountBadge) {
-                stopsCountBadge.innerText = locations ? locations.length : 0;
-            }
-
+            if (stopsCountBadge) stopsCountBadge.innerText = locations ? locations.length : 0;
             stepsContainer.innerHTML = '';
 
             if (!locations || locations.length === 0) {
                 totalSummary.style.display = 'none';
-                stepsContainer.innerHTML = '<p style="color:var(--text-muted); font-size:12px; text-align:center; padding: 20px;">No hay paradas en la ruta. Usa el escáner continuo de arriba.</p>';
+                stepsContainer.innerHTML = `
+                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 24px;">
+                        No hay paradas en <b>${activeRouteName}</b>.<br/>Pega una guía o usa la cámara para agregar paquetes.
+                    </p>
+                `;
                 return;
             }
 
@@ -854,56 +1725,74 @@
             locations.forEach((loc, idx) => {
                 points.push([loc.latitude, loc.longitude]);
 
+                const isDelivered = loc.delivered === true;
+                const markerColor = isDelivered ? '#10b981' : '#ea580c';
+                const markerSymbol = isDelivered ? '✔' : (idx + 1);
+
                 const markerIcon = L.divIcon({
-                    className: 'custom-icon',
-                    html: `<div style="background:#ea580c; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.3);">${idx + 1}</div>`,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
+                    className: 'custom-stop-icon',
+                    html: `<div style="background:${markerColor}; color:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.35);">${markerSymbol}</div>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
                 });
 
-                let addrStr = loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${String(loc.address).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>` : '';
+                let refHtml = loc.unit_number ? `<div style="background:#fef08a; color:#713f12; padding:4px 6px; border-radius:4px; font-weight:bold; font-size:11px; margin:4px 0;">🏷️ Ref: ${escapeHtml(loc.unit_number)}</div>` : '';
                 const marker = L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
-                    .bindPopup(`<b>Parada ${idx + 1}: ${String(loc.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>${addrStr}`);
+                    .bindPopup(`<b>Parada ${idx + 1}: ${escapeHtml(loc.name)}</b><br/><span style="font-size:11px; color:#475569;">${escapeHtml(loc.address || '')}</span>${refHtml}<button onclick="startNavigationToStop(${loc.id})" style="background:#2563eb; color:white; border:none; border-radius:6px; padding:4px 8px; font-size:11px; margin-top:4px; cursor:pointer;">🧭 Navegar Aquí</button>`);
                 markersGroup.addLayer(marker);
             });
 
             if (points.length > 1) {
-                const polyline = L.polyline(points, {
-                    color: '#ea580c',
-                    weight: 5,
-                    opacity: 0.85,
-                    dashArray: '8, 8'
-                });
+                const polyline = L.polyline(points, { color: '#ea580c', weight: 5, opacity: 0.85, dashArray: '8, 8' });
                 polylineGroup.addLayer(polyline);
-                map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+                map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
             } else if (points.length === 1) {
                 map.setView(points[0], 14);
             }
 
             locations.forEach((loc, idx) => {
                 let distText = "Punto de partida";
-                let segmentDist = 0;
                 if (idx > 0) {
                     const prev = locations[idx - 1];
-                    segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
+                    const segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
                     totalDist += segmentDist;
-                    distText = `Distancia desde parada anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                    distText = `Distancia desde anterior: <b>${segmentDist.toFixed(2)} km</b>`;
                 }
 
-                const gpsUrl = `https://www.google.com/maps/dir/?api=1&destination=${loc.latitude},${loc.longitude}`;
+                const isDelivered = loc.delivered === true;
 
                 const stepEl = document.createElement('div');
-                stepEl.className = 'nav-step-item';
+                stepEl.className = `nav-step-item ${isDelivered ? 'delivered' : ''}`;
+                stepEl.id = `stop-item-${loc.id}`;
                 stepEl.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
                         <div style="flex:1;">
-                            <strong>Paso ${idx + 1}: ${String(loc.name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</strong>
-                            ${loc.address ? `<br/><span style="color:var(--text-muted); font-size:11px;">${String(loc.address).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>` : ''}
-                            <br/><span style="color:var(--text-muted); font-size:11px;">${distText}</span>
+                            <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                                <strong>Parada ${idx + 1}: ${escapeHtml(loc.name)}</strong>
+                                ${isDelivered ? '<span class="badge-tag-res">✔ Entregado</span>' : '<span style="background:#ffedd5; color:#c2410c; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px;">Pendiente</span>'}
+                            </div>
+                            <div style="font-size:12px; color:#1e293b; font-weight:600;">
+                                📍 ${escapeHtml(loc.address || '')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''}
+                            </div>
+                            <!-- CUADRO DE REFERENCIA DESTACADO -->
+                            ${loc.unit_number ? `
+                                <div class="reference-box-highlight">
+                                    <span>🏷️ REFERENCIA:</span>
+                                    <span>${escapeHtml(loc.unit_number)}</span>
+                                </div>
+                            ` : ''}
+                            <div style="color:var(--text-muted); font-size:11px; margin-top:2px;">${distText}</div>
                         </div>
-                        <button onclick="deleteLocation(${loc.id})" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:600; cursor:pointer; flex-shrink:0;" title="Eliminar parada">❌ Eliminar</button>
+                        <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+                            <button onclick="deleteLocation(${loc.id})" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer;" title="Eliminar parada">🗑️</button>
+                            <button onclick="toggleDelivered(${loc.id})" class="btn-delivered-toggle ${isDelivered ? 'is-delivered' : ''}">
+                                ${isDelivered ? '✔ Hecho' : 'Marcar'}
+                            </button>
+                        </div>
                     </div>
-                    <a href="${gpsUrl}" target="_blank" class="btn-nav">🧭 Guiar con GPS (Google Maps)</a>
+                    <button onclick="startNavigationToStop(${loc.id})" class="btn-nav-internal">
+                        🧭 Navegar en Mapa Interno
+                    </button>
                 `;
                 stepsContainer.appendChild(stepEl);
             });
@@ -916,30 +1805,225 @@
             }
         }
 
-        // Gestión de Ruta e Historial Semanal
-        async function deleteLocation(id) {
-            if (!confirm('¿Estás seguro de eliminar esta parada de la ruta?')) return;
-            try {
-                await fetch(`/locations/${id}`, { method: 'DELETE' });
-                let offline = JSON.parse(localStorage.getItem('ruta_clara_offline') || '[]');
-                offline = offline.filter(l => l.id !== id);
-                localStorage.setItem('ruta_clara_offline', JSON.stringify(offline));
-                loadOptimalRoute();
-            } catch (err) {
-                console.error(err);
-                alert('Error al eliminar la parada');
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ========================================================
+        // NAVEGACIÓN GPS INTEGRADA (NO SALE DE LA APP)
+        // ========================================================
+        function startNavigationToStop(locationId) {
+            const index = currentLocations.findIndex(l => l.id === locationId);
+            if (index === -1) return;
+
+            switchTab('map');
+            activeNavIndex = index;
+            startInAppNavigation();
+        }
+
+        function toggleRouteNavigation() {
+            if (isNavigating) {
+                stopRouteNavigation();
+            } else {
+                const firstPending = currentLocations.findIndex(l => !l.delivered);
+                activeNavIndex = firstPending !== -1 ? firstPending : 0;
+                startInAppNavigation();
             }
         }
 
-        async function clearAllLocations() {
-            if (!confirm('¿Estás seguro de borrar toda la ruta actual?')) return;
+        function startInAppNavigation() {
+            if (!currentLocations || currentLocations.length === 0) {
+                alert('No hay paradas en esta ruta para navegar.');
+                return;
+            }
+
+            isNavigating = true;
+            document.getElementById('btnToggleNav').innerText = '🛑 Detener';
+            document.getElementById('btnToggleNav').style.background = '#ef4444';
+            document.getElementById('inAppNavHUD').style.display = 'flex';
+
+            updateNavHUD();
+
+            if (navigator.geolocation && !watchPositionId) {
+                watchPositionId = navigator.geolocation.watchPosition(
+                    onUserPositionUpdate,
+                    err => console.warn(err),
+                    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+                );
+            }
+        }
+
+        function stopRouteNavigation() {
+            isNavigating = false;
+            document.getElementById('btnToggleNav').innerText = '🚀 Arrancar Navegación';
+            document.getElementById('btnToggleNav').style.background = '#10b981';
+            document.getElementById('inAppNavHUD').style.display = 'none';
+
+            if (watchPositionId) {
+                navigator.geolocation.clearWatch(watchPositionId);
+                watchPositionId = null;
+            }
+            if (navGuidanceLine) {
+                map.removeLayer(navGuidanceLine);
+                navGuidanceLine = null;
+            }
+            if (userMarker) {
+                map.removeLayer(userMarker);
+                userMarker = null;
+            }
+        }
+
+        function onUserPositionUpdate(pos) {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            currentUserLatLng = [lat, lng];
+
+            if (!userMarker) {
+                const userIcon = L.divIcon({
+                    className: 'courier-beacon',
+                    html: '<div style="background:#2563eb; width:18px; height:18px; border-radius:50%; border:3px solid white; box-shadow:0 0 12px #2563eb;"></div>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                });
+                userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+            } else {
+                userMarker.setLatLng([lat, lng]);
+            }
+
+            updateDistanceToTarget();
+        }
+
+        function updateNavHUD() {
+            const target = currentLocations[activeNavIndex];
+            if (!target) return;
+
+            document.getElementById('hudStopTitle').innerText = `Parada ${activeNavIndex + 1}/${currentLocations.length}: ${target.name}`;
+            document.getElementById('hudStopAddress').innerText = `${target.address || ''} ${target.neighborhood ? '• ' + target.neighborhood : ''}`;
+
+            const refEl = document.getElementById('hudStopReference');
+            if (target.unit_number) {
+                refEl.innerText = `🏷️ REF: ${target.unit_number}`;
+                refEl.style.display = 'inline-block';
+            } else {
+                refEl.style.display = 'none';
+            }
+
+            map.flyTo([target.latitude, target.longitude], 16, { animate: true, duration: 1 });
+            updateDistanceToTarget();
+        }
+
+        function updateDistanceToTarget() {
+            const target = currentLocations[activeNavIndex];
+            if (!target) return;
+
+            const distEl = document.getElementById('hudDistance');
+
+            if (currentUserLatLng) {
+                const distKm = calculateDistanceKm(
+                    currentUserLatLng[0], currentUserLatLng[1],
+                    target.latitude, target.longitude
+                );
+
+                if (distKm < 1) {
+                    const meters = Math.round(distKm * 1000);
+                    distEl.innerText = `${meters} m`;
+                } else {
+                    distEl.innerText = `${distKm.toFixed(2)} km`;
+                }
+
+                if (navGuidanceLine) map.removeLayer(navGuidanceLine);
+                navGuidanceLine = L.polyline([currentUserLatLng, [target.latitude, target.longitude]], {
+                    color: '#38bdf8',
+                    weight: 4,
+                    dashArray: '6, 6'
+                }).addTo(map);
+
+            } else {
+                distEl.innerText = '-- m';
+            }
+        }
+
+        function navigateStep(direction) {
+            const newIndex = activeNavIndex + direction;
+            if (newIndex >= 0 && newIndex < currentLocations.length) {
+                activeNavIndex = newIndex;
+                updateNavHUD();
+            }
+        }
+
+        async function markCurrentStopDelivered() {
+            const target = currentLocations[activeNavIndex];
+            if (!target) return;
+
+            await toggleDelivered(target.id, true);
+
+            if (activeNavIndex < currentLocations.length - 1) {
+                activeNavIndex++;
+                updateNavHUD();
+                showToast(`¡Parada completada! Siguiente: #${activeNavIndex + 1}`, '🎉');
+            } else {
+                showToast('¡Has completado todas las paradas de la ruta!', '🏆');
+                stopRouteNavigation();
+            }
+        }
+
+        function centerOnUserLocation() {
+            if (currentUserLatLng) {
+                map.setView(currentUserLatLng, 17);
+            } else if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    currentUserLatLng = [pos.coords.latitude, pos.coords.longitude];
+                    map.setView(currentUserLatLng, 17);
+                });
+            }
+        }
+
+        // ========================================================
+        // ESTADO DE ENTREGA Y ELIMINACIÓN
+        // ========================================================
+        async function toggleDelivered(locationId, forceDeliveredState = null) {
+            const loc = currentLocations.find(l => l.id === locationId);
+            if (!loc) return;
+
+            const newState = forceDeliveredState !== null ? forceDeliveredState : !loc.delivered;
+            loc.delivered = newState;
+
             try {
-                await fetch('/locations', { method: 'DELETE' });
-                localStorage.removeItem('ruta_clara_offline');
-                loadOptimalRoute();
+                await fetch(`/locations/${locationId}/delivered`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ delivered: newState })
+                });
+            } catch (e) {}
+
+            playSuccessChime();
+            renderNavigationGuide(currentLocations);
+        }
+
+        async function deleteLocation(id) {
+            if (!confirm('¿Eliminar esta parada de la ruta?')) return;
+            try {
+                await fetch(`/locations/${id}`, { method: 'DELETE' });
+                currentLocations = currentLocations.filter(l => l.id !== id);
+                renderNavigationGuide(currentLocations);
+                updateStopsCountInSelector();
+                showToast('Parada eliminada', '🗑️');
             } catch (err) {
-                console.error(err);
-                alert('Error al limpiar la ruta');
+                alert('Error al eliminar');
+            }
+        }
+
+        async function clearCurrentRouteLocations() {
+            if (!confirm(`¿Vaciar todas las paradas de "${activeRouteName}"?`)) return;
+            try {
+                await fetch(`/locations?route_id=${activeRouteId}`, { method: 'DELETE' });
+                currentLocations = [];
+                renderNavigationGuide(currentLocations);
+                updateStopsCountInSelector();
+                showToast('Ruta vaciada', '🗑️');
+            } catch (e) {
+                alert('Error al vaciar ruta');
             }
         }
 
@@ -947,7 +2031,6 @@
             window.location.href = '/export/weekly_routes';
         }
 
-        // Control de Pestañas (Vista 1: Escáner / Vista 2: Mapa)
         function switchTab(tabName) {
             const viewScanner = document.getElementById('viewScanner');
             const viewMap = document.getElementById('viewMap');
@@ -967,34 +2050,23 @@
 
                 setTimeout(() => {
                     if (map) map.invalidateSize();
-                    loadOptimalRoute();
-                }, 200);
+                }, 150);
             }
         }
 
-        function toggleMobileMap() {
-            const mapCard = document.querySelector('.map-card-wrapper');
-            const btn = document.getElementById('toggleMapBtn');
-            if (mapCard.classList.contains('mobile-visible')) {
-                mapCard.classList.remove('mobile-visible');
-                btn.innerText = '🗺️ Ver Mapa';
-            } else {
-                mapCard.classList.add('mobile-visible');
-                btn.innerText = '🗺️ Ocultar Mapa';
-                setTimeout(() => { map.invalidateSize(); }, 200);
-            }
-        }
-
-        // Registrar Service Worker para PWA (modo offline e instalación en celular)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/static/sw.js')
-                    .then(reg => console.log('Service Worker registrado con éxito:', reg.scope))
-                    .catch(err => console.log('Error al registrar Service Worker:', err));
+                    .then(reg => {
+                        if (reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                        reg.update();
+                    })
+                    .catch(() => {});
             });
         }
 
-        // Control de Estado de Conexión y PWA Instalada
         function updateConnectionStatus() {
             const badge = document.getElementById('connectionBadge');
             if (!badge) return;
@@ -1009,52 +2081,25 @@
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('offline', updateConnectionStatus);
 
-        function checkPWAStatus() {
-            updateConnectionStatus();
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || document.referrer.includes('android-app://');
-            const installBtn = document.getElementById('installAppBtn');
-            if (isStandalone && installBtn) {
-                installBtn.style.display = 'none';
-            }
-        }
-        window.addEventListener('DOMContentLoaded', checkPWAStatus);
-        window.addEventListener('appinstalled', () => {
-            const installBtn = document.getElementById('installAppBtn');
-            if (installBtn) installBtn.style.display = 'none';
-        });
-
-        // Lógica de Instalación PWA
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
             const installBtn = document.getElementById('installAppBtn');
-            if (installBtn && !isStandalone) {
-                installBtn.style.display = 'flex';
-            }
+            if (installBtn) installBtn.style.display = 'flex';
         });
 
         function installPWA() {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        const installBtn = document.getElementById('installAppBtn');
-                        if (installBtn) installBtn.style.display = 'none';
-                    }
-                    deferredPrompt = null;
-                });
+                deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
             } else {
-                alert('📲 Para instalar Ruta Clara en tu dispositivo:\n\n• En Android / PC (Chrome): Toca el menú de los 3 puntos (⋮) en tu navegador y selecciona "Instalar aplicación" o "Añadir a la pantalla de inicio".\n• En iOS (Safari): Toca el botón Compartir y selecciona "Añadir a pantalla de inicio".');
+                alert('En Android/Chrome: Menú (⋮) -> Instalar aplicación.\nEn iPhone: Compartir -> Añadir a inicio.');
             }
         }
 
-        // Ajustar tamaño del mapa al redimensionar la ventana o rotar el celular
         window.addEventListener('resize', () => {
-            if (map) {
-                setTimeout(() => map.invalidateSize(), 250);
-            }
+            if (map) setTimeout(() => map.invalidateSize(), 200);
         });
 
         window.onload = initMap;

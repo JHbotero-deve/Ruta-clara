@@ -10,6 +10,7 @@ __pycache__/
 .idea/
 .artifacts/
 backups/
+backup_automatico*/
 *.bak
 *.bak*
 *_backup*.py

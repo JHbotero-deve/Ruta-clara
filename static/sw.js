@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ruta-clara-v2';
+const CACHE_NAME = 'ruta-clara-v4';
 const ASSETS = [
   '/map',
   '/static/leaflet.css',
@@ -20,7 +20,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            console.log('[SW] Deleting old cache:', key);
+            return caches.delete(key);
+          }
+        })
       );
     })
   );
@@ -28,15 +33,36 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).then((fetchResponse) => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
-            cache.put(event.request, fetchResponse.clone());
+  // Navegación (HTML /map): Network-First para que el usuario reciba siempre el código más reciente
+  if (event.request.mode === 'navigate' || event.request.url.endsWith('/map')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           }
-          return fetchResponse;
-        });
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match('/map') || caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Recursos estáticos (Leaflet, CSS, imágenes): Cache-First con actualización de red
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).then((networkResponse) => {
+        if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return networkResponse;
       });
     }).catch(() => {
       if (event.request.mode === 'navigate') {
