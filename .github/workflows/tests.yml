@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Install OCR engine
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-spa
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
