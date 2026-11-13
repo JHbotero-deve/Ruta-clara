@@ -259,14 +259,19 @@ def read_users_me(
 # GEOCODING Y PARSER DE GUÍAS DE ENTREGA (COLOMBIA / VALLE DE ABURRÁ)
 # ============================================================
 
-def clean_address_for_geocoding(raw_text: str) -> str:
-    """
-    Limpia una dirección colombiana para que el geocodificador encuentre la vía exacta.
-    Remueve apartamentos, interiores, oficinas, torres y SN que confunden a los mapas.
-    """
+def normalize_geocode_value(value: str) -> str:
     import re
-    cleaned = raw_text
-    # Remover patrones de unidades internas
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", normalized.casefold()).strip()
+
+
+def clean_address_for_geocoding(raw_text: str) -> str:
+    """Normaliza abreviaturas colombianas y conserva la nomenclatura (# y guion)."""
+    import re
+    cleaned = unicodedata.normalize("NFKC", raw_text).strip()
+    cleaned = re.sub(r"\b(?:cra|cr|carrera)\.?\s*(?=\d)", "Carrera ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:cll|cl|calle)\.?\s*(?=\d)", "Calle ", cleaned, flags=re.IGNORECASE)
     patterns = [
         r'\b(apartamento|apto|apt|ap)\.?\s*(\d+[a-zA-Z]*)',
         r'\b(oficina|ofc|ofi)\.?\s*(\d+[a-zA-Z]*)',
@@ -278,16 +283,16 @@ def clean_address_for_geocoding(raw_text: str) -> str:
         r'\bS/N\b',
         r'\b(bloque|blq)\.?\s*(\d+[a-zA-Z]*)'
     ]
-    for p in patterns:
-        cleaned = re.sub(p, '', cleaned, flags=re.IGNORECASE)
-
-    # Limpiar espacios repetidos y símbolos huérfanos
-    cleaned = re.sub(r'[,#\s]+', ' ', cleaned).strip()
-    return cleaned
+    for pattern in patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*#\s*", " # ", cleaned)
+    cleaned = re.sub(r"\s*,\s*", ", ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip(" ,")
 
 
 def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None) -> List[dict]:
-    """Consulta ArcGIS World Geocoding Service, optimizado para Colombia con respuesta < 0.5s."""
+    """Consulta ArcGIS y descarta resultados de otro municipio o ubicaciones genéricas."""
+    import re
     results = []
     try:
         searches = []
@@ -315,21 +320,24 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
                 score = candidate.get("score", 0)
                 if score < 70:
                     continue
-
                 point = candidate.get("location", {})
                 attrs = candidate.get("attributes", {})
                 if "x" not in point or "y" not in point:
                     continue
-
-                lat = float(point["y"])
-                lon = float(point["x"])
-
-                # Delimitar aproximadamente el Valle de Aburrá (Medellín, Envigado, etc.)
+                lat, lon = float(point["y"]), float(point["x"])
                 if not (5.8 <= lat <= 6.6 and -75.9 <= lon <= -75.1):
                     continue
 
-                municipality = attrs.get("City") or attrs.get("Subregion") or ""
+                municipality = attrs.get("City") or attrs.get("Municipality") or attrs.get("Subregion") or ""
                 neighborhood = attrs.get("Nbrhd") or attrs.get("District") or ""
+                if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
+                    continue
+
+                address_type = attrs.get("Addr_type", "")
+                if re.search(r"\d", search_text) and address_type and address_type.casefold() not in {
+                    "pointaddress", "streetaddress", "streetaddressext", "subaddress"
+                }:
+                    continue
 
                 results.append({
                     "display_name": attrs.get("LongLabel") or candidate.get("address"),
@@ -337,7 +345,7 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
                     "longitude": lon,
                     "municipality": municipality,
                     "neighborhood": neighborhood,
-                    "type": attrs.get("Addr_type", "PointAddress"),
+                    "type": address_type or "PointAddress",
                     "class": "arcgis",
                     "score": score
                 })
@@ -371,8 +379,8 @@ def search_address(query: str = Query(..., min_length=3)):
         "La Estrella", "Caldas", "Bello",
         "Copacabana", "Girardota", "Barbosa"
     ]
-    normalized_q = raw_query.casefold()
-    requested_muni = next((m for m in municipalities if m.casefold() in normalized_q), None)
+    normalized_q = normalize_geocode_value(raw_query)
+    requested_muni = next((m for m in municipalities if normalize_geocode_value(m) in normalized_q.split()), None)
 
     # 1. Limpieza de dirección (quitar apto 200, SN, oficina, etc. para geocodificar)
     cleaned_q = clean_address_for_geocoding(raw_query)
@@ -407,11 +415,17 @@ def search_address(query: str = Query(..., min_length=3)):
             for item in data:
                 if item.get("lat") and item.get("lon"):
                     addr = item.get("address", {})
+                    municipality = addr.get("city") or addr.get("town") or addr.get("municipality") or addr.get("county") or ""
+                    if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
+                        continue
+                    item_type = (item.get("type") or "").casefold()
+                    if re.search(r"\d", cleaned_q) and item_type in {"city", "town", "suburb", "neighbourhood", "administrative"}:
+                        continue
                     results.append({
                         "display_name": item.get("display_name", ""),
                         "latitude": float(item["lat"]),
                         "longitude": float(item["lon"]),
-                        "municipality": addr.get("city") or addr.get("town") or addr.get("municipality") or "",
+                        "municipality": municipality,
                         "neighborhood": addr.get("suburb") or addr.get("neighbourhood") or "",
                         "type": item.get("type", ""),
                         "class": "nominatim"
@@ -491,7 +505,12 @@ def parse_delivery_label_endpoint(payload: dict):
 
     destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
     direccion = extract_field(r"direcci[oó]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
-    distrito = extract_field(r"distrito|barrio|sector|municipio|ciudad|comuna")
+    distrito = extract_field(r"distrito|barrio|sector|comuna")
+    municipio = extract_field(r"municipio|ciudad")
+    if not municipio:
+        municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa"]
+        normalized_text = normalize_geocode_value(text)
+        municipio = next((name for name in municipalities if normalize_geocode_value(name) in normalized_text.split()), "")
     referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
     dest_raw = extract_field(r"destinatario|nombre(?:[ \t]+del[ \t]+(?:cliente|destinatario))?|recibe|cliente")
 
@@ -523,6 +542,7 @@ def parse_delivery_label_endpoint(payload: dict):
         "tipo": destination_type,
         "direccion": direccion,
         "distrito": distrito,
+        "municipio": municipio,
         "referencia": referencia,
         "destinatario": destinatario,
         "tracking_id": tracking_id
