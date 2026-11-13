@@ -204,6 +204,59 @@ def test_ocr_delivery_label_extracts_fields(monkeypatch):
     assert "texto_reconocido" in parsed
 
 
+def test_clean_address_for_geocoding_preserves_colombian_nomenclature():
+    from src.routes import clean_address_for_geocoding
+    assert clean_address_for_geocoding("cra66#56a-98") == "Carrera 66 # 56a-98"
+
+
+def test_parse_delivery_label_extracts_municipality_and_neighborhood():
+    response = client.post(
+        "/parse-delivery-label",
+        json={"text": "Dirección: cra66#56A-98\nBarrio: El Paraíso\nCiudad: Bello"}
+    )
+    assert response.status_code == 200
+    parsed = response.json()
+    assert parsed["direccion"] == "cra66#56A-98"
+    assert parsed["distrito"] == "El Paraíso"
+    assert parsed["municipio"] == "Bello"
+
+
+def test_arcgis_geocoder_rejects_candidates_from_other_municipalities(monkeypatch):
+    import json
+    from src import routes
+
+    payload = {
+        "candidates": [
+            {
+                "score": 99,
+                "address": "Carrera 66, Envigado",
+                "location": {"x": -75.57, "y": 6.17},
+                "attributes": {"City": "Envigado", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress"}
+            },
+            {
+                "score": 95,
+                "address": "Carrera 66, Bello",
+                "location": {"x": -75.56, "y": 6.33},
+                "attributes": {"City": "Bello", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress"}
+            }
+        ]
+    }
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return None
+        def read(self):
+            return json.dumps(payload).encode("utf-8")
+
+    monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
+    results = routes.query_arcgis_geocoder("Carrera 66 # 56A-98, El Paraíso", "Bello")
+    assert len(results) == 1
+    assert results[0]["municipality"] == "Bello"
+    assert results[0]["neighborhood"] == "El Paraíso"
+
+
 def test_ocr_delivery_label_rejects_invalid_image():
     response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
     assert response.status_code == 400
