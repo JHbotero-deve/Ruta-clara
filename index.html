@@ -919,7 +919,15 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideAddress" placeholder="Ej. Carrera 32b 10-110, Medellín" required enterkeyhint="next">
+                            <input type="text" id="guideAddress" placeholder="Ej. Cra 66 #56A-98" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideMunicipality">Municipio *</label>
+                            <input type="text" id="guideMunicipality" placeholder="Ej. Bello" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideDistrict">Barrio</label>
+                            <input type="text" id="guideDistrict" placeholder="Ej. El Paraíso" enterkeyhint="next">
                         </div>
 
                         <!-- Referencia / Indicaciones -->
@@ -1516,21 +1524,19 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         async function processParsedGuide(parsed) {
             if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
             document.getElementById('guideAddress').value = parsed.direccion;
+            const municipalityField = document.getElementById('guideMunicipality');
             const districtField = document.getElementById('guideDistrict');
+            if (municipalityField) municipalityField.value = parsed.municipio || '';
             if (districtField) districtField.value = parsed.distrito || '';
             document.getElementById('guideReference').value = parsed.referencia || '';
             document.getElementById('guideRecipient').value = parsed.destinatario || '';
             selectDestinationType(parsed.tipo || 'Residencial');
-            let searchGeo = parsed.direccion;
-            if (parsed.distrito && !searchGeo.toLowerCase().includes(parsed.distrito.toLowerCase())) searchGeo += `, ${parsed.distrito}`;
-            showToast(`Buscando: ${parsed.direccion}...`, '📍');
-            let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-            let geoData = geoRes.ok ? await geoRes.json() : [];
-            if ((!geoData || !geoData.length) && searchGeo !== parsed.direccion) {
-                geoRes = await fetch(`/geocode?query=${encodeURIComponent(parsed.direccion)}`);
-                geoData = geoRes.ok ? await geoRes.json() : [];
-            }
-            if (!geoData || !geoData.length) throw new Error('Se leyó la guía, pero no se pudo ubicar la dirección. Verifica la nomenclatura.');
+            if (!parsed.municipio) throw new Error('La guía no indica el municipio. Completa el campo Municipio antes de registrar la parada.');
+            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
+            showToast(`Buscando: ${parsed.direccion}, ${parsed.municipio}...`, '📍');
+            const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+            const geoData = geoRes.ok ? await geoRes.json() : [];
+            if (!geoData || !geoData.length) throw new Error('No se encontró una dirección válida en el municipio indicado. Revisa dirección, barrio y municipio.');
             const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
             await saveLocationAutomatically({
                 name: parsed.destinatario || parsed.direccion,
@@ -1546,28 +1552,21 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         async function handleGuideFormSubmit(e) {
             e.preventDefault();
             const addr = document.getElementById('guideAddress').value.trim();
+            const municipality = document.getElementById('guideMunicipality').value.trim();
             const districtField = document.getElementById('guideDistrict');
             const dist = districtField ? districtField.value.trim() : '';
             const ref = document.getElementById('guideReference').value.trim() || 'Principal / Directa';
             const recip = document.getElementById('guideRecipient').value.trim();
 
             if (!addr) { alert('Ingresa la dirección.'); return; }
+            if (!municipality) { alert('Ingresa el municipio para evitar ubicar la dirección en otra ciudad.'); return; }
 
             showToast('Geocodificando dirección...', '🔍');
-
-            let searchGeo = addr;
-            if (dist && !searchGeo.toLowerCase().includes(dist.toLowerCase())) {
-                searchGeo += `, ${dist}`;
-            }
+            const searchGeo = [addr, dist, municipality, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
 
             try {
-                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                let geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if ((!geoData || geoData.length === 0) && searchGeo !== addr) {
-                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(addr)}`);
-                    geoData = geoRes.ok ? await geoRes.json() : [];
-                }
+                const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+                const geoData = geoRes.ok ? await geoRes.json() : [];
 
                 if (geoData && geoData.length > 0) {
                     const lat = Number(geoData[0].latitude);
@@ -1584,6 +1583,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     });
 
                     document.getElementById('guideAddress').value = '';
+                    document.getElementById('guideMunicipality').value = '';
                     if (districtField) districtField.value = '';
                     document.getElementById('guideReference').value = '';
                     document.getElementById('guideRecipient').value = '';
