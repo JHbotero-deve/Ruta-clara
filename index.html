@@ -1067,8 +1067,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         </div>
 
         <div class="pro-scanner-bottom">
-            <button class="btn-capture-big" onclick="captureContinuousStop()">
-                📸 Capturar Parada en este Punto (GPS)
+            <button class="btn-capture-big" onclick="captureAndReadGuide()">
+                📷 Leer guía con cámara (OCR)
+            </button>
+            <button onclick="captureContinuousStop()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                📍 Registrar solo ubicación GPS
             </button>
             <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
                 🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
@@ -1464,72 +1467,80 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         async function processPastedLabel() {
             const text = document.getElementById('rawLabelInput').value.trim();
-            if (!text) {
-                alert('Pega el texto de la etiqueta primero.');
-                return;
-            }
-
+            if (!text) { alert('Pega el texto de la etiqueta primero.'); return; }
             showToast('Analizando guía de entrega...', '🔍');
-
             try {
                 const res = await fetch('/parse-delivery-label', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
-
-                if (!res.ok) throw new Error('Error analizando guía');
-                const parsed = await res.json();
-
-                // Autocompletar solo los campos presentes en el formulario actual.
-                if (!parsed || !parsed.direccion) throw new Error('La guía no contiene una dirección reconocible.');
-                document.getElementById('guideAddress').value = parsed.direccion;
-                const districtField = document.getElementById('guideDistrict');
-                if (districtField) districtField.value = parsed.distrito || '';
-                document.getElementById('guideReference').value = parsed.referencia || '';
-                document.getElementById('guideRecipient').value = parsed.destinatario || '';
-                selectDestinationType(parsed.tipo || 'Residencial');
-
-                // Geocodificar de inmediato con dirección + distrito y reintento resiliente
-                let searchGeo = parsed.direccion;
-                if (parsed.distrito && !searchGeo.toLowerCase().includes(parsed.distrito.toLowerCase())) {
-                    searchGeo += `, ${parsed.distrito}`;
-                }
-
-                showToast(`Buscando: ${parsed.direccion}...`, '📍');
-                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                let geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if ((!geoData || geoData.length === 0) && searchGeo !== parsed.direccion) {
-                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(parsed.direccion)}`);
-                    geoData = geoRes.ok ? await geoRes.json() : [];
-                }
-
-                if (geoData && geoData.length > 0) {
-                    const lat = Number(geoData[0].latitude);
-                    const lng = Number(geoData[0].longitude);
-
-                    // Guardar parada completa
-                    await saveLocationAutomatically({
-                        name: parsed.destinatario || parsed.direccion,
-                        address: parsed.direccion,
-                        latitude: lat,
-                        longitude: lng,
-                        neighborhood: parsed.distrito,
-                        unit_number: parsed.referencia || 'Principal / Directa',
-                        route_id: activeRouteId
-                    });
-
-                    document.getElementById('rawLabelInput').value = '';
-                    togglePasteCard();
-                    showToast(`¡Parada guardada: ${parsed.destinatario || 'Guía'}!`, '🎉');
-                } else {
-                    alert('No se encontraron coordenadas exactas para la dirección. Verifica la nomenclatura.');
-                }
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'No se pudo interpretar el texto de la guía.');
+                await processParsedGuide(data);
+                document.getElementById('rawLabelInput').value = '';
             } catch (err) {
                 console.error('Error procesando guía:', err);
-                alert(err.message || 'No se pudo procesar la guía automáticamente. Verifica los datos.');
+                alert(err.message || 'No se pudo procesar la guía.');
             }
+        }
+
+        async function captureAndReadGuide() {
+            const video = document.getElementById('cameraStream');
+            if (!mediaStream || !video || video.readyState < 2 || !video.videoWidth) {
+                alert('La cámara aún no está lista. Espera a que aparezca la imagen y vuelve a intentar.');
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(1, 1600 / video.videoWidth);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            showToast('Leyendo texto de la guía...', '🔎');
+            try {
+                const res = await fetch('/ocr-delivery-label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'No se pudo leer la guía.');
+                await processParsedGuide(data);
+                showToast('Guía leída y parada registrada.', '✅');
+            } catch (err) {
+                console.error('Error OCR:', err);
+                alert(err.message || 'No se pudo leer la guía. Acerca la cámara, enfoca y vuelve a capturar.');
+            }
+        }
+
+        async function processParsedGuide(parsed) {
+            if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
+            document.getElementById('guideAddress').value = parsed.direccion;
+            const districtField = document.getElementById('guideDistrict');
+            if (districtField) districtField.value = parsed.distrito || '';
+            document.getElementById('guideReference').value = parsed.referencia || '';
+            document.getElementById('guideRecipient').value = parsed.destinatario || '';
+            selectDestinationType(parsed.tipo || 'Residencial');
+            let searchGeo = parsed.direccion;
+            if (parsed.distrito && !searchGeo.toLowerCase().includes(parsed.distrito.toLowerCase())) searchGeo += `, ${parsed.distrito}`;
+            showToast(`Buscando: ${parsed.direccion}...`, '📍');
+            let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+            let geoData = geoRes.ok ? await geoRes.json() : [];
+            if ((!geoData || !geoData.length) && searchGeo !== parsed.direccion) {
+                geoRes = await fetch(`/geocode?query=${encodeURIComponent(parsed.direccion)}`);
+                geoData = geoRes.ok ? await geoRes.json() : [];
+            }
+            if (!geoData || !geoData.length) throw new Error('Se leyó la guía, pero no se pudo ubicar la dirección. Verifica la nomenclatura.');
+            const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
+            await saveLocationAutomatically({
+                name: parsed.destinatario || parsed.direccion,
+                address: parsed.direccion,
+                latitude: lat,
+                longitude: lng,
+                neighborhood: parsed.distrito,
+                unit_number: parsed.referencia || 'Principal / Directa',
+                route_id: activeRouteId
+            });
         }
 
         async function handleGuideFormSubmit(e) {
