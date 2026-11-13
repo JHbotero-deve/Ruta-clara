@@ -432,6 +432,44 @@ def search_address(query: str = Query(..., min_length=3)):
     return results
 
 
+@router.post("/ocr-delivery-label", tags=["Geocoding"])
+def ocr_delivery_label_endpoint(payload: dict):
+    """Recibe una foto de cámara, aplica OCR en español y analiza la etiqueta."""
+    import base64
+    import binascii
+    import io
+    import re
+    import pytesseract
+    from PIL import Image, ImageOps, ImageEnhance
+
+    image_data = payload.get("image", "")
+    if not isinstance(image_data, str) or not image_data:
+        raise HTTPException(status_code=400, detail="No se recibió una imagen.")
+    image_data = re.sub(r"^data:image/[a-zA-Z0-9.+-]+;base64,", "", image_data)
+    try:
+        raw_image = base64.b64decode(image_data, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="La imagen enviada no es válida.")
+    if len(raw_image) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen supera el límite de 8 MB.")
+    try:
+        image = Image.open(io.BytesIO(raw_image))
+        image = ImageOps.exif_transpose(image).convert("L")
+        image = ImageEnhance.Contrast(image).enhance(1.7)
+        recognized_text = pytesseract.image_to_string(image, lang="spa+eng", config="--psm 6")
+    except pytesseract.TesseractNotFoundError:
+        logger.exception("Tesseract OCR no está instalado")
+        raise HTTPException(status_code=503, detail="El lector OCR no está instalado en el servidor.")
+    except Exception as error:
+        logger.exception("No se pudo procesar la imagen de la guía")
+        raise HTTPException(status_code=422, detail="No se pudo leer la imagen. Enfoca la guía e inténtalo de nuevo.")
+    if not recognized_text.strip():
+        raise HTTPException(status_code=422, detail="No se detectó texto. Acerca la cámara, mejora la iluminación y captura de nuevo.")
+    parsed = parse_delivery_label_endpoint({"text": recognized_text})
+    parsed["texto_reconocido"] = recognized_text.strip()
+    return parsed
+
+
 @router.post("/parse-delivery-label", tags=["Geocoding"])
 def parse_delivery_label_endpoint(payload: dict):
     """Extrae dirección y datos de entrega sin depender de campos opcionales."""
