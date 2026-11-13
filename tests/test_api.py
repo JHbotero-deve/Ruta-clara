@@ -276,3 +276,37 @@ def test_arcgis_geocoder_rejects_candidates_from_other_municipalities(monkeypatc
 def test_ocr_delivery_label_rejects_invalid_image():
     response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
     assert response.status_code == 400
+
+
+def test_road_route_returns_osrm_geometry_and_real_leg_distances(monkeypatch):
+    import json
+    from src import routes
+    for name, lat, lon in [("Barbosa", 6.438, -75.331), ("Girardota", 6.377, -75.447)]:
+        response = client.post("/locations", json={"name": name, "latitude": lat, "longitude": lon})
+        assert response.status_code == 201
+    payload = {"code": "Ok", "routes": [{"distance": 18400, "duration": 2100, "geometry": {"coordinates": [[-75.331, 6.438], [-75.39, 6.41], [-75.447, 6.377]]}, "legs": [{"distance": 18400, "duration": 2100}]}]}
+    class FakeResponse:
+        def __enter__(self): return self
+        def __exit__(self, *args): return None
+        def read(self): return json.dumps(payload).encode("utf-8")
+    monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
+    response = client.get("/road_route")
+    assert response.status_code == 200
+    result = response.json()
+    assert result["distance_m"] == 18400
+    assert result["duration_s"] == 2100
+    assert len(result["geometry"]) == 3
+    assert len(result["legs"]) == 1
+    assert len(result["stop_ids"]) == 2
+
+
+def test_road_route_reports_unavailable_when_osrm_fails(monkeypatch):
+    from src import routes
+    for name, lat, lon in [("Punto 1", 6.2, -75.5), ("Punto 2", 6.3, -75.6)]:
+        client.post("/locations", json={"name": name, "latitude": lat, "longitude": lon})
+    def fail_request(*args, **kwargs):
+        raise TimeoutError("OSRM timeout")
+    monkeypatch.setattr(routes.urllib.request, "urlopen", fail_request)
+    response = client.get("/road_route")
+    assert response.status_code == 502
+    assert "ruta vial" in response.json()["detail"].lower()
