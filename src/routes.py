@@ -935,6 +935,33 @@ def create_reference(
 # OPTIMAL ROUTE
 # ============================================================
 
+@router.get("/road_route", tags=["Routing"])
+def get_road_route(route_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    """Calcula geometría vial real con OSRM para las paradas optimizadas."""
+    query = db.query(Location)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
+    locations = calculate_optimal_route(query.all())
+    if len(locations) < 2:
+        return {"distance_m": 0, "duration_s": 0, "geometry": [], "legs": [], "stop_ids": [loc.id for loc in locations]}
+    coordinates = ";".join(f"{loc.longitude:.6f},{loc.latitude:.6f}" for loc in locations)
+    base_url = os.getenv("OSRM_BASE_URL", "https://router.project-osrm.org").rstrip("/")
+    url = f"{base_url}/route/v1/driving/{coordinates}?overview=full&geometries=geojson&steps=false"
+    request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if payload.get("code") != "Ok" or not payload.get("routes"):
+            raise ValueError(payload.get("message") or "OSRM no encontró un recorrido")
+        route = payload["routes"][0]
+        geometry = route.get("geometry", {}).get("coordinates", [])
+        legs = route.get("legs", [])
+        if len(geometry) < 2 or len(legs) != len(locations) - 1:
+            raise ValueError("OSRM devolvió una ruta incompleta")
+        return {"distance_m": route["distance"], "duration_s": route["duration"], "geometry": geometry, "legs": [{"distance_m": leg["distance"], "duration_s": leg["duration"]} for leg in legs], "stop_ids": [loc.id for loc in locations]}
+    except Exception as error:
+        logger.exception("Error calculando recorrido vial con OSRM")
+        raise HTTPException(status_code=502, detail=f"No fue posible calcular la ruta vial: {error}")
 @router.get(
     "/optimal_route",
     response_model=List[LocationResponse]
