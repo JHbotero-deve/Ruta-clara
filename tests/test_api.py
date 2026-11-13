@@ -1,4 +1,7 @@
+import base64
+import io
 import pytest
+from PIL import Image
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -178,3 +181,29 @@ def test_parse_delivery_label_rejects_text_without_address():
     )
     assert response.status_code == 422
     assert "dirección" in response.json()["detail"].lower()
+
+
+
+def test_ocr_delivery_label_extracts_fields(monkeypatch):
+    from src import routes
+    monkeypatch.setattr(
+        routes.pytesseract,
+        "image_to_string",
+        lambda image, lang, config: "DIRECCION: Carrera 43A # 1-50\nDESTINATARIO: Ana Perez\nBARRIO: El Poblado"
+    )
+    image = Image.new("RGB", (40, 40), "white")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    response = client.post("/ocr-delivery-label", json={"image": "data:image/png;base64," + encoded})
+    assert response.status_code == 200
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 43A # 1-50"
+    assert parsed["destinatario"] == "Ana Perez"
+    assert parsed["distrito"] == "El Poblado"
+    assert "texto_reconocido" in parsed
+
+
+def test_ocr_delivery_label_rejects_invalid_image():
+    response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
+    assert response.status_code == 400
