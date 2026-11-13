@@ -204,6 +204,14 @@ def test_ocr_delivery_label_extracts_fields(monkeypatch):
     assert "texto_reconocido" in parsed
 
 
+def test_address_number_tokens_must_match_exact_house_number():
+    from src.routes import address_number_tokens_match
+    query = "Carrera 66 #56A-98, El Paraíso, Bello"
+    assert address_number_tokens_match(query, "Carrera 66 #56A-98, Bello")
+    assert not address_number_tokens_match(query, "Carrera 66 #56A-97, Bello")
+    assert not address_number_tokens_match(query, "Carrera 66, El Paraíso, Bello")
+
+
 def test_clean_address_for_geocoding_preserves_colombian_nomenclature():
     from src.routes import clean_address_for_geocoding
     assert clean_address_for_geocoding("cra66#56a-98") == "Carrera 66 # 56a-98"
@@ -234,10 +242,16 @@ def test_arcgis_geocoder_rejects_candidates_from_other_municipalities(monkeypatc
                 "attributes": {"City": "Envigado", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress"}
             },
             {
+                "score": 98,
+                "address": "Carrera 66 #56A-97, Bello",
+                "location": {"x": -75.565, "y": 6.331},
+                "attributes": {"City": "Bello", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress", "LongLabel": "Carrera 66 #56A-97, El Paraíso, Bello"}
+            },
+            {
                 "score": 95,
-                "address": "Carrera 66, Bello",
+                "address": "Carrera 66 #56A-98, Bello",
                 "location": {"x": -75.56, "y": 6.33},
-                "attributes": {"City": "Bello", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress"}
+                "attributes": {"City": "Bello", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress", "LongLabel": "Carrera 66 #56A-98, El Paraíso, Bello"}
             }
         ]
     }
@@ -255,6 +269,8 @@ def test_arcgis_geocoder_rejects_candidates_from_other_municipalities(monkeypatc
     assert len(results) == 1
     assert results[0]["municipality"] == "Bello"
     assert results[0]["neighborhood"] == "El Paraíso"
+    assert results[0]["display_name"] == "Carrera 66 #56A-98, El Paraíso, Bello"
+    assert results[0]["latitude"] == 6.33
 
 
 def test_ocr_delivery_label_rejects_invalid_image():
