@@ -363,6 +363,7 @@ def search_address(query: str = Query(..., min_length=3)):
     Busca direcciones colombianas ultra-rápido (< 0.5s) con prioridad ArcGIS
     y normalización inteligente para nomenclatura del Valle de Aburrá.
     """
+    import re
     global GEOCODE_LAST_REQUEST
 
     raw_query = " ".join(query.strip().split())
@@ -380,7 +381,8 @@ def search_address(query: str = Query(..., min_length=3)):
         "Copacabana", "Girardota", "Barbosa"
     ]
     normalized_q = normalize_geocode_value(raw_query)
-    requested_muni = next((m for m in municipalities if normalize_geocode_value(m) in normalized_q.split()), None)
+    padded_query = f" {normalized_q} "
+    requested_muni = next((m for m in municipalities if f" {normalize_geocode_value(m)} " in padded_query), None)
 
     # 1. Limpieza de dirección (quitar apto 200, SN, oficina, etc. para geocodificar)
     cleaned_q = clean_address_for_geocoding(raw_query)
@@ -509,8 +511,8 @@ def parse_delivery_label_endpoint(payload: dict):
     municipio = extract_field(r"municipio|ciudad")
     if not municipio:
         municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa"]
-        normalized_text = normalize_geocode_value(text)
-        municipio = next((name for name in municipalities if normalize_geocode_value(name) in normalized_text.split()), "")
+        normalized_text = f" {normalize_geocode_value(text)} "
+        municipio = next((name for name in municipalities if f" {normalize_geocode_value(name)} " in normalized_text), "")
     referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
     dest_raw = extract_field(r"destinatario|nombre(?:[ \t]+del[ \t]+(?:cliente|destinatario))?|recibe|cliente")
 
