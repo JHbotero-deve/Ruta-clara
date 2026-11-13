@@ -1,4 +1,5 @@
 import logging
+import pytesseract
 import unicodedata
 
 import os
@@ -439,7 +440,6 @@ def ocr_delivery_label_endpoint(payload: dict):
     import binascii
     import io
     import re
-    import pytesseract
     from PIL import Image, ImageOps, ImageEnhance
 
     image_data = payload.get("image", "")
