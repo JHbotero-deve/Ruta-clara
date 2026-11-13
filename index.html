@@ -1005,6 +1005,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
                 <div id="totalSummary" class="total-summary" style="display:none;">
                     Distancia total de la ruta: <span id="totalDistKm">0</span> km
+                    <div id="routeStatus" style="font-size:11px; margin-top:4px; color:var(--text-muted);"></div>
                 </div>
 
                 <div id="map"></div>
@@ -1807,6 +1808,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const stepsContainer = document.getElementById('navStepsList');
             const totalSummary = document.getElementById('totalSummary');
             const stopsCountBadge = document.getElementById('stopsCountBadge');
+            const requestId = ++roadRouteRequestId;
 
             if (stopsCountBadge) stopsCountBadge.innerText = locations ? locations.length : 0;
             stepsContainer.innerHTML = '';
@@ -1823,7 +1825,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             let totalDist = 0;
             let roadRoute = null;
-            const requestId = ++roadRouteRequestId;
             if (locations.length > 1 && activeRouteId) {
                 try {
                     const routeResponse = await fetch("/road_route?route_id=" + activeRouteId);
@@ -1916,6 +1917,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 totalSummary.style.display = 'block';
                 document.getElementById('totalDistKm').innerText = (roadRoute ? roadRoute.distance_m / 1000 : totalDist).toFixed(2);
                 document.getElementById('totalSummary').title = roadRoute ? `Recorrido vial: ${(roadRoute.duration_s / 60).toFixed(0)} min` : 'Ruta vial no disponible; distancias aproximadas en línea recta';
+                document.getElementById('routeStatus').innerText = roadRoute ? `Recorrido por calles: ${(roadRoute.duration_s / 60).toFixed(0)} min estimados` : 'Ruta vial no disponible; se muestran distancias aproximadas en línea recta';
             } else {
                 totalSummary.style.display = 'none';
             }
