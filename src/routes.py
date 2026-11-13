@@ -266,6 +266,13 @@ def normalize_geocode_value(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", normalized.casefold()).strip()
 
 
+def address_number_tokens_match(query: str, candidate_address: str) -> bool:
+    import re
+    expected = re.findall(r"\d+[a-z]?", normalize_geocode_value(query))
+    actual = re.findall(r"\d+[a-z]?", normalize_geocode_value(candidate_address))
+    return bool(expected) and all(token in actual for token in expected)
+
+
 def clean_address_for_geocoding(raw_text: str) -> str:
     """Normaliza abreviaturas colombianas y conserva la nomenclatura (# y guion)."""
     import re
@@ -334,13 +341,15 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
                     continue
 
                 address_type = attrs.get("Addr_type", "")
-                if re.search(r"\d", search_text) and address_type and address_type.casefold() not in {
-                    "pointaddress", "streetaddress", "streetaddressext", "subaddress"
-                }:
-                    continue
+                display_name = attrs.get("LongLabel") or candidate.get("address") or ""
+                if re.search(r"\d", search_text):
+                    if address_type.casefold() not in {"pointaddress", "subaddress"}:
+                        continue
+                    if not address_number_tokens_match(search_text, display_name):
+                        continue
 
                 results.append({
-                    "display_name": attrs.get("LongLabel") or candidate.get("address"),
+                    "display_name": display_name,
                     "latitude": lat,
                     "longitude": lon,
                     "municipality": municipality,
@@ -421,10 +430,14 @@ def search_address(query: str = Query(..., min_length=3)):
                     if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
                         continue
                     item_type = (item.get("type") or "").casefold()
-                    if re.search(r"\d", cleaned_q) and item_type in {"city", "town", "suburb", "neighbourhood", "administrative"}:
-                        continue
+                    display_name = item.get("display_name", "")
+                    if re.search(r"\d", cleaned_q):
+                        if item_type in {"city", "town", "suburb", "neighbourhood", "administrative", "road", "residential"}:
+                            continue
+                        if not address_number_tokens_match(cleaned_q, display_name):
+                            continue
                     results.append({
-                        "display_name": item.get("display_name", ""),
+                        "display_name": display_name,
                         "latitude": float(item["lat"]),
                         "longitude": float(item["lon"]),
                         "municipality": municipality,
