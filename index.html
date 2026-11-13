@@ -1168,6 +1168,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let map;
         let markersGroup = L.layerGroup();
         let polylineGroup = L.layerGroup();
+        let roadRouteRequestId = 0;
         let userMarker = null;
         let navGuidanceLine = null;
         let tempMarker = null;
@@ -1798,7 +1799,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        function renderNavigationGuide(locations) {
+        async function renderNavigationGuide(locations) {
             markersGroup.clearLayers();
             polylineGroup.clearLayers();
             if (tempMarker) map.removeLayer(tempMarker);
@@ -1821,6 +1822,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
 
             let totalDist = 0;
+            let roadRoute = null;
+            const requestId = ++roadRouteRequestId;
+            if (locations.length > 1 && activeRouteId) {
+                try {
+                    const routeResponse = await fetch("/road_route?route_id=" + activeRouteId);
+                    if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial");
+                    roadRoute = await routeResponse.json();
+                    if (roadRoute.stop_ids.length !== locations.length || roadRoute.stop_ids.some((id, idx) => id !== locations[idx].id)) throw new Error("El orden de las paradas cambió durante el cálculo");
+                } catch (error) { console.warn("Ruta vial no disponible:", error); }
+            }
+            if (requestId !== roadRouteRequestId) return;
             const points = [];
 
             locations.forEach((loc, idx) => {
@@ -1843,8 +1855,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 markersGroup.addLayer(marker);
             });
 
-            if (points.length > 1) {
-                const polyline = L.polyline(points, { color: '#ea580c', weight: 5, opacity: 0.85, dashArray: '8, 8' });
+            if (roadRoute && roadRoute.geometry.length > 1) {
+                const roadPoints = roadRoute.geometry.map(point => [point[1], point[0]]);
+                const polyline = L.polyline(roadPoints, { color: '#ea580c', weight: 5, opacity: 0.9 });
                 polylineGroup.addLayer(polyline);
                 map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
             } else if (points.length === 1) {
@@ -1855,9 +1868,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 let distText = "Punto de partida";
                 if (idx > 0) {
                     const prev = locations[idx - 1];
-                    const segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
+                    const leg = roadRoute && roadRoute.legs[idx - 1];
+                    const segmentDist = leg ? leg.distance_m / 1000 : calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
                     totalDist += segmentDist;
-                    distText = `Distancia desde anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                    distText = leg ? `Distancia por vía desde anterior: <b>${segmentDist.toFixed(2)} km</b>` : `Distancia aproximada en línea recta: <b>${segmentDist.toFixed(2)} km</b>`;
                 }
 
                 const isDelivered = loc.delivered === true;
@@ -1900,7 +1914,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             if (locations.length > 1) {
                 totalSummary.style.display = 'block';
-                document.getElementById('totalDistKm').innerText = totalDist.toFixed(2);
+                document.getElementById('totalDistKm').innerText = (roadRoute ? roadRoute.distance_m / 1000 : totalDist).toFixed(2);
+                document.getElementById('totalSummary').title = roadRoute ? `Recorrido vial: ${(roadRoute.duration_s / 60).toFixed(0)} min` : 'Ruta vial no disponible; distancias aproximadas en línea recta';
             } else {
                 totalSummary.style.display = 'none';
             }
