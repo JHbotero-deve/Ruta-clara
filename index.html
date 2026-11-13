@@ -889,60 +889,59 @@
                 </div>
 
                 <!-- CAJA DE PEGADO RÁPIDO DE GUÍA (AUTO-COMPLETA EN 1 CLIC) -->
-                <div id="pasteGuideCard" style="display:none; background:#ffffff; border:1.5px solid #0284c7; border-radius:10px; padding:12px; margin-top:12px;">
-                    <label for="rawLabelInput" style="color:#0369a1;">📋 PEGA AQUÍ EL TEXTO DE LA ETIQUETA / GUÍA:</label>
-                    <textarea id="rawLabelInput" rows="4" placeholder="Ejemplo:
-RESIDENCIAL
+                <div id="pasteGuideCard" style="display:none; background:var(--bg-card); border:1.5px solid #0284c7; border-radius:10px; padding:12px; margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <label for="rawLabelInput" style="color:#0369a1; margin:0;">📋 PEGA O DICTA EL TEXTO DE LA ETIQUETA:</label>
+                        <button type="button" onclick="startVoiceDictation('rawLabelInput')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:3px 10px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                            🎤 Dictar Guía
+                        </button>
+                    </div>
+                    <textarea id="rawLabelInput" rows="3" placeholder="Ejemplo:
 Direccion: Carrera 32b 10-110, Medellín
-Distrito: El poblado
 Referencia: Vizcaya real 2. 419
-Destinatario: Lucrecia Inés Vasquez garcés (LUC_VASQUEZ)"></textarea>
+Destinatario: Lucrecia Inés Vasquez"></textarea>
                     <button type="button" class="btn btn-success" style="margin-top:8px;" onclick="processPastedLabel()">
                         ⚡ Procesar y Guardar Parada en 1 Clic
                     </button>
                 </div>
 
-                <!-- FORMULARIO ESTRUCTURADO SEGÚN LAS GUÍAS -->
+                <!-- FORMULARIO ESTRUCTURADO DE LA GUÍA -->
                 <details id="manualFormDetails" style="margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:10px;">
                     <summary style="font-size:12px; font-weight:700; color:#2563eb; cursor:pointer;">
                         ✍️ Ver / Editar campos individuales de la guía
                     </summary>
                     <form id="deliveryGuideForm" onsubmit="handleGuideFormSubmit(event)" style="margin-top:10px;">
-                        <!-- Tipo de Destino -->
-                        <div class="form-group">
-                            <label>Tipo de Destino</label>
-                            <div class="type-toggle-group">
-                                <button type="button" id="btnTypeRes" class="type-btn active res" onclick="selectDestinationType('Residencial')">
-                                    🏠 RESIDENCIAL
-                                </button>
-                                <button type="button" id="btnTypeCom" class="type-btn com" onclick="selectDestinationType('Comercial')">
-                                    🏢 COMERCIAL
-                                </button>
-                            </div>
-                        </div>
-
                         <!-- Dirección -->
                         <div class="form-group">
-                            <label for="guideAddress">📍 Dirección Exacta *</label>
+                            <label for="guideAddress" style="display:flex; justify-content:space-between; align-items:center;">
+                                <span>📍 Dirección Exacta *</span>
+                                <button type="button" onclick="startVoiceDictation('guideAddress')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:3px;">
+                                    🎤 Dictar
+                                </button>
+                            </label>
                             <input type="text" id="guideAddress" placeholder="Ej. Carrera 32b 10-110, Medellín" required enterkeyhint="next">
                         </div>
 
-                        <!-- Distrito / Barrio -->
+                        <!-- Referencia / Indicaciones -->
                         <div class="form-group">
-                            <label for="guideDistrict">🏙️ Distrito / Barrio</label>
-                            <input type="text" id="guideDistrict" placeholder="Ej. El poblado / Las Vegas / Centro" enterkeyhint="next">
+                            <label for="guideReference" style="display:flex; justify-content:space-between; align-items:center;">
+                                <span>🏷️ Referencia / Apto / Indicación *</span>
+                                <button type="button" onclick="startVoiceDictation('guideReference')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:3px;">
+                                    🎤 Dictar
+                                </button>
+                            </label>
+                            <input type="text" id="guideReference" placeholder="Ej. Vizcaya real 2. 419 / Apto 200" required enterkeyhint="next">
                         </div>
 
-                        <!-- Referencia / Apto / Torre -->
+                        <!-- Nombre del Cliente -->
                         <div class="form-group">
-                            <label for="guideReference">🏷️ Referencia / Apto / Torre / Indicación *</label>
-                            <input type="text" id="guideReference" placeholder="Ej. Vizcaya real 2. 419 / 1414 / Apto 200 SN" required enterkeyhint="next">
-                        </div>
-
-                        <!-- Destinatario -->
-                        <div class="form-group">
-                            <label for="guideRecipient">👤 Destinatario (Opcional)</label>
-                            <input type="text" id="guideRecipient" placeholder="Ej. Lucrecia Inés Vasquez garcés" enterkeyhint="send">
+                            <label for="guideRecipient" style="display:flex; justify-content:space-between; align-items:center;">
+                                <span>👤 Nombre del Cliente *</span>
+                                <button type="button" onclick="startVoiceDictation('guideRecipient')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:3px;">
+                                    🎤 Dictar
+                                </button>
+                            </label>
+                            <input type="text" id="guideRecipient" placeholder="Ej. Lucrecia Inés Vasquez garcés" required enterkeyhint="send">
                         </div>
 
                         <button type="submit" class="btn btn-success">➕ Guardar Parada en esta Ruta</button>
@@ -1112,6 +1111,45 @@ Destinatario: Lucrecia Inés Vasquez garcés (LUC_VASQUEZ)"></textarea>
                 updateThemeButton(savedTheme);
             });
         })();
+
+        // ========================================================
+        // DICTADO POR VOZ (SPEECH RECOGNITION)
+        // ========================================================
+        function startVoiceDictation(targetInputId) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert('El dictado por voz no está disponible en este navegador. Utiliza Google Chrome o Safari.');
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'es-CO';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            showToast('🎤 Escuchando... Habla ahora', '🎙️');
+
+            recognition.onresult = async (event) => {
+                const speechResult = event.results[0][0].transcript;
+                const targetElement = document.getElementById(targetInputId);
+                if (targetElement) {
+                    targetElement.value = speechResult;
+                    targetElement.dispatchEvent(new Event('input'));
+                    showToast(`Dictado OK: "${speechResult}"`, '✅');
+
+                    if (targetInputId === 'rawLabelInput') {
+                        await processPastedLabel();
+                    }
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.warn('Speech error:', event.error);
+                showToast('No se entendió el audio. Inténtalo de nuevo.', '⚠️');
+            };
+
+            recognition.start();
+        }
 
         // ========================================================
         // ESTADO GLOBAL
