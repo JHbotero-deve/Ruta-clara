@@ -434,52 +434,52 @@ def search_address(query: str = Query(..., min_length=3)):
 
 @router.post("/parse-delivery-label", tags=["Geocoding"])
 def parse_delivery_label_endpoint(payload: dict):
-    """
-    Parsea automáticamente el texto o OCR de una guía de entrega (Mercado Libre / Flex / transportadora):
-    - Tipo: RESIDENCIAL / COMERCIAL
-    - Dirección: Carrera/Calle ...
-    - Distrito: Barrio/Comuna
-    - Referencia: Apto / Torre / Indicaciones
-    - Destinatario: Nombre (ID)
-    """
+    """Extrae dirección y datos de entrega sin depender de campos opcionales."""
     import re
-    text = payload.get("text", "")
-    if not text.strip():
+
+    raw_text = payload.get("text", "")
+    if not isinstance(raw_text, str) or not raw_text.strip():
         raise HTTPException(status_code=400, detail="Texto vacío")
 
-    # 1. Tipo
-    is_comercial = bool(re.search(r'\bCOMERCIAL\b', text, re.IGNORECASE))
-    is_residencial = bool(re.search(r'\bRESIDENCIAL\b', text, re.IGNORECASE))
-    destination_type = "Comercial" if is_comercial else ("Residencial" if is_residencial else "Residencial")
+    text = unicodedata.normalize("NFKC", raw_text).replace("\u00a0", " ")
 
-    # 2. Dirección
-    dir_match = re.search(r'Direcci[oó]n:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
-    direccion = dir_match.group(1).strip() if dir_match else ""
+    def extract_field(label_pattern: str) -> str:
+        match = re.search(
+            rf"^[ \t]*(?:{label_pattern})[ \t]*[:：-][ \t]*([^\r\n]+)",
+            text,
+            re.IGNORECASE | re.MULTILINE
+        )
+        return match.group(1).strip(" \t-•") if match else ""
 
-    # 3. Distrito
-    dist_match = re.search(r'Distrito:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
-    distrito = dist_match.group(1).strip() if dist_match else ""
+    destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
+    direccion = extract_field(r"direcci[oó]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
+    distrito = extract_field(r"distrito|barrio|sector|municipio|ciudad|comuna")
+    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
+    dest_raw = extract_field(r"destinatario|nombre(?:[ \t]+del[ \t]+(?:cliente|destinatario))?|recibe|cliente")
 
-    # 4. Referencia
-    ref_match = re.search(r'Referencia:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
-    referencia = ref_match.group(1).strip() if ref_match else ""
+    if not direccion:
+        address_line = re.search(
+            r"^[ \t]*((?:calle|cl\.?|carrera|cra\.?|carr\.?|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
+            text,
+            re.IGNORECASE | re.MULTILINE
+        )
+        direccion = address_line.group(1).strip() if address_line else ""
 
-    # 5. Destinatario y Tracking
-    dest_match = re.search(r'Destinatario:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
-    dest_raw = dest_match.group(1).strip() if dest_match else ""
-    tracking_id = ""
-    id_m = re.search(r'\(([^)]+)\)', dest_raw)
-    if id_m:
-        tracking_id = id_m.group(1).strip()
-        destinatario = re.sub(r'\([^)]+\)', '', dest_raw).strip()
-    else:
-        destinatario = dest_raw
+    if not direccion:
+        raise HTTPException(status_code=422, detail="No se encontró una dirección en la guía.")
 
-    # Si la referencia está vacía pero la dirección tiene apartamento/oficina, extraerlo
-    if not referencia and direccion:
-        match_unit = re.search(r'(apartamento|apto|oficina|ofc|torre|interior|local|sn)\s*[\w\d\s]*', direccion, re.IGNORECASE)
-        if match_unit:
-            referencia = match_unit.group(0).strip()
+    tracking_match = re.search(r"\(([^)]+)\)", dest_raw)
+    tracking_id = tracking_match.group(1).strip() if tracking_match else ""
+    destinatario = re.sub(r"\s*\([^)]+\)", "", dest_raw).strip()
+
+    if not referencia:
+        unit_match = re.search(
+            r"\b(?:apartamento|apto\.?|torre|oficina|ofc\.?|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+",
+            direccion,
+            re.IGNORECASE
+        )
+        if unit_match:
+            referencia = unit_match.group(0).strip()
 
     return {
         "tipo": destination_type,
@@ -489,7 +489,6 @@ def parse_delivery_label_endpoint(payload: dict):
         "destinatario": destinatario,
         "tracking_id": tracking_id
     }
-
 
 # ============================================================
 # WEEKLY CSV HISTORY

@@ -154,3 +154,27 @@ def test_parse_delivery_label():
     assert parsed["destinatario"] == "Carlos Perez"
     assert parsed["tracking_id"] == "TRACK123456"
     assert parsed["tipo"] == "Residencial"
+
+
+def test_parse_delivery_label_without_optional_fields_or_accents():
+    label_text = (
+        "Direccion de entrega: Carrera 32B 10-110, Medellín\\n"
+        "Referencia: Vizcaya Real 2, 419\\n"
+        "Nombre del cliente: Lucrecia Inés Vasquez"
+    )
+    response = client.post("/parse-delivery-label", json={"text": label_text})
+    assert response.status_code == 200
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 32B 10-110, Medellín"
+    assert parsed["distrito"] == ""
+    assert parsed["referencia"] == "Vizcaya Real 2, 419"
+    assert parsed["destinatario"] == "Lucrecia Inés Vasquez"
+
+
+def test_parse_delivery_label_rejects_text_without_address():
+    response = client.post(
+        "/parse-delivery-label",
+        json={"text": "Destinatario: Cliente de prueba\\nReferencia: Torre 2"}
+    )
+    assert response.status_code == 422
+    assert "dirección" in response.json()["detail"].lower()

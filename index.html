@@ -1458,13 +1458,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             currentDestinationType = type;
             const btnRes = document.getElementById('btnTypeRes');
             const btnCom = document.getElementById('btnTypeCom');
-            if (type === 'Residencial') {
-                btnRes.className = 'type-btn active res';
-                btnCom.className = 'type-btn com';
-            } else {
-                btnRes.className = 'type-btn res';
-                btnCom.className = 'type-btn active com';
-            }
+            if (btnRes) btnRes.className = type === 'Residencial' ? 'type-btn active res' : 'type-btn res';
+            if (btnCom) btnCom.className = type === 'Comercial' ? 'type-btn active com' : 'type-btn com';
         }
 
         async function processPastedLabel() {
@@ -1486,11 +1481,13 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 if (!res.ok) throw new Error('Error analizando guía');
                 const parsed = await res.json();
 
-                // Autocompletar formulario
+                // Autocompletar solo los campos presentes en el formulario actual.
+                if (!parsed || !parsed.direccion) throw new Error('La guía no contiene una dirección reconocible.');
                 document.getElementById('guideAddress').value = parsed.direccion;
-                document.getElementById('guideDistrict').value = parsed.distrito;
-                document.getElementById('guideReference').value = parsed.referencia;
-                document.getElementById('guideRecipient').value = parsed.destinatario;
+                const districtField = document.getElementById('guideDistrict');
+                if (districtField) districtField.value = parsed.distrito || '';
+                document.getElementById('guideReference').value = parsed.referencia || '';
+                document.getElementById('guideRecipient').value = parsed.destinatario || '';
                 selectDestinationType(parsed.tipo || 'Residencial');
 
                 // Geocodificar de inmediato con dirección + distrito y reintento resiliente
@@ -1530,15 +1527,16 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     alert('No se encontraron coordenadas exactas para la dirección. Verifica la nomenclatura.');
                 }
             } catch (err) {
-                console.error(err);
-                alert('No se pudo procesar la guía automáticamente. Verifica los datos.');
+                console.error('Error procesando guía:', err);
+                alert(err.message || 'No se pudo procesar la guía automáticamente. Verifica los datos.');
             }
         }
 
         async function handleGuideFormSubmit(e) {
             e.preventDefault();
             const addr = document.getElementById('guideAddress').value.trim();
-            const dist = document.getElementById('guideDistrict').value.trim();
+            const districtField = document.getElementById('guideDistrict');
+            const dist = districtField ? districtField.value.trim() : '';
             const ref = document.getElementById('guideReference').value.trim() || 'Principal / Directa';
             const recip = document.getElementById('guideRecipient').value.trim();
 
@@ -1575,7 +1573,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     });
 
                     document.getElementById('guideAddress').value = '';
-                    document.getElementById('guideDistrict').value = '';
+                    if (districtField) districtField.value = '';
                     document.getElementById('guideReference').value = '';
                     document.getElementById('guideRecipient').value = '';
                     showToast('Parada guardada con éxito', '✅');
@@ -1598,7 +1596,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 longitude: data.longitude,
                 neighborhood: data.neighborhood || null,
                 unit_number: data.unit_number || null,
-                route_id: activeRouteId,
+                route_id: data.route_id ?? activeRouteId,
                 delivered: false
             };
 
