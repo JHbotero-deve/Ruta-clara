@@ -1,4 +1,5 @@
 import logging
+import pytesseract
 import unicodedata
 
 import os
@@ -258,14 +259,26 @@ def read_users_me(
 # GEOCODING Y PARSER DE GUÍAS DE ENTREGA (COLOMBIA / VALLE DE ABURRÁ)
 # ============================================================
 
-def clean_address_for_geocoding(raw_text: str) -> str:
-    """
-    Limpia una dirección colombiana para que el geocodificador encuentre la vía exacta.
-    Remueve apartamentos, interiores, oficinas, torres y SN que confunden a los mapas.
-    """
+def normalize_geocode_value(value: str) -> str:
     import re
-    cleaned = raw_text
-    # Remover patrones de unidades internas
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", normalized.casefold()).strip()
+
+
+def address_number_tokens_match(query: str, candidate_address: str) -> bool:
+    import re
+    expected = re.findall(r"\d+[a-z]?", normalize_geocode_value(query))
+    actual = re.findall(r"\d+[a-z]?", normalize_geocode_value(candidate_address))
+    return bool(expected) and all(token in actual for token in expected)
+
+
+def clean_address_for_geocoding(raw_text: str) -> str:
+    """Normaliza abreviaturas colombianas y conserva la nomenclatura (# y guion)."""
+    import re
+    cleaned = unicodedata.normalize("NFKC", raw_text).strip()
+    cleaned = re.sub(r"\b(?:cra|cr|carrera)\.?\s*(?=\d)", "Carrera ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:cll|cl|calle)\.?\s*(?=\d)", "Calle ", cleaned, flags=re.IGNORECASE)
     patterns = [
         r'\b(apartamento|apto|apt|ap)\.?\s*(\d+[a-zA-Z]*)',
         r'\b(oficina|ofc|ofi)\.?\s*(\d+[a-zA-Z]*)',
@@ -277,16 +290,16 @@ def clean_address_for_geocoding(raw_text: str) -> str:
         r'\bS/N\b',
         r'\b(bloque|blq)\.?\s*(\d+[a-zA-Z]*)'
     ]
-    for p in patterns:
-        cleaned = re.sub(p, '', cleaned, flags=re.IGNORECASE)
-
-    # Limpiar espacios repetidos y símbolos huérfanos
-    cleaned = re.sub(r'[,#\s]+', ' ', cleaned).strip()
-    return cleaned
+    for pattern in patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*#\s*", " # ", cleaned)
+    cleaned = re.sub(r"\s*,\s*", ", ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip(" ,")
 
 
 def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None) -> List[dict]:
-    """Consulta ArcGIS World Geocoding Service, optimizado para Colombia con respuesta < 0.5s."""
+    """Consulta ArcGIS y descarta resultados de otro municipio o ubicaciones genéricas."""
+    import re
     results = []
     try:
         searches = []
@@ -314,29 +327,34 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
                 score = candidate.get("score", 0)
                 if score < 70:
                     continue
-
                 point = candidate.get("location", {})
                 attrs = candidate.get("attributes", {})
                 if "x" not in point or "y" not in point:
                     continue
-
-                lat = float(point["y"])
-                lon = float(point["x"])
-
-                # Delimitar aproximadamente el Valle de Aburrá (Medellín, Envigado, etc.)
+                lat, lon = float(point["y"]), float(point["x"])
                 if not (5.8 <= lat <= 6.6 and -75.9 <= lon <= -75.1):
                     continue
 
-                municipality = attrs.get("City") or attrs.get("Subregion") or ""
+                municipality = attrs.get("City") or attrs.get("Municipality") or attrs.get("Subregion") or ""
                 neighborhood = attrs.get("Nbrhd") or attrs.get("District") or ""
+                if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
+                    continue
+
+                address_type = attrs.get("Addr_type", "")
+                display_name = attrs.get("LongLabel") or candidate.get("address") or ""
+                if re.search(r"\d", search_text):
+                    if address_type.casefold() not in {"pointaddress", "subaddress"}:
+                        continue
+                    if not address_number_tokens_match(search_text, display_name):
+                        continue
 
                 results.append({
-                    "display_name": attrs.get("LongLabel") or candidate.get("address"),
+                    "display_name": display_name,
                     "latitude": lat,
                     "longitude": lon,
                     "municipality": municipality,
                     "neighborhood": neighborhood,
-                    "type": attrs.get("Addr_type", "PointAddress"),
+                    "type": address_type or "PointAddress",
                     "class": "arcgis",
                     "score": score
                 })
@@ -354,6 +372,7 @@ def search_address(query: str = Query(..., min_length=3)):
     Busca direcciones colombianas ultra-rápido (< 0.5s) con prioridad ArcGIS
     y normalización inteligente para nomenclatura del Valle de Aburrá.
     """
+    import re
     global GEOCODE_LAST_REQUEST
 
     raw_query = " ".join(query.strip().split())
@@ -370,8 +389,9 @@ def search_address(query: str = Query(..., min_length=3)):
         "La Estrella", "Caldas", "Bello",
         "Copacabana", "Girardota", "Barbosa"
     ]
-    normalized_q = raw_query.casefold()
-    requested_muni = next((m for m in municipalities if m.casefold() in normalized_q), None)
+    normalized_q = normalize_geocode_value(raw_query)
+    padded_query = f" {normalized_q} "
+    requested_muni = next((m for m in municipalities if f" {normalize_geocode_value(m)} " in padded_query), None)
 
     # 1. Limpieza de dirección (quitar apto 200, SN, oficina, etc. para geocodificar)
     cleaned_q = clean_address_for_geocoding(raw_query)
@@ -406,11 +426,21 @@ def search_address(query: str = Query(..., min_length=3)):
             for item in data:
                 if item.get("lat") and item.get("lon"):
                     addr = item.get("address", {})
+                    municipality = addr.get("city") or addr.get("town") or addr.get("municipality") or addr.get("county") or ""
+                    if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
+                        continue
+                    item_type = (item.get("type") or "").casefold()
+                    display_name = item.get("display_name", "")
+                    if re.search(r"\d", cleaned_q):
+                        if item_type in {"city", "town", "suburb", "neighbourhood", "administrative", "road", "residential"}:
+                            continue
+                        if not address_number_tokens_match(cleaned_q, display_name):
+                            continue
                     results.append({
-                        "display_name": item.get("display_name", ""),
+                        "display_name": display_name,
                         "latitude": float(item["lat"]),
                         "longitude": float(item["lon"]),
-                        "municipality": addr.get("city") or addr.get("town") or addr.get("municipality") or "",
+                        "municipality": municipality,
                         "neighborhood": addr.get("suburb") or addr.get("neighbourhood") or "",
                         "type": item.get("type", ""),
                         "class": "nominatim"
@@ -432,64 +462,106 @@ def search_address(query: str = Query(..., min_length=3)):
     return results
 
 
+@router.post("/ocr-delivery-label", tags=["Geocoding"])
+def ocr_delivery_label_endpoint(payload: dict):
+    """Recibe una foto de cámara, aplica OCR en español y analiza la etiqueta."""
+    import base64
+    import binascii
+    import io
+    import re
+    from PIL import Image, ImageOps, ImageEnhance
+
+    image_data = payload.get("image", "")
+    if not isinstance(image_data, str) or not image_data:
+        raise HTTPException(status_code=400, detail="No se recibió una imagen.")
+    image_data = re.sub(r"^data:image/[a-zA-Z0-9.+-]+;base64,", "", image_data)
+    try:
+        raw_image = base64.b64decode(image_data, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="La imagen enviada no es válida.")
+    if len(raw_image) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen supera el límite de 8 MB.")
+    try:
+        image = Image.open(io.BytesIO(raw_image))
+        image = ImageOps.exif_transpose(image).convert("L")
+        image = ImageEnhance.Contrast(image).enhance(1.7)
+        recognized_text = pytesseract.image_to_string(image, lang="spa+eng", config="--psm 6")
+    except pytesseract.TesseractNotFoundError:
+        logger.exception("Tesseract OCR no está instalado")
+        raise HTTPException(status_code=503, detail="El lector OCR no está instalado en el servidor.")
+    except Exception as error:
+        logger.exception("No se pudo procesar la imagen de la guía")
+        raise HTTPException(status_code=422, detail="No se pudo leer la imagen. Enfoca la guía e inténtalo de nuevo.")
+    if not recognized_text.strip():
+        raise HTTPException(status_code=422, detail="No se detectó texto. Acerca la cámara, mejora la iluminación y captura de nuevo.")
+    parsed = parse_delivery_label_endpoint({"text": recognized_text})
+    parsed["texto_reconocido"] = recognized_text.strip()
+    return parsed
+
+
 @router.post("/parse-delivery-label", tags=["Geocoding"])
 def parse_delivery_label_endpoint(payload: dict):
-    """
-    Parsea automáticamente el texto o OCR de una guía de entrega (Mercado Libre / Flex / transportadora):
-    - Tipo: RESIDENCIAL / COMERCIAL
-    - Dirección: Carrera/Calle ...
-    - Distrito: Barrio/Comuna
-    - Referencia: Apto / Torre / Indicaciones
-    - Destinatario: Nombre (ID)
-    """
+    """Extrae dirección y datos de entrega sin depender de campos opcionales."""
     import re
-    text = payload.get("text", "")
-    if not text.strip():
+
+    raw_text = payload.get("text", "")
+    if not isinstance(raw_text, str) or not raw_text.strip():
         raise HTTPException(status_code=400, detail="Texto vacío")
 
-    # 1. Tipo
-    is_comercial = bool(re.search(r'\bCOMERCIAL\b', text, re.IGNORECASE))
-    is_residencial = bool(re.search(r'\bRESIDENCIAL\b', text, re.IGNORECASE))
-    destination_type = "Comercial" if is_comercial else ("Residencial" if is_residencial else "Residencial")
+    text = unicodedata.normalize("NFKC", raw_text).replace("\u00a0", " ")
 
-    # 2. Dirección
-    dir_match = re.search(r'Direcci[oó]n:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
-    direccion = dir_match.group(1).strip() if dir_match else ""
+    def extract_field(label_pattern: str) -> str:
+        match = re.search(
+            rf"^[ \t]*(?:{label_pattern})[ \t]*[:：-][ \t]*([^\r\n]+)",
+            text,
+            re.IGNORECASE | re.MULTILINE
+        )
+        return match.group(1).strip(" \t-•") if match else ""
 
-    # 3. Distrito
-    dist_match = re.search(r'Distrito:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
-    distrito = dist_match.group(1).strip() if dist_match else ""
+    destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
+    direccion = extract_field(r"direcci[oó]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
+    distrito = extract_field(r"distrito|barrio|sector|comuna")
+    municipio = extract_field(r"municipio|ciudad")
+    if not municipio:
+        municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa"]
+        normalized_text = f" {normalize_geocode_value(text)} "
+        municipio = next((name for name in municipalities if f" {normalize_geocode_value(name)} " in normalized_text), "")
+    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
+    dest_raw = extract_field(r"destinatario|nombre(?:[ \t]+del[ \t]+(?:cliente|destinatario))?|recibe|cliente")
 
-    # 4. Referencia
-    ref_match = re.search(r'Referencia:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
-    referencia = ref_match.group(1).strip() if ref_match else ""
+    if not direccion:
+        address_line = re.search(
+            r"^[ \t]*((?:calle|cl\.?|carrera|cra\.?|carr\.?|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
+            text,
+            re.IGNORECASE | re.MULTILINE
+        )
+        direccion = address_line.group(1).strip() if address_line else ""
 
-    # 5. Destinatario y Tracking
-    dest_match = re.search(r'Destinatario:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
-    dest_raw = dest_match.group(1).strip() if dest_match else ""
-    tracking_id = ""
-    id_m = re.search(r'\(([^)]+)\)', dest_raw)
-    if id_m:
-        tracking_id = id_m.group(1).strip()
-        destinatario = re.sub(r'\([^)]+\)', '', dest_raw).strip()
-    else:
-        destinatario = dest_raw
+    if not direccion:
+        raise HTTPException(status_code=422, detail="No se encontró una dirección en la guía.")
 
-    # Si la referencia está vacía pero la dirección tiene apartamento/oficina, extraerlo
-    if not referencia and direccion:
-        match_unit = re.search(r'(apartamento|apto|oficina|ofc|torre|interior|local|sn)\s*[\w\d\s]*', direccion, re.IGNORECASE)
-        if match_unit:
-            referencia = match_unit.group(0).strip()
+    tracking_match = re.search(r"\(([^)]+)\)", dest_raw)
+    tracking_id = tracking_match.group(1).strip() if tracking_match else ""
+    destinatario = re.sub(r"\s*\([^)]+\)", "", dest_raw).strip()
+
+    if not referencia:
+        unit_match = re.search(
+            r"\b(?:apartamento|apto\.?|torre|oficina|ofc\.?|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+",
+            direccion,
+            re.IGNORECASE
+        )
+        if unit_match:
+            referencia = unit_match.group(0).strip()
 
     return {
         "tipo": destination_type,
         "direccion": direccion,
         "distrito": distrito,
+        "municipio": municipio,
         "referencia": referencia,
         "destinatario": destinatario,
         "tracking_id": tracking_id
     }
-
 
 # ============================================================
 # WEEKLY CSV HISTORY
@@ -863,6 +935,33 @@ def create_reference(
 # OPTIMAL ROUTE
 # ============================================================
 
+@router.get("/road_route", tags=["Routing"])
+def get_road_route(route_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    """Calcula geometría vial real con OSRM para las paradas optimizadas."""
+    query = db.query(Location)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
+    locations = calculate_optimal_route(query.all())
+    if len(locations) < 2:
+        return {"distance_m": 0, "duration_s": 0, "geometry": [], "legs": [], "stop_ids": [loc.id for loc in locations]}
+    coordinates = ";".join(f"{loc.longitude:.6f},{loc.latitude:.6f}" for loc in locations)
+    base_url = os.getenv("OSRM_BASE_URL", "https://router.project-osrm.org").rstrip("/")
+    url = f"{base_url}/route/v1/driving/{coordinates}?overview=full&geometries=geojson&steps=false"
+    request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if payload.get("code") != "Ok" or not payload.get("routes"):
+            raise ValueError(payload.get("message") or "OSRM no encontró un recorrido")
+        route = payload["routes"][0]
+        geometry = route.get("geometry", {}).get("coordinates", [])
+        legs = route.get("legs", [])
+        if len(geometry) < 2 or len(legs) != len(locations) - 1:
+            raise ValueError("OSRM devolvió una ruta incompleta")
+        return {"distance_m": route["distance"], "duration_s": route["duration"], "geometry": geometry, "legs": [{"distance_m": leg["distance"], "duration_s": leg["duration"]} for leg in legs], "stop_ids": [loc.id for loc in locations]}
+    except Exception as error:
+        logger.exception("Error calculando recorrido vial con OSRM")
+        raise HTTPException(status_code=502, detail=f"No fue posible calcular la ruta vial: {error}")
 @router.get(
     "/optimal_route",
     response_model=List[LocationResponse]

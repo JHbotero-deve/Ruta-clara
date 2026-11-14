@@ -919,7 +919,15 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideAddress" placeholder="Ej. Carrera 32b 10-110, Medellín" required enterkeyhint="next">
+                            <input type="text" id="guideAddress" placeholder="Ej. Cra 66 #56A-98" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideMunicipality">Municipio *</label>
+                            <input type="text" id="guideMunicipality" placeholder="Ej. Bello" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideDistrict">Barrio</label>
+                            <input type="text" id="guideDistrict" placeholder="Ej. El Paraíso" enterkeyhint="next">
                         </div>
 
                         <!-- Referencia / Indicaciones -->
@@ -997,6 +1005,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
                 <div id="totalSummary" class="total-summary" style="display:none;">
                     Distancia total de la ruta: <span id="totalDistKm">0</span> km
+                    <div id="routeStatus" style="font-size:11px; margin-top:4px; color:var(--text-muted);"></div>
                 </div>
 
                 <div id="map"></div>
@@ -1067,8 +1076,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         </div>
 
         <div class="pro-scanner-bottom">
-            <button class="btn-capture-big" onclick="captureContinuousStop()">
-                📸 Capturar Parada en este Punto (GPS)
+            <button class="btn-capture-big" onclick="captureAndReadGuide()">
+                📷 Leer guía con cámara (OCR)
+            </button>
+            <button onclick="captureContinuousStop()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                📍 Registrar solo ubicación GPS
             </button>
             <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
                 🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
@@ -1157,6 +1169,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let map;
         let markersGroup = L.layerGroup();
         let polylineGroup = L.layerGroup();
+        let roadRouteRequestId = 0;
         let userMarker = null;
         let navGuidanceLine = null;
         let tempMarker = null;
@@ -1458,107 +1471,104 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             currentDestinationType = type;
             const btnRes = document.getElementById('btnTypeRes');
             const btnCom = document.getElementById('btnTypeCom');
-            if (type === 'Residencial') {
-                btnRes.className = 'type-btn active res';
-                btnCom.className = 'type-btn com';
-            } else {
-                btnRes.className = 'type-btn res';
-                btnCom.className = 'type-btn active com';
-            }
+            if (btnRes) btnRes.className = type === 'Residencial' ? 'type-btn active res' : 'type-btn res';
+            if (btnCom) btnCom.className = type === 'Comercial' ? 'type-btn active com' : 'type-btn com';
         }
 
         async function processPastedLabel() {
             const text = document.getElementById('rawLabelInput').value.trim();
-            if (!text) {
-                alert('Pega el texto de la etiqueta primero.');
-                return;
-            }
-
+            if (!text) { alert('Pega el texto de la etiqueta primero.'); return; }
             showToast('Analizando guía de entrega...', '🔍');
-
             try {
                 const res = await fetch('/parse-delivery-label', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
-
-                if (!res.ok) throw new Error('Error analizando guía');
-                const parsed = await res.json();
-
-                // Autocompletar formulario
-                document.getElementById('guideAddress').value = parsed.direccion;
-                document.getElementById('guideDistrict').value = parsed.distrito;
-                document.getElementById('guideReference').value = parsed.referencia;
-                document.getElementById('guideRecipient').value = parsed.destinatario;
-                selectDestinationType(parsed.tipo || 'Residencial');
-
-                // Geocodificar de inmediato con dirección + distrito y reintento resiliente
-                let searchGeo = parsed.direccion;
-                if (parsed.distrito && !searchGeo.toLowerCase().includes(parsed.distrito.toLowerCase())) {
-                    searchGeo += `, ${parsed.distrito}`;
-                }
-
-                showToast(`Buscando: ${parsed.direccion}...`, '📍');
-                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                let geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if ((!geoData || geoData.length === 0) && searchGeo !== parsed.direccion) {
-                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(parsed.direccion)}`);
-                    geoData = geoRes.ok ? await geoRes.json() : [];
-                }
-
-                if (geoData && geoData.length > 0) {
-                    const lat = Number(geoData[0].latitude);
-                    const lng = Number(geoData[0].longitude);
-
-                    // Guardar parada completa
-                    await saveLocationAutomatically({
-                        name: parsed.destinatario || parsed.direccion,
-                        address: parsed.direccion,
-                        latitude: lat,
-                        longitude: lng,
-                        neighborhood: parsed.distrito,
-                        unit_number: parsed.referencia || 'Principal / Directa',
-                        route_id: activeRouteId
-                    });
-
-                    document.getElementById('rawLabelInput').value = '';
-                    togglePasteCard();
-                    showToast(`¡Parada guardada: ${parsed.destinatario || 'Guía'}!`, '🎉');
-                } else {
-                    alert('No se encontraron coordenadas exactas para la dirección. Verifica la nomenclatura.');
-                }
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'No se pudo interpretar el texto de la guía.');
+                await processParsedGuide(data);
+                document.getElementById('rawLabelInput').value = '';
             } catch (err) {
-                console.error(err);
-                alert('No se pudo procesar la guía automáticamente. Verifica los datos.');
+                console.error('Error procesando guía:', err);
+                alert(err.message || 'No se pudo procesar la guía.');
             }
+        }
+
+        async function captureAndReadGuide() {
+            const video = document.getElementById('cameraStream');
+            if (!mediaStream || !video || video.readyState < 2 || !video.videoWidth) {
+                alert('La cámara aún no está lista. Espera a que aparezca la imagen y vuelve a intentar.');
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(1, 1600 / video.videoWidth);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            showToast('Leyendo texto de la guía...', '🔎');
+            try {
+                const res = await fetch('/ocr-delivery-label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'No se pudo leer la guía.');
+                await processParsedGuide(data);
+                showToast('Guía leída y parada registrada.', '✅');
+            } catch (err) {
+                console.error('Error OCR:', err);
+                alert(err.message || 'No se pudo leer la guía. Acerca la cámara, enfoca y vuelve a capturar.');
+            }
+        }
+
+        async function processParsedGuide(parsed) {
+            if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
+            document.getElementById('guideAddress').value = parsed.direccion;
+            const municipalityField = document.getElementById('guideMunicipality');
+            const districtField = document.getElementById('guideDistrict');
+            if (municipalityField) municipalityField.value = parsed.municipio || '';
+            if (districtField) districtField.value = parsed.distrito || '';
+            document.getElementById('guideReference').value = parsed.referencia || '';
+            document.getElementById('guideRecipient').value = parsed.destinatario || '';
+            selectDestinationType(parsed.tipo || 'Residencial');
+            if (!parsed.municipio) throw new Error('La guía no indica el municipio. Completa el campo Municipio antes de registrar la parada.');
+            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
+            showToast(`Buscando: ${parsed.direccion}, ${parsed.municipio}...`, '📍');
+            const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+            const geoData = geoRes.ok ? await geoRes.json() : [];
+            if (!geoData || !geoData.length) throw new Error('No se encontró una dirección válida en el municipio indicado. Revisa dirección, barrio y municipio.');
+            const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
+            await saveLocationAutomatically({
+                name: parsed.destinatario || parsed.direccion,
+                address: parsed.direccion,
+                latitude: lat,
+                longitude: lng,
+                neighborhood: parsed.distrito,
+                unit_number: parsed.referencia || 'Principal / Directa',
+                route_id: activeRouteId
+            });
         }
 
         async function handleGuideFormSubmit(e) {
             e.preventDefault();
             const addr = document.getElementById('guideAddress').value.trim();
-            const dist = document.getElementById('guideDistrict').value.trim();
+            const municipality = document.getElementById('guideMunicipality').value.trim();
+            const districtField = document.getElementById('guideDistrict');
+            const dist = districtField ? districtField.value.trim() : '';
             const ref = document.getElementById('guideReference').value.trim() || 'Principal / Directa';
             const recip = document.getElementById('guideRecipient').value.trim();
 
             if (!addr) { alert('Ingresa la dirección.'); return; }
+            if (!municipality) { alert('Ingresa el municipio para evitar ubicar la dirección en otra ciudad.'); return; }
 
             showToast('Geocodificando dirección...', '🔍');
-
-            let searchGeo = addr;
-            if (dist && !searchGeo.toLowerCase().includes(dist.toLowerCase())) {
-                searchGeo += `, ${dist}`;
-            }
+            const searchGeo = [addr, dist, municipality, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
 
             try {
-                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                let geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if ((!geoData || geoData.length === 0) && searchGeo !== addr) {
-                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(addr)}`);
-                    geoData = geoRes.ok ? await geoRes.json() : [];
-                }
+                const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+                const geoData = geoRes.ok ? await geoRes.json() : [];
 
                 if (geoData && geoData.length > 0) {
                     const lat = Number(geoData[0].latitude);
@@ -1575,7 +1585,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     });
 
                     document.getElementById('guideAddress').value = '';
-                    document.getElementById('guideDistrict').value = '';
+                    document.getElementById('guideMunicipality').value = '';
+                    if (districtField) districtField.value = '';
                     document.getElementById('guideReference').value = '';
                     document.getElementById('guideRecipient').value = '';
                     showToast('Parada guardada con éxito', '✅');
@@ -1598,7 +1609,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 longitude: data.longitude,
                 neighborhood: data.neighborhood || null,
                 unit_number: data.unit_number || null,
-                route_id: activeRouteId,
+                route_id: data.route_id ?? activeRouteId,
                 delivered: false
             };
 
@@ -1781,7 +1792,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        function renderNavigationGuide(locations) {
+        async function renderNavigationGuide(locations) {
             markersGroup.clearLayers();
             polylineGroup.clearLayers();
             if (tempMarker) map.removeLayer(tempMarker);
@@ -1789,6 +1800,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const stepsContainer = document.getElementById('navStepsList');
             const totalSummary = document.getElementById('totalSummary');
             const stopsCountBadge = document.getElementById('stopsCountBadge');
+            const requestId = ++roadRouteRequestId;
 
             if (stopsCountBadge) stopsCountBadge.innerText = locations ? locations.length : 0;
             stepsContainer.innerHTML = '';
@@ -1804,6 +1816,16 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
 
             let totalDist = 0;
+            let roadRoute = null;
+            if (locations.length > 1 && activeRouteId) {
+                try {
+                    const routeResponse = await fetch("/road_route?route_id=" + activeRouteId);
+                    if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial");
+                    roadRoute = await routeResponse.json();
+                    if (roadRoute.stop_ids.length !== locations.length || roadRoute.stop_ids.some((id, idx) => id !== locations[idx].id)) throw new Error("El orden de las paradas cambió durante el cálculo");
+                } catch (error) { console.warn("Ruta vial no disponible:", error); }
+            }
+            if (requestId !== roadRouteRequestId) return;
             const points = [];
 
             locations.forEach((loc, idx) => {
@@ -1826,8 +1848,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 markersGroup.addLayer(marker);
             });
 
-            if (points.length > 1) {
-                const polyline = L.polyline(points, { color: '#ea580c', weight: 5, opacity: 0.85, dashArray: '8, 8' });
+            if (roadRoute && roadRoute.geometry.length > 1) {
+                const roadPoints = roadRoute.geometry.map(point => [point[1], point[0]]);
+                const polyline = L.polyline(roadPoints, { color: '#ea580c', weight: 5, opacity: 0.9 });
                 polylineGroup.addLayer(polyline);
                 map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
             } else if (points.length === 1) {
@@ -1838,9 +1861,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 let distText = "Punto de partida";
                 if (idx > 0) {
                     const prev = locations[idx - 1];
-                    const segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
+                    const leg = roadRoute && roadRoute.legs[idx - 1];
+                    const segmentDist = leg ? leg.distance_m / 1000 : calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
                     totalDist += segmentDist;
-                    distText = `Distancia desde anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                    distText = leg ? `Distancia por vía desde anterior: <b>${segmentDist.toFixed(2)} km</b>` : `Distancia aproximada en línea recta: <b>${segmentDist.toFixed(2)} km</b>`;
                 }
 
                 const isDelivered = loc.delivered === true;
@@ -1883,7 +1907,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             if (locations.length > 1) {
                 totalSummary.style.display = 'block';
-                document.getElementById('totalDistKm').innerText = totalDist.toFixed(2);
+                document.getElementById('totalDistKm').innerText = (roadRoute ? roadRoute.distance_m / 1000 : totalDist).toFixed(2);
+                document.getElementById('totalSummary').title = roadRoute ? `Recorrido vial: ${(roadRoute.duration_s / 60).toFixed(0)} min` : 'Ruta vial no disponible; distancias aproximadas en línea recta';
+                document.getElementById('routeStatus').innerText = roadRoute ? `Recorrido por calles: ${(roadRoute.duration_s / 60).toFixed(0)} min estimados` : 'Ruta vial no disponible; se muestran distancias aproximadas en línea recta';
             } else {
                 totalSummary.style.display = 'none';
             }

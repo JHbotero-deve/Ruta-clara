@@ -1,4 +1,7 @@
+import base64
+import io
 import pytest
+from PIL import Image
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -177,3 +180,50 @@ def test_geocode_five_distinct_addresses():
             lon = data[0]["longitude"]
             assert 5.8 <= lat <= 6.6
             assert -75.9 <= lon <= -75.1
+
+
+def test_ocr_delivery_label_scanner_with_eight_addresses():
+    from PIL import ImageDraw, ImageFont
+
+    labels = [
+        ("Envigado", "San Marcos", "Carrera 45A #32 Sur-04", "Enrique Aguirre", "Residencial"),
+        ("Envigado", "Las Vegas", "Calle 30 Sur 48-170", "Manuela Gonzalez Lanzas", "Ref 1414"),
+        ("Envigado", "Pontevedra", "Carrera 42B #25 A-Sur 41", "Angela Barrientos", "Unidad Ponte Vedra Apto 202"),
+        ("Medellin", "El Poblado", "Calle 15 Sur #48-74", "Wilmer Alexi Pacheco Jimenez", "Primer piso TELESENTINEL"),
+        ("Medellin", "El Poblado", "Calle 11 Sur #29E-115", "Nicolas Bonilla", "Saint Michel T2 1806 Torre 2"),
+        ("Medellin", "El Poblado El Tesoro", "Calle 7 Sur #23-91", "Diana Ochoa", "Ed Cibeles Transversal Superior por ISAGEN"),
+        ("Medellin", "El Poblado", "Calle 5 Sur #32-311", "Claudia Natalia Restrepo", "Apto 102"),
+        ("Medellin", "El Poblado Vizcaya", "Carrera 32B 10-110", "Lucrecia Ines Vasquez Garces", "Vizcaya Real 2 - 419"),
+    ]
+    font = ImageFont.load_default(size=64)
+
+    for municipality, neighborhood, address, recipient, reference in labels:
+        image = Image.new("RGB", (2400, 760), "white")
+        draw = ImageDraw.Draw(image)
+        lines = [
+            f"Direccion: {address}",
+            f"Municipio: {municipality}",
+            f"Barrio: {neighborhood}",
+            f"Destinatario: {recipient}",
+            f"Referencia: {reference}",
+        ]
+        for index, line in enumerate(lines):
+            draw.text((70, 55 + index * 130), line, fill="black", font=font)
+
+        image_buffer = io.BytesIO()
+        image.save(image_buffer, format="PNG")
+        encoded_image = base64.b64encode(image_buffer.getvalue()).decode("ascii")
+        response = client.post("/ocr-delivery-label", json={"image": encoded_image})
+
+        assert response.status_code == 200, response.text
+        parsed = response.json()
+        assert parsed["direccion"].casefold().startswith(("calle", "carrera"))
+        assert parsed["municipio"].casefold() == municipality.casefold()
+        assert parsed["distrito"]
+        assert parsed["destinatario"]
+        assert parsed["texto_reconocido"]
+
+
+def test_ocr_delivery_label_rejects_invalid_image():
+    response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
+    assert response.status_code == 400
