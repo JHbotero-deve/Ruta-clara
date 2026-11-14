@@ -1696,37 +1696,29 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
         async function onBarcodeDetected(codeText) {
-            playBeep(1100, 0.15);
+            playBeep(1200, 0.2);
             triggerHaptic();
+            if (navigator.vibrate) {
+                navigator.vibrate([150, 60, 150, 60, 200]);
+            }
 
             const reticle = document.getElementById('scannerReticle');
             reticle.classList.add('detected');
             setTimeout(() => reticle.classList.remove('detected'), 800);
 
-            showToast(`QR detectado: ${codeText.substring(0, 20)}...`, '📦');
+            showToast(`Código detectado: ${codeText.substring(0, 25)}...`, '📦');
 
-            // Si contiene texto de guía, parsearlo; de lo contrario capturar con GPS
-            if (codeText.includes('Direccion:') || codeText.includes('Destinatario:')) {
+            // Si contiene texto de guía, parsearlo automáticamente
+            if (codeText.toLowerCase().includes('direccion') || codeText.toLowerCase().includes('destinatario')) {
                 document.getElementById('rawLabelInput').value = codeText;
                 await processPastedLabel();
-            } else if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async pos => {
-                    await saveLocationAutomatically({
-                        name: `Guía: ${codeText}`,
-                        address: `Escaneado QR: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`,
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        unit_number: codeText
-                    });
-                }, async () => {
-                    await saveLocationAutomatically({
-                        name: `Guía: ${codeText}`,
-                        address: codeText,
-                        latitude: 6.2442,
-                        longitude: -75.5812,
-                        unit_number: codeText
-                    });
-                });
+            } else {
+                // Es un código de barras / tracking ID: ponerlo como referencia e invitar a ingresar la dirección
+                document.getElementById('guideReference').value = codeText;
+                const details = document.getElementById('manualFormDetails');
+                if (details) details.open = true;
+                document.getElementById('guideAddress').focus();
+                showToast(`Código ${codeText} asignado. Ingresa o dicta la dirección.`, '✍️');
             }
         }
 

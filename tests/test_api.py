@@ -154,3 +154,26 @@ def test_parse_delivery_label():
     assert parsed["destinatario"] == "Carlos Perez"
     assert parsed["tracking_id"] == "TRACK123456"
     assert parsed["tipo"] == "Residencial"
+
+
+def test_geocode_five_distinct_addresses():
+    import urllib.parse
+    addresses = [
+        "Calle 30 Sur 48-170, Envigado",
+        "Carrera 42b #25 A-sur 41, Envigado",
+        "Carrera 45a #32 sur-04, Envigado",
+        "Carrera 42 14-74, Medellín",
+        "Calle 50 # 50-00, Medellín"
+    ]
+
+    for addr in addresses:
+        res = client.get(f"/geocode?query={urllib.parse.quote(addr)}")
+        if res.status_code == 200:
+            data = res.json()
+            assert len(data) > 0
+            assert "latitude" in data[0]
+            assert "longitude" in data[0]
+            lat = data[0]["latitude"]
+            lon = data[0]["longitude"]
+            assert 5.8 <= lat <= 6.6
+            assert -75.9 <= lon <= -75.1
