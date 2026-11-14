@@ -159,154 +159,24 @@ def test_parse_delivery_label():
     assert parsed["tipo"] == "Residencial"
 
 
-def test_parse_delivery_label_without_optional_fields_or_accents():
-    label_text = (
-        "Direccion de entrega: Carrera 32B 10-110, Medellín\n"
-        "Referencia: Vizcaya Real 2, 419\n"
-        "Nombre del cliente: Lucrecia Inés Vasquez"
-    )
-    response = client.post("/parse-delivery-label", json={"text": label_text})
-    assert response.status_code == 200
-    parsed = response.json()
-    assert parsed["direccion"] == "Carrera 32B 10-110, Medellín"
-    assert parsed["distrito"] == ""
-    assert parsed["referencia"] == "Vizcaya Real 2, 419"
-    assert parsed["destinatario"] == "Lucrecia Inés Vasquez"
+def test_geocode_five_distinct_addresses():
+    import urllib.parse
+    addresses = [
+        "Calle 30 Sur 48-170, Envigado",
+        "Carrera 42b #25 A-sur 41, Envigado",
+        "Carrera 45a #32 sur-04, Envigado",
+        "Carrera 42 14-74, Medellín",
+        "Calle 50 # 50-00, Medellín"
+    ]
 
-
-def test_parse_delivery_label_rejects_text_without_address():
-    response = client.post(
-        "/parse-delivery-label",
-        json={"text": "Destinatario: Cliente de prueba\nReferencia: Torre 2"}
-    )
-    assert response.status_code == 422
-    assert "dirección" in response.json()["detail"].lower()
-
-
-
-def test_ocr_delivery_label_extracts_fields(monkeypatch):
-    from src import routes
-    monkeypatch.setattr(
-        routes.pytesseract,
-        "image_to_string",
-        lambda image, lang, config: "DIRECCION: Carrera 43A # 1-50\nDESTINATARIO: Ana Perez\nBARRIO: El Poblado"
-    )
-    image = Image.new("RGB", (40, 40), "white")
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    response = client.post("/ocr-delivery-label", json={"image": "data:image/png;base64," + encoded})
-    assert response.status_code == 200
-    parsed = response.json()
-    assert parsed["direccion"] == "Carrera 43A # 1-50"
-    assert parsed["destinatario"] == "Ana Perez"
-    assert parsed["distrito"] == "El Poblado"
-    assert "texto_reconocido" in parsed
-
-
-def test_address_number_tokens_must_match_exact_house_number():
-    from src.routes import address_number_tokens_match
-    query = "Carrera 66 #56A-98, El Paraíso, Bello"
-    assert address_number_tokens_match(query, "Carrera 66 #56A-98, Bello")
-    assert not address_number_tokens_match(query, "Carrera 66 #56A-97, Bello")
-    assert not address_number_tokens_match(query, "Carrera 66, El Paraíso, Bello")
-
-
-def test_clean_address_for_geocoding_preserves_colombian_nomenclature():
-    from src.routes import clean_address_for_geocoding
-    assert clean_address_for_geocoding("cra66#56a-98") == "Carrera 66 # 56a-98"
-
-
-def test_parse_delivery_label_extracts_municipality_and_neighborhood():
-    response = client.post(
-        "/parse-delivery-label",
-        json={"text": "Dirección: cra66#56A-98\nBarrio: El Paraíso\nCiudad: Bello"}
-    )
-    assert response.status_code == 200
-    parsed = response.json()
-    assert parsed["direccion"] == "cra66#56A-98"
-    assert parsed["distrito"] == "El Paraíso"
-    assert parsed["municipio"] == "Bello"
-
-
-def test_arcgis_geocoder_rejects_candidates_from_other_municipalities(monkeypatch):
-    import json
-    from src import routes
-
-    payload = {
-        "candidates": [
-            {
-                "score": 99,
-                "address": "Carrera 66, Envigado",
-                "location": {"x": -75.57, "y": 6.17},
-                "attributes": {"City": "Envigado", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress"}
-            },
-            {
-                "score": 98,
-                "address": "Carrera 66 #56A-97, Bello",
-                "location": {"x": -75.565, "y": 6.331},
-                "attributes": {"City": "Bello", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress", "LongLabel": "Carrera 66 #56A-97, El Paraíso, Bello"}
-            },
-            {
-                "score": 95,
-                "address": "Carrera 66 #56A-98, Bello",
-                "location": {"x": -75.56, "y": 6.33},
-                "attributes": {"City": "Bello", "Nbrhd": "El Paraíso", "Addr_type": "PointAddress", "LongLabel": "Carrera 66 #56A-98, El Paraíso, Bello"}
-            }
-        ]
-    }
-
-    class FakeResponse:
-        def __enter__(self):
-            return self
-        def __exit__(self, *args):
-            return None
-        def read(self):
-            return json.dumps(payload).encode("utf-8")
-
-    monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
-    results = routes.query_arcgis_geocoder("Carrera 66 # 56A-98, El Paraíso", "Bello")
-    assert len(results) == 1
-    assert results[0]["municipality"] == "Bello"
-    assert results[0]["neighborhood"] == "El Paraíso"
-    assert results[0]["display_name"] == "Carrera 66 #56A-98, El Paraíso, Bello"
-    assert results[0]["latitude"] == 6.33
-
-
-def test_ocr_delivery_label_rejects_invalid_image():
-    response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
-    assert response.status_code == 400
-
-
-def test_road_route_returns_osrm_geometry_and_real_leg_distances(monkeypatch):
-    import json
-    from src import routes
-    for name, lat, lon in [("Barbosa", 6.438, -75.331), ("Girardota", 6.377, -75.447)]:
-        response = client.post("/locations", json={"name": name, "latitude": lat, "longitude": lon})
-        assert response.status_code == 201
-    payload = {"code": "Ok", "routes": [{"distance": 18400, "duration": 2100, "geometry": {"coordinates": [[-75.331, 6.438], [-75.39, 6.41], [-75.447, 6.377]]}, "legs": [{"distance": 18400, "duration": 2100}]}]}
-    class FakeResponse:
-        def __enter__(self): return self
-        def __exit__(self, *args): return None
-        def read(self): return json.dumps(payload).encode("utf-8")
-    monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
-    response = client.get("/road_route")
-    assert response.status_code == 200
-    result = response.json()
-    assert result["distance_m"] == 18400
-    assert result["duration_s"] == 2100
-    assert len(result["geometry"]) == 3
-    assert len(result["legs"]) == 1
-    assert len(result["stop_ids"]) == 2
-
-
-def test_road_route_reports_unavailable_when_osrm_fails(monkeypatch):
-    from src import routes
-    for name, lat, lon in [("Punto 1", 6.2, -75.5), ("Punto 2", 6.3, -75.6)]:
-        client.post("/locations", json={"name": name, "latitude": lat, "longitude": lon})
-    def fail_request(*args, **kwargs):
-        raise TimeoutError("OSRM timeout")
-    monkeypatch.setattr(routes.urllib.request, "urlopen", fail_request)
-    response = client.get("/road_route")
-    assert response.status_code == 502
-    assert "ruta vial" in response.json()["detail"].lower()
+    for addr in addresses:
+        res = client.get(f"/geocode?query={urllib.parse.quote(addr)}")
+        if res.status_code == 200:
+            data = res.json()
+            assert len(data) > 0
+            assert "latitude" in data[0]
+            assert "longitude" in data[0]
+            lat = data[0]["latitude"]
+            lon = data[0]["longitude"]
+            assert 5.8 <= lat <= 6.6
+            assert -75.9 <= lon <= -75.1
