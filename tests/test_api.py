@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from database import get_db
 from src.models import Base
+from src.routes import GEOCODE_CACHE, address_number_tokens_match
 from src.main import app
 
 from sqlalchemy.pool import StaticPool
@@ -159,27 +160,41 @@ def test_parse_delivery_label():
     assert parsed["tipo"] == "Residencial"
 
 
-def test_geocode_five_distinct_addresses():
-    import urllib.parse
+def test_address_number_tokens_match_normalizes_leading_zeroes():
+    assert address_number_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 SUR 4, Envigado")
+    assert not address_number_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 SUR 40, Envigado")
+
+
+def test_geocode_five_distinct_addresses(monkeypatch):
     addresses = [
-        "Calle 30 Sur 48-170, Envigado",
-        "Carrera 42b #25 A-sur 41, Envigado",
-        "Carrera 45a #32 sur-04, Envigado",
-        "Carrera 42 14-74, Medellín",
-        "Calle 50 # 50-00, Medellín"
+        ("Calle 30 Sur 48-170, Envigado", "Envigado"),
+        ("Carrera 42b #25 A-sur 41, Envigado", "Envigado"),
+        ("Carrera 45a #32 sur-04, Envigado", "Envigado"),
+        ("Carrera 42 14-74, Medellín", "Medellín"),
+        ("Calle 50 # 50-00, Medellín", "Medellín")
     ]
 
-    for addr in addresses:
-        res = client.get(f"/geocode?query={urllib.parse.quote(addr)}")
-        if res.status_code == 200:
-            data = res.json()
-            assert len(data) > 0
-            assert "latitude" in data[0]
-            assert "longitude" in data[0]
-            lat = data[0]["latitude"]
-            lon = data[0]["longitude"]
-            assert 5.8 <= lat <= 6.6
-            assert -75.9 <= lon <= -75.1
+    def fake_arcgis(search_text, requested_muni=None):
+        return [{
+            "display_name": search_text,
+            "latitude": 6.2,
+            "longitude": -75.5,
+            "municipality": requested_muni or "",
+            "neighborhood": "",
+            "type": "PointAddress",
+            "class": "arcgis",
+            "score": 95
+        }]
+
+    monkeypatch.setattr("src.routes.query_arcgis_geocoder", fake_arcgis)
+    GEOCODE_CACHE.clear()
+    for address, municipality in addresses:
+        response = client.get("/geocode", params={"query": address})
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data and data[0]["municipality"] == municipality
+        assert 5.8 <= data[0]["latitude"] <= 6.6
+        assert -75.9 <= data[0]["longitude"] <= -75.1
 
 
 def test_ocr_delivery_label_scanner_with_eight_addresses():
