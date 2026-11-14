@@ -268,8 +268,12 @@ def normalize_geocode_value(value: str) -> str:
 
 def address_number_tokens_match(query: str, candidate_address: str) -> bool:
     import re
-    expected = re.findall(r"\d+[a-z]?", normalize_geocode_value(query))
-    actual = re.findall(r"\d+[a-z]?", normalize_geocode_value(candidate_address))
+    def normalize_number(token: str) -> str:
+        suffix = token[-1] if token[-1].isalpha() else ""
+        number = token[:-1] if suffix else token
+        return f"{int(number)}{suffix}"
+    expected = [normalize_number(token) for token in re.findall(r"\d+[a-z]?", normalize_geocode_value(query))]
+    actual = [normalize_number(token) for token in re.findall(r"\d+[a-z]?", normalize_geocode_value(candidate_address))]
     return bool(expected) and all(token in actual for token in expected)
 
 
@@ -483,9 +487,13 @@ def ocr_delivery_label_endpoint(payload: dict):
         raise HTTPException(status_code=413, detail="La imagen supera el límite de 8 MB.")
     try:
         image = Image.open(io.BytesIO(raw_image))
+        if image.width * image.height > 20_000_000:
+            raise HTTPException(status_code=413, detail="La imagen supera el límite de 20 megapíxeles.")
         image = ImageOps.exif_transpose(image).convert("L")
         image = ImageEnhance.Contrast(image).enhance(1.7)
         recognized_text = pytesseract.image_to_string(image, lang="spa+eng", config="--psm 6")
+    except HTTPException:
+        raise
     except pytesseract.TesseractNotFoundError:
         logger.exception("Tesseract OCR no está instalado")
         raise HTTPException(status_code=503, detail="El lector OCR no está instalado en el servidor.")
