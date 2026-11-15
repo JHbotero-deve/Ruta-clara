@@ -43,6 +43,7 @@ def init_db_and_migrate():
                 "client_id": "VARCHAR(64)",
                 "delivered": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+                "issue_note": "VARCHAR(1000)",
                 "created_by_id": "INTEGER",
                 "assigned_to_id": "INTEGER REFERENCES users(id)",
                 "status_updated_by_id": "INTEGER",
@@ -53,6 +54,10 @@ def init_db_and_migrate():
                 if column not in existing_cols:
                     conn.exec_driver_sql(f"ALTER TABLE locations ADD COLUMN {column} {definition}")
             conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_locations_client_id ON locations(client_id)")
+        if "location_status_history" in tables:
+            history_cols = {column["name"] for column in inspector.get_columns("location_status_history")}
+            if "notes" not in history_cols:
+                conn.exec_driver_sql("ALTER TABLE location_status_history ADD COLUMN notes VARCHAR(1000)")
             conn.exec_driver_sql("UPDATE locations SET status = CASE WHEN delivered = TRUE THEN 'delivered' ELSE 'pending' END WHERE status IS NULL OR status = '' OR (status = 'pending' AND delivered = TRUE)")
             conn.exec_driver_sql("UPDATE locations SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
             conn.exec_driver_sql("UPDATE locations SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL")
@@ -116,22 +121,21 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Configure CORS Middleware for production and local development
-raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
-origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+origins = [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
+environments = {os.getenv("RAILWAY_ENVIRONMENT_NAME", "").strip().lower(), os.getenv("ENVIRONMENT", "").strip().lower()}
+is_production = bool(environments & {"production", "prod"})
 allow_all_origins = "*" in origins
-
+if allow_all_origins and is_production:
+    raise RuntimeError("ALLOWED_ORIGINS no puede ser * en producción; configura los dominios autorizados.")
 if allow_all_origins:
-    logger.warning(
-        "CORS configurado con ALLOWED_ORIGINS='*'. "
-        "Configura orígenes específicos en .env para producción."
-    )
-
+    logger.warning("CORS permite cualquier origen. Limita ALLOWED_ORIGINS fuera de producción.")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if allow_all_origins else origins,
-    allow_credentials=not allow_all_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
