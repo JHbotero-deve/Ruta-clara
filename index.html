@@ -827,6 +827,64 @@
         .view-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.view-heading h2{margin:0;font-size:19px;color:var(--text-main)}
         @media(max-width:700px){.dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.account-label{display:none}.dashboard-table{min-width:780px}}
         .tab-navigation{display:none!important}.route-bar{display:none}
+    
+        /* RUTA CLARA UI REFRESH 2026 */
+        :root{--bg-main:#f4f7fb;--bg-card:#fff;--text-main:#172033;--text-muted:#68758a;--border:#e3e9f2;--input-bg:#fff;--input-border:#d5deea;--bg-hover:#eef3fb}
+        [data-theme="dark"]{--bg-main:#0b1220;--bg-card:#121d30;--text-main:#edf3fc;--text-muted:#9aabc2;--border:#263650;--input-bg:#17243a;--input-border:#344966;--bg-hover:#1c2b43}
+        body{background:var(--bg-main);color:var(--text-main)}
+        .navbar{height:66px;padding:0 clamp(14px,3vw,30px);background:linear-gradient(115deg,#101b31,#172b49);box-shadow:0 5px 22px #0b17301a}
+        .brand-logo{width:40px;height:40px;border-radius:12px;box-shadow:none}
+        .navbar h1{font-size:clamp(14px,1.4vw,18px);letter-spacing:-.45px}
+        .menu-toggle{border-color:#ffffff30;border-radius:11px}
+        .nav-actions{gap:7px}
+        .badge-status{padding:6px 10px;font-size:10px;letter-spacing:.2px}
+        .route-bar{display:flex;gap:12px;padding:10px clamp(14px,3vw,30px);background:var(--bg-card);color:var(--text-main);border-bottom:1px solid var(--border);box-shadow:0 2px 10px #0f172a08}
+        .route-selector-wrap label{color:var(--text-muted)}
+        .route-select{background:var(--input-bg);color:var(--text-main);border-color:var(--input-border);min-height:38px}
+        .btn-route-action{min-height:38px;padding:8px 13px;border-radius:10px;font-size:11px}
+        .btn-route-secondary{background:var(--bg-main);color:var(--text-main);border-color:var(--border)}
+        .app-container{padding:clamp(14px,2.4vw,28px);background:var(--bg-main)}
+        .tab-content{max-width:1240px;gap:18px}
+        .card{padding:clamp(16px,2vw,22px);border-radius:18px;border-color:var(--border);box-shadow:0 8px 28px #15223a0a}
+        .card-header{margin-bottom:16px}
+        .card h2,.map-header h2{font-size:15px;letter-spacing:-.2px}
+        .view-heading{margin-bottom:18px}
+        .view-heading h2{font-size:clamp(20px,2vw,25px);font-weight:800;letter-spacing:-.7px}
+        #viewDashboard{max-width:1240px}
+        .dashboard-grid{gap:14px}
+        .dashboard-stat{padding:18px;border-radius:16px;background:var(--bg-card);border-color:var(--border);box-shadow:0 6px 20px #15223a08}
+        .dashboard-stat span{font-size:12px;font-weight:600}
+        .dashboard-stat strong{font-size:30px;letter-spacing:-1px}
+        .dashboard-table-wrap{border:1px solid var(--border);border-radius:12px}
+        .dashboard-table th,.dashboard-table td{padding:13px 12px}
+        .dashboard-table th{background:var(--bg-main)}
+        #viewScanner.active{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);align-items:start;gap:18px;max-width:1240px}
+        #viewScanner>.card:first-child{background:linear-gradient(145deg,#eef5ff 0%,var(--bg-card) 58%);border-color:#d6e5fb}
+        [data-theme="dark"] #viewScanner>.card:first-child{background:linear-gradient(145deg,#172943 0%,var(--bg-card) 65%);border-color:var(--border)}
+        #currentRouteBadge{border-radius:20px!important;padding:6px 11px!important}
+        .btn{border-radius:12px;font-weight:750}
+        .btn-pro-scanner{min-height:54px;border-radius:13px;background:linear-gradient(110deg,#4f46e5,#2563eb);box-shadow:0 8px 18px #315ce52b}
+        .btn-magic-paste{min-height:48px;border-radius:12px;background:linear-gradient(110deg,#087eae,#0369a1);box-shadow:0 6px 16px #0369a11c}
+        input,textarea,select{border-radius:11px}
+        input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 16%,transparent)}
+        #pasteGuideCard{border-color:#9bc8ee!important}
+        #manualFormDetails{border-color:var(--border)!important}
+        #manualFormDetails summary{padding:9px 0}
+        .nav-container{gap:12px;max-height:58vh;padding:2px}
+        .nav-step-item{padding:16px;background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--warning);border-radius:14px;box-shadow:0 4px 14px #15223a08}
+        .nav-step-item.delivered{background:color-mix(in srgb,var(--success) 7%,var(--bg-card));border-left-color:var(--success)}
+        .nav-step-item strong{font-size:14px}
+        .btn-nav-internal{border-radius:10px;min-height:40px}
+        .map-card-wrapper{padding:14px;border-radius:18px;border-color:var(--border);background:var(--bg-card);height:calc(100dvh - 230px);min-height:480px}
+        #map{border-radius:13px}
+        .menu-drawer{top:72px;border-radius:14px;padding:8px}
+        .menu-drawer button{border-radius:10px}
+        button{transition:filter .16s ease,transform .16s ease}
+        button:focus-visible{outline:3px solid color-mix(in srgb,var(--primary) 55%,white);outline-offset:2px}
+        @media(max-width:900px){#viewScanner.active{grid-template-columns:minmax(0,1fr);max-width:760px}.nav-container{max-height:52vh}.map-card-wrapper{height:calc(100dvh - 220px);min-height:420px}}
+        @media(max-width:600px){.navbar{height:60px;padding:0 10px}.brand-container{gap:7px}.brand-logo{width:34px;height:34px}.navbar h1{font-size:12px;max-width:150px}.nav-actions{gap:5px}.nav-actions #themeToggleBtn{padding:5px 7px!important;font-size:10px!important}.badge-status{font-size:9px;padding:5px 7px}.logout-btn{padding:5px 7px;font-size:10px}.route-bar{padding:8px 10px;gap:6px}.route-selector-wrap{gap:5px}.route-selector-wrap label{font-size:9px}.route-select{padding:6px;font-size:11px;min-width:0}.btn-route-action{padding:7px 8px;font-size:10px}.app-container{padding:10px;gap:12px}.card{padding:14px;border-radius:15px}.dashboard-grid{gap:8px}.dashboard-stat{padding:12px}.dashboard-stat strong{font-size:25px}.view-heading h2{font-size:20px}.map-card-wrapper{padding:8px;height:calc(100dvh - 205px);min-height:350px}.map-header{gap:8px;flex-wrap:wrap}.map-header h2{font-size:12px}.map-header button{padding:7px 8px!important;font-size:10px!important}.inapp-nav-hud{left:8px;right:8px;bottom:8px;padding:10px}.inapp-nav-controls{flex-wrap:wrap}.btn-nav-hud{min-height:38px}.account-label{display:none}}
+        @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
     </style>
 </head>
 
