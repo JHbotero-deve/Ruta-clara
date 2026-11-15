@@ -1373,7 +1373,7 @@ def export_delivery_route_pdf(
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
     )
 
 
@@ -1557,7 +1557,7 @@ def export_delivery_route_xlsx(
     return Response(
         content=output.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="ruta-clara-{filename_slug}.xlsx"'}
+        headers={"Content-Disposition": f'attachment; filename="ruta-clara-{filename_slug}.xlsx"', "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
     )
 
 
