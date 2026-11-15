@@ -610,9 +610,9 @@ def sanitize_label_ocr_text(raw_text: str) -> str:
         line = re.sub(r"https?://\S+|www\.\S+", " ", line, flags=re.IGNORECASE)
         line = re.sub(r"\b(?:qr(?:\s*code)?|barcode|c[oó]digo\s+de\s+barras)\s*[:#-]?\s*\S*", " ", line, flags=re.IGNORECASE)
         line = re.sub(r"\b(?:tracking|seguimiento|awb|waybill|n[uú]mero\s+de\s+gu[ií]a)\b.*$", "", line, flags=re.IGNORECASE)
-        line = re.sub(r"\b(?=[A-Z0-9_-]{8,}\b)(?=[A-Z0-9_-]*[A-Z])(?=[A-Z0-9_-]*\d)[A-Z0-9_-]+\b", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?=[A-Z0-9_-]{9,}\b)(?=(?:[A-Z0-9_-]*[A-Z]){2,})(?=(?:[A-Z0-9_-]*\d){4,})[A-Z0-9_-]+\b", " ", line, flags=re.IGNORECASE)
         line = re.sub(r"\b\d{12,}\b", " ", line)
-        if re.fullmatch(r"[\W_]*\d{8,}[\W_]*", line) or re.fullmatch(r"[\W_]*(?=[A-Z0-9_-]*[A-Z])(?=[A-Z0-9_-]*\d)[A-Z0-9_-]{8,}[\W_]*", line, re.IGNORECASE):
+        if re.fullmatch(r"[\W_]*\d{8,}[\W_]*", line) or re.fullmatch(r"[\W_]*(?=[A-Z0-9_-]{9,}[\W_]*$)(?=(?:[A-Z0-9_-]*[A-Z]){2,})(?=(?:[A-Z0-9_-]*\d){4,})[A-Z0-9_-]{9,}[\W_]*", line, re.IGNORECASE):
             continue
         line = re.sub(r"\s+", " ", line).strip(" \t-•")
         if line:
