@@ -542,10 +542,12 @@ def test_driver_cannot_reopen_or_change_final_delivery():
     login = client.post("/token", data={"username":"delivery-driver@example.com","password":"Password123!"})
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     payload = {"name":"Entrega finalizada","latitude":6.2,"longitude":-75.5,"address":"Carrera 40 #10-20","entrance_name":"Acceso","entrance_confirmed":True}
+    assert client.post("/locations", json={**payload,"delivered":True}, headers=admin).status_code == 422
     created = client.post("/locations", json=payload, headers=admin)
     assigned = client.patch(f"/locations/{created.json()['id']}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin)
     location_id = assigned.json()["id"]
     delivered = client.patch(f"/locations/{location_id}/delivered", json={"delivered":True}, headers=headers)
     assert delivered.status_code == 200
+    assert client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin).status_code == 409
     assert client.patch(f"/locations/{location_id}/delivered", json={"delivered":False}, headers=headers).status_code == 403
     assert client.patch(f"/locations/{location_id}/status", json={"status":"issue"}, headers=headers).status_code == 409
