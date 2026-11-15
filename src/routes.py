@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import secrets
 import pytesseract
 import unicodedata
 
@@ -11,7 +13,7 @@ import urllib.parse
 import urllib.request
 from collections import OrderedDict
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import (
@@ -29,9 +31,10 @@ from src.auth import (
     get_current_active_user,
     get_current_admin_user,
     get_password_hash,
+    oauth2_scheme,
 )
 from src.models import (
-    User, Location, Reference, DeliveryRoute, LocationStatusHistory,
+    User, UserSession, Location, Reference, DeliveryRoute, LocationStatusHistory,
     UserCreate, UserResponse,
     LocationCreate, LocationResponse, LocationUpdateDelivered,
     ReferenceCreate, ReferenceResponse,
@@ -240,12 +243,33 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    token = create_access_token(data={"sub": user.username})
+    token = secrets.token_urlsafe(48)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    db.add(UserSession(user_id=user.id, token_hash=token_hash))
+    db.commit()
 
     return {
         "access_token": token,
         "token_type": "bearer"
     }
+
+
+@router.post("/logout", status_code=204, tags=["Authentication"])
+def logout(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    persistent_session = db.query(UserSession).filter(
+        UserSession.user_id == current_user.id,
+        UserSession.token_hash == token_hash,
+        UserSession.revoked_at.is_(None)
+    ).first()
+    if persistent_session:
+        persistent_session.revoked_at = datetime.now(timezone.utc)
+        db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/users/me", response_model=UserResponse)
