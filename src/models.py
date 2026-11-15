@@ -83,6 +83,7 @@ class Location(Base):
     entrance_name = Column(String(150), nullable=True)
     entrance_confirmed = Column(Boolean, nullable=False, default=False, server_default="0")
     location_source = Column(String(30), nullable=True)
+    client_id = Column(String(64), unique=True, index=True, nullable=True)
 
     # Estado de entrega y trazabilidad
     delivered = Column(Boolean, default=False)
@@ -247,6 +248,7 @@ class LocationBase(BaseModel):
     entrance_name: Optional[str] = None
     entrance_confirmed: bool = False
     location_source: Optional[str] = None
+    client_id: Optional[str] = None
     route_id: Optional[int] = None
     delivered: Optional[bool] = False
 
@@ -291,6 +293,7 @@ class LocationCreate(LocationBase):
     entrance_name: Optional[str] = Field(default=None, max_length=150)
     entrance_confirmed: bool = False
     location_source: Optional[str] = Field(default=None, max_length=30)
+    client_id: Optional[str] = Field(default=None, max_length=64)
     route_id: Optional[int] = None
     delivered: Optional[bool] = False
 
