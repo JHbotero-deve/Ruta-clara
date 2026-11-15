@@ -1690,6 +1690,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 const cached=JSON.parse(localStorage.getItem(routeKey)||"[]"),offline=JSON.parse(localStorage.getItem("rc_offline_locations")||"[]");
                 currentLocations=[...cached,...offline.filter(item=>(item.route_id===activeRouteId||!item.route_id)&&!item.delivered&&item.status!=="delivered")].filter((item,index,all)=>all.findIndex(candidate=>String(candidate.id)===String(item.id))===index);
                 completedLocations=JSON.parse(localStorage.getItem(completedKey)||localStorage.getItem("rc_offline_delivered")||"[]");
+                currentLocations=reorderPendingStopsFromGps(currentLocations);
             }
             renderCompletedStops(completedLocations);
             renderNavigationGuide(currentLocations);
@@ -1699,6 +1700,23 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const list=document.getElementById("completedStopsList"),count=document.getElementById("completedStopsCount");
             if(count)count.textContent=locations.length;
             if(list)list.innerHTML=locations.length?locations.map(item=>'<div style="padding:7px 0;border-bottom:1px solid var(--border);">✓ #'+item.id+' · '+escapeHtml(item.address||item.name||"Dirección no disponible")+'</div>').join(""):"Todavía no hay entregas completadas.";
+        }
+
+        function reorderPendingStopsFromGps(locations){
+            if(!currentUserLatLng||locations.length<2)return locations;
+            const remaining=locations.slice(),ordered=[];
+            let origin=currentUserLatLng.slice();
+            while(remaining.length){
+                let nearestIndex=0,nearestDistance=Infinity;
+                remaining.forEach((stop,index)=>{
+                    const distance=calculateDistanceKm(origin[0],origin[1],stop.latitude,stop.longitude);
+                    if(distance<nearestDistance){nearestDistance=distance;nearestIndex=index;}
+                });
+                const next=remaining.splice(nearestIndex,1)[0];
+                ordered.push(next);
+                origin=[next.latitude,next.longitude];
+            }
+            return ordered;
         }
 
         function updateStopsCountInSelector() {
@@ -2476,6 +2494,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(newState){
                 const activeStopId=currentLocations[activeNavIndex]?.id;
                 currentLocations=currentLocations.filter(item=>String(item.id)!==String(locationId));
+                currentLocations=reorderPendingStopsFromGps(currentLocations);
                 const nextIndex=currentLocations.findIndex(item=>String(item.id)===String(activeStopId));
                 activeNavIndex=nextIndex>=0?nextIndex:0;
                 completedLocations=[...completedLocations.filter(item=>String(item.id)!==String(locationId)),loc];
