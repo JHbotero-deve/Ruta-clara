@@ -399,6 +399,66 @@ def test_admin_assignment_driver_scope_and_dynamic_pending_route():
     assert driver_activity["pending"] == 0
 
 
+def test_driver_can_only_manage_assigned_deliveries_and_must_report_issue():
+    admin = admin_headers()
+    driver = client.post("/admin/users", json={"email":"driver_scope@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    assert driver.status_code == 201, driver.text
+    login = client.post("/token", data={"username":"driver_scope@example.com","password":"Password123!"})
+    driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    payload = {"name":"Pedido de prueba","latitude":6.2,"longitude":-75.5,"address":"Calle 10 #20-30","entrance_name":"Portería","entrance_confirmed":True}
+    assert client.get("/locations", headers=driver_headers).json() == []
+    assert client.post("/locations", json=payload, headers=driver_headers).status_code == 403
+    created = client.post("/locations", json=payload, headers=admin)
+    assert created.status_code == 201, created.text
+    location_id = created.json()["id"]
+    assert client.get("/locations", headers=driver_headers).json() == []
+    assigned = client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin)
+    assert assigned.status_code == 200
+    assert [item["id"] for item in client.get("/locations", headers=driver_headers).json()] == [location_id]
+    assert client.patch(f"/locations/{location_id}", json={"address":"Carrera 1 #1-1","name":"Cambio","unit_number":"Apto 1"}, headers=driver_headers).status_code == 403
+    assert client.delete(f"/locations/{location_id}", headers=driver_headers).status_code == 403
+    assert client.patch(f"/locations/{location_id}/status", json={"status":"cancelled"}, headers=driver_headers).status_code == 403
+    missing_note = client.patch(f"/locations/{location_id}/status", json={"status":"issue"}, headers=driver_headers)
+    assert missing_note.status_code == 422
+    issue = client.patch(f"/locations/{location_id}/status", json={"status":"issue","notes":"Cliente ausente"}, headers=driver_headers)
+    assert issue.status_code == 200
+    assert issue.json()["issue_note"] == "Cliente ausente"
+    history = client.get(f"/locations/{location_id}/history", headers=driver_headers)
+    assert history.status_code == 200
+    assert history.json()[0]["notes"] == "Cliente ausente"
+    transit = client.patch(f"/locations/{location_id}/status", json={"status":"in_transit"}, headers=driver_headers)
+    assert transit.status_code == 200
+    delivered = client.patch(f"/locations/{location_id}/delivered", json={"delivered":True}, headers=driver_headers)
+    assert delivered.status_code == 200 and delivered.json()["status"] == "delivered"
+    assert client.patch(f"/locations/{location_id}/delivered", json={"delivered":False}, headers=driver_headers).status_code == 403
+    assert client.patch(f"/locations/{location_id}/status", json={"status":"pending"}, headers=driver_headers).status_code == 409
+    assert client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":None}, headers=admin).status_code == 409
+
+
+def test_route_deletion_and_bulk_clear_preserve_delivery_records():
+    admin = admin_headers()
+    route = client.post("/delivery-routes", json={"name":"Ruta para conservar"}, headers=admin)
+    assert route.status_code == 201
+    route_id = route.json()["id"]
+    created = client.post("/locations", json={"name":"Pedido conservado","latitude":6.2,"longitude":-75.5,"address":"Calle 20 #20-30","entrance_name":"Portería","entrance_confirmed":True,"route_id":route_id}, headers=admin)
+    assert created.status_code == 201
+    location_id = created.json()["id"]
+    operator = client.post("/admin/users", json={"email":"operator_scope@example.com","password":"Password123!","role":"operator"}, headers=admin)
+    login = client.post("/token", data={"username":"operator_scope@example.com","password":"Password123!"})
+    operator_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert client.delete(f"/locations?route_id={route_id}", headers=operator_headers).status_code == 403
+    assert client.delete(f"/delivery-routes/{route_id}", headers=admin).status_code == 204
+    preserved = client.get("/locations", headers=admin).json()
+    saved = next(item for item in preserved if item["id"] == location_id)
+    assert saved["status"] == "pending"
+    assert saved["route_id"] != route_id
+    replacement_route_id = saved["route_id"]
+    assert client.delete(f"/locations?route_id={replacement_route_id}", headers=admin).status_code == 204
+    cancelled = client.get(f"/locations?status=cancelled", headers=admin).json()
+    assert any(item["id"] == location_id for item in cancelled)
+    assert client.get(f"/locations?status=pending", headers=admin).json() == []
+
+
 def test_public_registration_is_closed_after_first_account():
     headers = admin_headers()
     response = client.post("/register", json={"username":"intruso","password":"Password123!"})
