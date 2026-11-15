@@ -607,7 +607,7 @@ def parse_delivery_label_endpoint(payload: dict):
     compact = re.match(r"^(Carrera|Calle)\s*(\d+)([a-z]?)\s*(?:#\s*)?(\d{1,3})\s*-\s*(\d{1,3})$", direccion, re.IGNORECASE)
     if compact:
         direccion = f"{compact.group(1).title()} {compact.group(2)}{compact.group(3).upper()} #{compact.group(4)}-{compact.group(5)}"
-    direccion = re.sub(r"\s*#\s*", "#", direccion)
+    direccion = re.sub(r"\s*#\s*", " #", direccion)
     direccion = re.sub(r"\s+", " ", direccion).strip(" ,.-")
 
     referencia = re.sub(r"(?i)\breferencia\s*[:：].*$", "", referencia).strip(" ,;:-")
