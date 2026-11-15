@@ -413,9 +413,9 @@ def test_ocr_delivery_label_rejects_invalid_image():
 
 
 def test_persistent_session_survives_requests_and_logout_revokes_it():
-    registration = client.post("/register", json={"email": "session@example.com", "password": "Password123!"})
+    registration = client.post("/register", json={"email": "jorgebotero190@gmail.com", "password": "Password123!"})
     assert registration.status_code == 201
-    login = client.post("/token", data={"username": "session@example.com", "password": "Password123!"})
+    login = client.post("/token", data={"username": "jorgebotero190@gmail.com", "password": "Password123!"})
     assert login.status_code == 200
     token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
