@@ -51,7 +51,8 @@ def get_password_hash(password: str) -> str:
 
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-    user = db.query(User).filter(User.username == username).first()
+    identifier = (username or "").strip()
+    user = db.query(User).filter((User.username == identifier) | (User.email == identifier.lower())).first()
     if not user:
         return None
     if user.disabled or not verify_password(password, user.hashed_password):
