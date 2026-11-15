@@ -889,7 +889,7 @@
 </head>
 
 <body>
-    <div id="loginGate" class="login-gate"><form class="login-card" onsubmit="loginRutaClara(event)"><h2>Ruta Clara</h2><p>Acceso seguro al panel de entregas</p><label>Usuario</label><input id="loginUsername" autocomplete="username" required><label>Contraseña</label><input id="loginPassword" type="password" autocomplete="current-password" required><div id="loginError" class="login-error"></div><button type="submit">Iniciar sesión</button><button type="button" onclick="registerFirstAdmin()" style="margin-top:9px;background:#475569">Crear administrador inicial</button></form></div>
+    <div id="loginGate" class="login-gate"><form class="login-card" onsubmit="loginRutaClara(event)"><h2>Ruta Clara</h2><p>Acceso seguro al panel de entregas</p><label>Usuario</label><input id="loginUsername" type="email" autocomplete="email" placeholder="Correo electrónico" required><label>Contraseña</label><input id="loginPassword" type="password" autocomplete="current-password" required><div id="loginError" class="login-error"></div><button type="submit">Iniciar sesión</button><button type="button" onclick="registerFirstAdmin()" style="margin-top:9px;background:#475569">Crear administrador inicial</button></form></div>
     <!-- BARRA SUPERIOR -->
     <header class="navbar">
         <button class="menu-toggle" onclick="toggleMenu()" aria-label="Abrir menú">☰</button>
@@ -959,7 +959,7 @@
         </div>
         <div id="viewUsers" class="tab-content">
             <div class="view-heading"><h2>Gestión de usuarios</h2></div>
-            <div class="card"><form id="createOperatorForm" class="admin-form" onsubmit="createOperator(event)"><input id="newOperatorUsername" placeholder="Usuario" required><input id="newOperatorEmail" type="email" placeholder="Correo (opcional)"><input id="newOperatorPassword" type="password" placeholder="Contraseña (mín. 8)" minlength="8" required><button type="submit">Crear operador</button></form><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="adminUsersList"></tbody></table></div></div>
+            <div class="card"><form id="createOperatorForm" class="admin-form" onsubmit="createOperator(event)"><input id="newOperatorEmail" type="email" placeholder="Correo electrónico" required><input id="newOperatorPassword" type="password" placeholder="Contraseña (mín. 8)" minlength="8" required><select id="newOperatorRole" required><option value="operator">Operador</option><option value="driver">Repartidor</option><option value="admin">Administrador</option></select><button type="submit">Crear usuario</button></form><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="adminUsersList"></tbody></table></div></div>
         </div>
 
         <!-- VISTA 1: ESCÁNER Y DIRECCIONES -->
@@ -1282,10 +1282,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             } catch(error) { showLoginError(error.message); }
         }
         async function registerFirstAdmin() {
-            const username=document.getElementById("loginUsername").value.trim(),password=document.getElementById("loginPassword").value;
-            if(!username||password.length<8){showLoginError("Ingresa usuario y contraseña de al menos 8 caracteres.");return;}
+            const email=document.getElementById("loginUsername").value.trim().toLowerCase(),password=document.getElementById("loginPassword").value;
+            if(!email||password.length<8){showLoginError("Ingresa tu correo y una contraseña de al menos 8 caracteres.");return;}
             try {
-                const response=await rutaFetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
+                const response=await rutaFetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
                 const data=await response.json();if(!response.ok)throw new Error(data.detail||"No se pudo crear el administrador inicial.");
                 showLoginError("Administrador creado. Ahora inicia sesión.");
             } catch(error){showLoginError(error.message);}
@@ -1296,7 +1296,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             try {
                 const response=await fetch("/users/me");if(!response.ok)throw new Error("Sesión inválida");
                 rutaUser=await response.json();document.getElementById("loginGate").style.display="none";
-                document.getElementById("accountLabel").textContent=rutaUser.username+" · "+(rutaUser.role==="admin"?"Administrador":"Operador");
+                document.getElementById("accountLabel").textContent=rutaUser.username+" · "+({admin:"Administrador",operator:"Operador",driver:"Repartidor"}[rutaUser.role]||"Usuario");
                 document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Vista administrativa":"Tus pedidos registrados";
                 document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
                 document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
@@ -1345,12 +1345,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
         async function loadAdminUsers(){
             const response=await fetch("/admin/users");if(!response.ok)return;const users=await response.json();
-            document.getElementById("adminUsersList").innerHTML=users.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.email||"—")+'</td><td>'+(user.role==="admin"?"Administrador":"Operador")+'</td><td>'+(user.disabled?"Desactivado":"Activo")+'</td><td>'+(user.role==="admin"?"—":'<button class="btn-route-action" onclick="setOperatorDisabled('+user.id+','+(!user.disabled)+')">'+(user.disabled?"Activar":"Desactivar")+'</button>')+'</td></tr>').join("");
+            document.getElementById("adminUsersList").innerHTML=users.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.email||"—")+'</td><td>'+(({admin:"Administrador",operator:"Operador",driver:"Repartidor"}[user.role]||"Usuario"))+'</td><td>'+(user.disabled?"Desactivado":"Activo")+'</td><td>'+(user.role==="admin"?"—":'<button class="btn-route-action" onclick="setOperatorDisabled('+user.id+','+(!user.disabled)+')">'+(user.disabled?"Activar":"Desactivar")+'</button>')+'</td></tr>').join("");
         }
         async function createOperator(event){
-            event.preventDefault();const payload={username:document.getElementById("newOperatorUsername").value.trim(),email:document.getElementById("newOperatorEmail").value.trim()||null,password:document.getElementById("newOperatorPassword").value};
+            event.preventDefault();const payload={email:document.getElementById("newOperatorEmail").value.trim().toLowerCase(),password:document.getElementById("newOperatorPassword").value,role:document.getElementById("newOperatorRole").value};
             const response=await fetch("/admin/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),data=await response.json();
-            if(!response.ok){alert(data.detail||"No se pudo crear el usuario.");return;}event.target.reset();await loadAdminUsers();alert("Operador creado.");
+            if(!response.ok){alert(data.detail||"No se pudo crear el usuario.");return;}event.target.reset();await loadAdminUsers();alert("Usuario creado correctamente.");
         }
         async function setOperatorDisabled(id,disabled){
             const response=await fetch("/admin/users/"+id+"/disabled",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({disabled})});
