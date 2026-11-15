@@ -278,6 +278,10 @@ def admin_set_user_disabled(user_id: int, payload: dict, db: Session = Depends(g
     disabled = payload.get("disabled")
     if not isinstance(disabled, bool):
         raise HTTPException(status_code=422, detail="El campo disabled debe ser booleano.")
+    if disabled and user.role == "admin":
+        active_admins = db.query(User).filter(User.role == "admin", User.disabled == False).count()
+        if active_admins <= 1:
+            raise HTTPException(status_code=400, detail="Debe existir al menos un administrador activo.")
     user.disabled = disabled
     db.commit()
     db.refresh(user)
@@ -1047,7 +1051,10 @@ def export_weekly_routes(admin: User = Depends(get_current_admin_user)):
     response_model=List[ReferenceResponse]
 )
 def read_references(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
-    return db.query(Reference).all()
+    query = db.query(Reference).join(Location, Reference.location_id == Location.id)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
+    return query.all()
 
 
 @router.post(
