@@ -105,7 +105,7 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `SECRET_KEY` | Clave secreta para firmar tokens JWT | *Cadena generada para desarrollo* |
 | `ALGORITHM` | Algoritmo de firma JWT | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Tiempo de expiración del token (en minutos) | `30` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Expiración de tokens JWT heredados o de compatibilidad (en minutos); el inicio de sesión actual usa sesiones persistentes revocables | `30` |
 | `DATABASE_URL` | String de conexión a base de datos (SQLite, PostgreSQL, MySQL) | `sqlite:///./app.db` |
 | `ALLOWED_ORIGINS` | Orígenes permitidos para CORS (separados por coma) | `*` |
 
@@ -151,7 +151,8 @@ Una vez iniciada la aplicación, explora la documentación interactiva Swagger e
 
 #### 🔐 Autenticación y Usuarios
 - `POST /register`: Registro de un nuevo usuario.
-- `POST /token`: Autenticación y obtención de Token JWT (`OAuth2PasswordRequestForm`).
+- `POST /token`: Autenticación y creación de una sesión persistente (`OAuth2PasswordRequestForm`).
+- `POST /logout`: Revoca la sesión actual al cerrar sesión explícitamente.
 - `GET /users/me`: Información del usuario actual autenticado.
 
 #### 📍 Ubicaciones (`/locations`)
@@ -205,6 +206,14 @@ Este proyecto está distribuido bajo la licencia MIT.
 
 Esta sección conserva las decisiones funcionales del producto para retomar el trabajo sin perder contexto.
 
+### Sesión persistente
+
+- Después de iniciar sesión o registrarse, la sesión permanece guardada en el dispositivo aunque se cierre la pestaña, el navegador, la PWA o se reinicie el celular.
+- La sesión solo se revoca desde la acción explícita **Salir / Cerrar sesión**; al volver a abrir Ruta Clara, se valida la sesión guardada y se abre el módulo correspondiente al rol.
+- El navegador conserva el identificador de sesión en almacenamiento persistente local y el backend almacena únicamente su hash, sin guardar el token en texto plano.
+- El endpoint `POST /logout` revoca la sesión actual en el servidor. Si el dispositivo está sin conexión, se elimina localmente el token y la revocación remota se completará únicamente si el usuario vuelve a autenticarse; no se debe reutilizar el token borrado.
+- Las sesiones nuevas no dependen del vencimiento corto de los JWT heredados; pueden revocarse en el servidor y dejan de ser válidas al cerrar sesión.
+
 ### Roles y responsabilidades
 
 - **Administrador:** administra usuarios y roles, asigna pedidos a domiciliarios y supervisa el trabajo del equipo. Su panel principal muestra personas y actividad, no un contador global de pedidos.
@@ -252,6 +261,7 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 5. Al marcar una parada como entregada, pasa a Entregados y la navegación continúa con la siguiente parada, recalculando desde el GPS actual.
 6. La entrega conserva usuario, fecha y hora en el historial y se refleja en el panel administrativo.
 7. Una entrega sin conexión se sincroniza al recuperar conectividad sin duplicarse.
+8. Una sesión iniciada permanece activa después de cerrar y volver a abrir la aplicación; solo se invalida al cerrar sesión explícitamente.
 
 ### Pendientes de validación antes de producción
 
@@ -266,4 +276,5 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - **Integrado en main** mediante el PR #5, commit de merge: db0fc92069664c556716ec1fb781b3dafbe8a5bf.
 - **CI del PR aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
 - **No desplegado en producción.**
+- La sesión persistente se prepara en la rama `fix/persistent-login-session`; pendiente de CI y revisión antes de integrar.
 - Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
