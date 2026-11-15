@@ -283,6 +283,39 @@ def test_ocr_delivery_label_scanner_with_eight_addresses():
         assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
 
 
+
+def test_operator_scope_and_status_audit():
+    admin = admin_headers()
+    created = client.post("/admin/users", json={"username":"operador1","email":"operador@example.com","password":"Password123!"}, headers=admin)
+    assert created.status_code == 201, created.text
+    operator_login = client.post("/token", data={"username":"operador1","password":"Password123!"})
+    operator = {"Authorization": f"Bearer {operator_login.json()['access_token']}"}
+    own = client.post("/locations", json={"name":"Pedido propio","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30"}, headers=operator)
+    other = client.post("/locations", json={"name":"Pedido admin","latitude":6.21,"longitude":-75.51,"address":"Carrera 40 # 10-20"}, headers=admin)
+    assert own.status_code == 201 and other.status_code == 201
+    assert own.json()["created_by_username"] == "operador1"
+    assert own.json()["status"] == "pending"
+    visible = client.get("/locations", headers=operator).json()
+    assert [item["id"] for item in visible] == [own.json()["id"]]
+    assert client.get(f"/locations/{other.json()['id']}/history", headers=operator).status_code == 403
+    changed = client.patch(f"/locations/{own.json()['id']}/status", json={"status":"in_transit"}, headers=operator)
+    assert changed.status_code == 200
+    assert changed.json()["status"] == "in_transit"
+    history = client.get(f"/locations/{own.json()['id']}/history", headers=admin)
+    assert history.status_code == 200
+    assert history.json()[0]["new_status"] == "in_transit"
+    assert history.json()[0]["changed_by"] == "operador1"
+    assert client.get("/admin/users", headers=operator).status_code == 403
+    assert len(client.get("/locations", headers=admin).json()) == 2
+
+
+def test_public_registration_is_closed_after_first_account():
+    headers = admin_headers()
+    response = client.post("/register", json={"username":"intruso","password":"Password123!"})
+    assert response.status_code == 403
+    assert client.get("/admin/summary", headers=headers).status_code == 200
+
+
 def test_ocr_delivery_label_rejects_invalid_image():
     response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
     assert response.status_code == 400
