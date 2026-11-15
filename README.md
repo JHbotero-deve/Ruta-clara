@@ -288,6 +288,9 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - **CI de PR #11 y PR #12 aprobado**, incluidas pruebas de backend y sintaxis JavaScript.
 - **Sincronización de nuevas paradas offline integrada en main** mediante PR #14, commit: 0db135a52bd9f23d5863897f1a17852051d8632d.
 - **CI del PR #14 aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
+- **OCR de guías integrado en main** mediante PR #15, commit: c97c2a3cde366b6e1983997e1871aff476c26b78.
+- El OCR distingue el bloque de remitente del destinatario, conserva guías donde la dirección aparece antes del nombre del destinatario y no usa la dirección del remitente cuando falta un destino identificable.
+- **CI del PR #15 aprobado:** pruebas del backend, OCR de direcciones, sintaxis Python y JavaScript.
 - Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
 
 ## 🎨 Identidad visual y experiencia de usuario
