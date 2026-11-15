@@ -120,13 +120,16 @@ def test_locations_crud_and_optimal_route():
         "address": "Calle 50 # 50-00",
         "entrance_name": "Portería principal",
         "entrance_confirmed": True,
-        "location_source": "manual_porteria"
+        "location_source": "manual_porteria",
+        "client_id": "offline-delivery-001"
     }
     loc2 = {
         "name": "Parque Poblado",
         "latitude": 6.2089,
         "longitude": -75.5678,
-        "address": "Carrera 43A # 9-00"
+        "address": "Carrera 43A # 9-00",
+        "entrance_name": "Portería principal",
+        "entrance_confirmed": True
     }
     r1 = client.post("/locations", json=loc1, headers=headers)
     r2 = client.post("/locations", json=loc2, headers=headers)
@@ -134,6 +137,10 @@ def test_locations_crud_and_optimal_route():
     assert r1.json()["entrance_name"] == "Portería principal"
     assert r1.json()["entrance_confirmed"] is True
     assert r1.json()["location_source"] == "manual_porteria"
+    assert r1.json()["client_id"] == "offline-delivery-001"
+    duplicate = client.post("/locations", json=loc1, headers=headers)
+    assert duplicate.status_code == 201
+    assert duplicate.json()["id"] == r1.json()["id"]
     assert r2.status_code == 201
 
     loc1_id = r1.json()["id"]
@@ -322,8 +329,8 @@ def test_operator_scope_and_status_audit():
     assert created.status_code == 201, created.text
     operator_login = client.post("/token", data={"username":"operador1","password":"Password123!"})
     operator = {"Authorization": f"Bearer {operator_login.json()['access_token']}"}
-    own = client.post("/locations", json={"name":"Pedido propio","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30"}, headers=operator)
-    other = client.post("/locations", json={"name":"Pedido admin","latitude":6.21,"longitude":-75.51,"address":"Carrera 40 # 10-20"}, headers=admin)
+    own = client.post("/locations", json={"name":"Pedido propio","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30","entrance_name":"Acceso principal","entrance_confirmed":True}, headers=operator)
+    other = client.post("/locations", json={"name":"Pedido admin","latitude":6.21,"longitude":-75.51,"address":"Carrera 40 # 10-20","entrance_name":"Portería","entrance_confirmed":True}, headers=admin)
     assert own.status_code == 201 and other.status_code == 201
     assert own.json()["created_by_username"] == "operador1"
     assert own.json()["status"] == "pending"
@@ -339,6 +346,13 @@ def test_operator_scope_and_status_audit():
     assert history.json()[0]["changed_by"] == "operador1"
     assert client.get("/admin/users", headers=operator).status_code == 403
     assert len(client.get("/locations", headers=admin).json()) == 2
+
+
+def test_location_requires_confirmed_entrance():
+    headers = admin_headers()
+    response = client.post("/locations", json={"name":"Sin portería","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30"}, headers=headers)
+    assert response.status_code == 422
+    assert "portería" in response.json()["detail"].lower()
 
 
 def test_public_registration_is_closed_after_first_account():
