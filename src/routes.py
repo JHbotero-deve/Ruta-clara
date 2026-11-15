@@ -26,10 +26,11 @@ from src.auth import (
     authenticate_user,
     create_access_token,
     get_current_active_user,
+    get_current_admin_user,
     get_password_hash,
 )
 from src.models import (
-    User, Location, Reference, DeliveryRoute,
+    User, Location, Reference, DeliveryRoute, LocationStatusHistory,
     UserCreate, UserResponse,
     LocationCreate, LocationResponse, LocationUpdateDelivered,
     ReferenceCreate, ReferenceResponse,
@@ -195,24 +196,16 @@ def offline_map_status():
     status_code=status.HTTP_201_CREATED
 )
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
-
-    existing_user = (
-        db.query(User)
-        .filter(User.username == user_in.username)
-        .first()
-    )
-
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already registered"
-        )
-
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=403, detail="El registro público está deshabilitado. Solicita acceso al administrador.")
+    if len(user_in.password) < 8:
+        raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
     new_user = User(
-        username=user_in.username,
+        username=user_in.username.strip(),
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
-        disabled=user_in.disabled or False
+        disabled=False,
+        role="admin"
     )
 
     db.add(new_user)
@@ -253,6 +246,60 @@ def read_users_me(
     current_user: User = Depends(get_current_active_user)
 ):
     return current_user
+
+
+@router.get("/admin/users", response_model=List[UserResponse], tags=["Administration"])
+def admin_list_users(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    return db.query(User).order_by(User.username.asc()).all()
+
+
+@router.post("/admin/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Administration"])
+def admin_create_user(user_in: UserCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    if len(user_in.password) < 8:
+        raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
+    if db.query(User).filter(User.username == user_in.username.strip()).first():
+        raise HTTPException(status_code=409, detail="El usuario ya existe.")
+    if user_in.email and db.query(User).filter(User.email == user_in.email).first():
+        raise HTTPException(status_code=409, detail="El correo ya está registrado.")
+    user = User(username=user_in.username.strip(), email=user_in.email, hashed_password=get_password_hash(user_in.password), disabled=False, role="operator")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/admin/users/{user_id}/disabled", response_model=UserResponse, tags=["Administration"])
+def admin_set_user_disabled(user_id: int, payload: dict, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta.")
+    disabled = payload.get("disabled")
+    if not isinstance(disabled, bool):
+        raise HTTPException(status_code=422, detail="El campo disabled debe ser booleano.")
+    user.disabled = disabled
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.get("/admin/summary", tags=["Administration"])
+def admin_summary(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    total = db.query(Location).count()
+    counts = {key: db.query(Location).filter(Location.status == key).count() for key in ("pending", "assigned", "in_transit", "delivered", "issue", "cancelled")}
+    return {"total": total, "by_status": counts, "users": db.query(User).count()}
+
+
+@router.get("/locations/{location_id}/history", tags=["Locations"])
+def location_status_history(location_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este pedido.")
+    events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc()).all()
+    return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
 
 
 # ============================================================
@@ -685,7 +732,7 @@ def get_or_create_default_route(db: Session) -> DeliveryRoute:
     response_model=List[DeliveryRouteResponse],
     tags=["Delivery Routes"]
 )
-def list_delivery_routes(db: Session = Depends(get_db)):
+def list_delivery_routes(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """Lista todas las rutas de entrega con la cantidad de paradas asignadas."""
     routes = db.query(DeliveryRoute).order_by(DeliveryRoute.created_at.desc()).all()
     result = []
@@ -709,7 +756,8 @@ def list_delivery_routes(db: Session = Depends(get_db)):
 )
 def create_delivery_route(
     route_in: DeliveryRouteCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
 ):
     """Crea una nueva ruta de entrega independiente."""
     new_route = DeliveryRoute(name=route_in.name.strip(), is_active=True)
@@ -733,7 +781,8 @@ def create_delivery_route(
 def update_delivery_route(
     route_id: int,
     route_update: DeliveryRouteUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
 ):
     """Actualiza el nombre o estado de una ruta."""
     route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
@@ -764,7 +813,8 @@ def update_delivery_route(
 )
 def delete_delivery_route(
     route_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
 ):
     """Elimina una ruta completa y todas sus paradas asociadas."""
     route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
@@ -792,12 +842,15 @@ def delete_delivery_route(
 )
 def read_locations(
     route_id: Optional[int] = Query(None, description="Filtrar por ID de ruta"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
-    return query.all()
+    return query.order_by(Location.created_at.desc()).all()
 
 
 @router.post(
@@ -807,7 +860,8 @@ def read_locations(
 )
 def create_location(
     location: LocationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     if not (-90 <= location.latitude <= 90):
         raise HTTPException(status_code=400, detail="Latitud inválida")
@@ -837,9 +891,14 @@ def create_location(
         unit_number=location.unit_number,
         route_id=target_route_id,
         delivered=location.delivered or False,
+        status="delivered" if location.delivered else "pending",
+        created_by_id=current_user.id,
+        status_updated_by_id=current_user.id,
     )
 
     db.add(db_location)
+    db.flush()
+    db.add(LocationStatusHistory(location_id=db_location.id, old_status=None, new_status=db_location.status, changed_by_id=current_user.id))
     db.commit()
     db.refresh(db_location)
 
@@ -861,16 +920,45 @@ def create_location(
 def toggle_location_delivered(
     location_id: int,
     payload: LocationUpdateDelivered,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """Marca una parada como entregada o pendiente."""
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Parada no encontrada")
 
+    if current_user.role != "admin" and loc.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
+    new_status = "delivered" if payload.delivered else "pending"
+    if loc.status != new_status:
+        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
+        loc.status = new_status
+        loc.status_updated_by_id = current_user.id
     loc.delivered = payload.delivered
     db.commit()
     db.refresh(loc)
+    return loc
+
+
+@router.patch("/locations/{location_id}/status", response_model=LocationResponse, tags=["Locations"])
+def update_location_status(location_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    allowed = {"pending", "assigned", "in_transit", "delivered", "issue", "cancelled"}
+    new_status = payload.get("status")
+    if new_status not in allowed:
+        raise HTTPException(status_code=422, detail="Estado no válido.")
+    loc = db.query(Location).filter(Location.id == location_id).first()
+    if not loc:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if current_user.role != "admin" and loc.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
+    if loc.status != new_status:
+        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
+        loc.status = new_status
+        loc.delivered = new_status == "delivered"
+        loc.status_updated_by_id = current_user.id
+        db.commit()
+        db.refresh(loc)
     return loc
 
 
@@ -880,7 +968,8 @@ def toggle_location_delivered(
 )
 def delete_location(
     location_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     location = (
         db.query(Location)
@@ -890,6 +979,8 @@ def delete_location(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este pedido.")
 
     db.delete(location)
     db.commit()
@@ -903,9 +994,12 @@ def delete_location(
 )
 def clear_all_locations(
     route_id: Optional[int] = Query(None, description="Borrar paradas solo de esta ruta"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     query.delete(synchronize_session=False)
@@ -918,7 +1012,7 @@ def clear_all_locations(
 # ============================================================
 
 @router.get("/export/weekly_routes")
-def export_weekly_routes():
+def export_weekly_routes(admin: User = Depends(get_current_admin_user)):
 
     if not LOG_FILE.is_file():
         with open(
@@ -952,7 +1046,7 @@ def export_weekly_routes():
     "/references",
     response_model=List[ReferenceResponse]
 )
-def read_references(db: Session = Depends(get_db)):
+def read_references(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     return db.query(Reference).all()
 
 
@@ -963,7 +1057,8 @@ def read_references(db: Session = Depends(get_db)):
 )
 def create_reference(
     reference: ReferenceCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     location = (
         db.query(Location)
@@ -972,10 +1067,9 @@ def create_reference(
     )
 
     if not location:
-        raise HTTPException(
-            status_code=404,
-            detail="Location not found"
-        )
+        raise HTTPException(status_code=404, detail="Location not found")
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para este pedido.")
 
     db_reference = Reference(
         description=reference.description,
@@ -998,12 +1092,15 @@ def get_road_route(
     route_id: Optional[int] = Query(None),
     start_lat: Optional[float] = Query(None, ge=-90, le=90),
     start_lon: Optional[float] = Query(None, ge=-180, le=180),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """Calcula recorrido vial desde el GPS del repartidor y ordena las paradas."""
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     start = (start_lat, start_lon) if start_lat is not None else None
@@ -1049,9 +1146,12 @@ def get_road_route(
 )
 def get_optimal_route(
     route_id: Optional[int] = Query(None, description="Optimizar paradas de una ruta específica"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
 
