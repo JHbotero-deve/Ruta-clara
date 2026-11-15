@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -9,7 +10,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from database import get_db
-from src.models import User, TokenData
+from src.models import User, TokenData, UserSession
 
 logger = logging.getLogger("ruta_clara.auth")
 
@@ -87,7 +88,17 @@ async def get_current_user(
             raise credentials_exception
         token_data = TokenData(username=username)
     except JWTError:
-        raise credentials_exception
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        persistent_session = db.query(UserSession).filter(
+            UserSession.token_hash == token_hash,
+            UserSession.revoked_at.is_(None)
+        ).first()
+        if persistent_session is None:
+            raise credentials_exception
+        user = db.query(User).filter(User.id == persistent_session.user_id).first()
+        if user is None:
+            raise credentials_exception
+        return user
 
     user = db.query(User).filter(User.username == token_data.username).first()
     if user is None:
