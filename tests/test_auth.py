@@ -47,3 +47,13 @@ def test_development_secret_fallback_is_preserved(monkeypatch):
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.delenv("SECRET_KEY", raising=False)
     assert _resolve_secret_key() == _DEFAULT_SECRET
+
+
+def test_application_environment_enforces_production_on_qa_railway(monkeypatch):
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "qa-valle-aburra")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        _resolve_secret_key()
+    monkeypatch.setenv("SECRET_KEY", "b" * 64)
+    assert _resolve_secret_key() == "b" * 64
