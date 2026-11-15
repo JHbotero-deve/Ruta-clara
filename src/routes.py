@@ -269,9 +269,9 @@ def admin_users_activity(db: Session = Depends(get_db), admin: User = Depends(ge
     activity = []
     for user in drivers:
         orders = db.query(Location).filter(or_(Location.assigned_to_id == user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == user.id))).all()
-        delivered = sum(1 for order in orders if order.status == "delivered" or order.delivered)
         pending = sum(1 for order in orders if order.status in {"pending", "assigned", "in_transit"} and not order.delivered)
         in_transit = sum(1 for order in orders if order.status == "in_transit")
+        delivered = db.query(LocationStatusHistory).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered").count()
         events = db.query(LocationStatusHistory).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered", LocationStatusHistory.changed_at >= week_start).order_by(LocationStatusHistory.changed_at.desc()).all()
         daily = { (today - timedelta(days=6-offset)).isoformat(): 0 for offset in range(7) }
         for event in events:
@@ -931,7 +931,7 @@ def read_locations(
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, Location.created_by_id == current_user.id))
+    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
     elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
     if status_filter: query = query.filter(Location.status == status_filter)
@@ -1200,7 +1200,7 @@ def get_road_route(
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, Location.created_by_id == current_user.id))
+    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
     elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
     query = query.filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
@@ -1271,7 +1271,7 @@ def get_optimal_route(
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, Location.created_by_id == current_user.id))
+    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
     elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
     query = query.filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
