@@ -1173,6 +1173,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let markersGroup = L.layerGroup();
         let polylineGroup = L.layerGroup();
         let roadRouteRequestId = 0;
+        let isGpsRouteReady = false;
         let userMarker = null;
         let navGuidanceLine = null;
         let tempMarker = null;
@@ -1860,6 +1861,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
+        function getCurrentGpsPosition() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) return reject(new Error('Este celular no ofrece GPS.'));
+                navigator.geolocation.getCurrentPosition(
+                    position => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy }),
+                    error => reject(new Error(error.code === 1 ? 'Permite el acceso a la ubicación para calcular la ruta.' : 'No se pudo obtener una ubicación GPS precisa.')),
+                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+                );
+            });
+        }
+
         async function renderNavigationGuide(locations) {
             markersGroup.clearLayers();
             polylineGroup.clearLayers();
@@ -1869,6 +1881,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const totalSummary = document.getElementById('totalSummary');
             const stopsCountBadge = document.getElementById('stopsCountBadge');
             const requestId = ++roadRouteRequestId;
+            isGpsRouteReady = locations && locations.length <= 1;
 
             if (stopsCountBadge) stopsCountBadge.innerText = locations ? locations.length : 0;
             stepsContainer.innerHTML = '';
@@ -1904,13 +1917,23 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             let totalDist = 0;
             let roadRoute = null;
+            let gpsError = null;
             if (locations.length > 1 && activeRouteId) {
                 try {
-                    const routeResponse = await fetch("/road_route?route_id=" + activeRouteId);
-                    if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial");
+                    const gps = await getCurrentGpsPosition();
+                    const routeResponse = await fetch(`/road_route?route_id=${activeRouteId}&start_lat=${gps.latitude}&start_lon=${gps.longitude}`);
+                    if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial desde tu GPS.");
                     roadRoute = await routeResponse.json();
-                    if (roadRoute.stop_ids.length !== locations.length || roadRoute.stop_ids.some((id, idx) => id !== locations[idx].id)) throw new Error("El orden de las paradas cambió durante el cálculo");
-                } catch (error) { console.warn("Ruta vial no disponible:", error); }
+                    const orderedLocations = roadRoute.stop_ids.map(id => locations.find(location => String(location.id) === String(id)));
+                    if (orderedLocations.length !== locations.length || orderedLocations.some(location => !location) || !roadRoute.origin_included) throw new Error("El servidor devolvió un orden de paradas incompleto.");
+                    locations.splice(0, locations.length, ...orderedLocations);
+                    isGpsRouteReady = true;
+                } catch (error) {
+                    gpsError = error.message || "GPS no disponible.";
+                    roadRoute = null;
+                    isGpsRouteReady = false;
+                    console.warn("Ruta GPS no disponible:", error);
+                }
             }
             if (requestId !== roadRouteRequestId) return;
             const points = [];
@@ -1945,13 +1968,14 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
 
             locations.forEach((loc, idx) => {
-                let distText = "Punto de partida";
-                if (idx > 0) {
-                    const prev = locations[idx - 1];
-                    const leg = roadRoute && roadRoute.legs[idx - 1];
-                    const segmentDist = leg ? leg.distance_m / 1000 : calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
+                let distText = "Primera parada desde tu ubicación GPS";
+                const leg = roadRoute && roadRoute.origin_included ? roadRoute.legs[idx] : null;
+                if (leg) {
+                    const segmentDist = leg.distance_m / 1000;
                     totalDist += segmentDist;
-                    distText = leg ? `Distancia por vía desde anterior: <b>${segmentDist.toFixed(2)} km</b>` : `Distancia aproximada en línea recta: <b>${segmentDist.toFixed(2)} km</b>`;
+                    distText = idx === 0 ? `Desde tu GPS: <b>${segmentDist.toFixed(2)} km</b>` : `Desde parada anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                } else if (gpsError) {
+                    distText = "Sin calcular: ubicación GPS requerida";
                 }
 
                 const isDelivered = loc.delivered === true;
@@ -1994,9 +2018,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             if (locations.length > 1) {
                 totalSummary.style.display = 'block';
-                document.getElementById('totalDistKm').innerText = (roadRoute ? roadRoute.distance_m / 1000 : totalDist).toFixed(2);
-                document.getElementById('totalSummary').title = roadRoute ? `Recorrido vial: ${(roadRoute.duration_s / 60).toFixed(0)} min` : 'Ruta vial no disponible; distancias aproximadas en línea recta';
-                document.getElementById('routeStatus').innerText = roadRoute ? `Recorrido por calles: ${(roadRoute.duration_s / 60).toFixed(0)} min estimados` : 'Ruta vial no disponible; se muestran distancias aproximadas en línea recta';
+                document.getElementById('totalDistKm').innerText = roadRoute ? (roadRoute.distance_m / 1000).toFixed(2) : '--';
+                document.getElementById('totalSummary').title = roadRoute ? `Recorrido vial desde GPS: ${(roadRoute.duration_s / 60).toFixed(0)} min` : 'No se calculó la ruta porque falta una ubicación GPS válida';
+                document.getElementById('routeStatus').innerText = roadRoute ? `GPS confirmado · Primera parada desde tu ubicación · ${(roadRoute.duration_s / 60).toFixed(0)} min estimados` : (gpsError || 'Activa la ubicación del celular para calcular una ruta segura. No se ha optimizado el recorrido.');
             } else {
                 totalSummary.style.display = 'none';
             }
@@ -2035,6 +2059,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 return;
             }
 
+            if (currentLocations.length > 1 && !isGpsRouteReady) {
+                alert('No se puede iniciar: primero activa el GPS y espera a que Ruta Clara calcule el recorrido desde tu ubicación.');
+                return;
+            }
             isNavigating = true;
             document.getElementById('btnToggleNav').innerText = '🛑 Detener';
             document.getElementById('btnToggleNav').style.background = '#ef4444';
