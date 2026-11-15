@@ -465,6 +465,10 @@ def test_delivery_route_pdf_export_and_driver_permissions():
     assert admin_report.status_code == 200
     assert admin_report.headers["content-type"].startswith("application/pdf")
     assert admin_report.content.startswith(b"%PDF")
+    admin_sheet = client.get(f"/export/delivery-route.xlsx?route_id={route_id}&driver_id={driver_id}", headers=admin)
+    assert admin_sheet.status_code == 200
+    assert admin_sheet.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    assert admin_sheet.content.startswith(b"PK")
 
     login = client.post("/token", data={"username": "domiciliario_pdf@example.com", "password": "Password123!"})
     assert login.status_code == 200
@@ -472,6 +476,9 @@ def test_delivery_route_pdf_export_and_driver_permissions():
     driver_report = client.get(f"/export/delivery-route.pdf?route_id={route_id}", headers=driver_headers)
     assert driver_report.status_code == 200
     assert driver_report.content.startswith(b"%PDF")
+    driver_sheet = client.get(f"/export/delivery-route.xlsx?route_id={route_id}", headers=driver_headers)
+    assert driver_sheet.status_code == 200
+    assert driver_sheet.content.startswith(b"PK")
 
     forbidden = client.get(f"/export/delivery-route.pdf?route_id={route_id}&driver_id={driver_id + 100}", headers=driver_headers)
     assert forbidden.status_code == 403
