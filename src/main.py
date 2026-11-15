@@ -40,6 +40,7 @@ def init_db_and_migrate():
                 "entrance_name": "VARCHAR(150)",
                 "entrance_confirmed": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "location_source": "VARCHAR(30)",
+                "client_id": "VARCHAR(64)",
                 "delivered": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
                 "created_by_id": "INTEGER",
