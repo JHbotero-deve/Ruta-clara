@@ -1377,6 +1377,190 @@ def export_delivery_route_pdf(
     )
 
 
+
+@router.get("/export/delivery-route.xlsx", tags=["Reports"])
+def export_delivery_route_xlsx(
+    route_id: Optional[int] = Query(None),
+    driver_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Genera una hoja de cálculo editable con resumen, paradas y marca Ruta Clara."""
+    from io import BytesIO
+    from zoneinfo import ZoneInfo
+    from PIL import Image as PILImage, ImageDraw, ImageFont
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+    from openpyxl.drawing.image import Image as ExcelImage
+    from openpyxl.utils import get_column_letter
+    import re
+
+    if current_user.role not in {"admin", "driver"}:
+        raise HTTPException(status_code=403, detail="No tienes permiso para exportar recorridos.")
+    target_driver = None
+    if current_user.role == "driver":
+        if driver_id is not None and driver_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Solo puedes exportar tus propios recorridos.")
+        target_driver = current_user
+    elif driver_id is not None:
+        target_driver = db.query(User).filter(User.id == driver_id, User.role == "driver").first()
+        if not target_driver:
+            raise HTTPException(status_code=404, detail="No se encontró el domiciliario solicitado.")
+    elif route_id is None:
+        raise HTTPException(status_code=422, detail="Selecciona un domiciliario o una ruta para generar el informe.")
+
+    query = db.query(Location)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
+    if target_driver:
+        query = query.filter(or_(
+            Location.assigned_to_id == target_driver.id,
+            and_(Location.assigned_to_id.is_(None), Location.created_by_id == target_driver.id)
+        ))
+    if route_id is None:
+        query = query.filter(Location.updated_at >= datetime.now(timezone.utc) - timedelta(days=7))
+    locations = query.order_by(Location.route_id.asc(), Location.created_at.asc(), Location.id.asc()).all()
+    if not locations:
+        raise HTTPException(status_code=404, detail="No hay paradas para incluir en el periodo o ruta seleccionada.")
+
+    ids = [item.id for item in locations]
+    events = db.query(LocationStatusHistory).filter(
+        LocationStatusHistory.location_id.in_(ids)
+    ).order_by(LocationStatusHistory.changed_at.desc(), LocationStatusHistory.id.desc()).all()
+    latest_events = {}
+    for event in events:
+        latest_events.setdefault(event.location_id, event)
+    try:
+        local_tz = ZoneInfo("America/Bogota")
+    except Exception:
+        local_tz = timezone.utc
+
+    def local_datetime(value):
+        if not value:
+            return "—"
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(local_tz).strftime("%d/%m/%Y %H:%M")
+
+    labels = {"pending":"Pendiente","assigned":"Asignado","in_transit":"En camino","delivered":"Entregado","issue":"Novedad","cancelled":"Cancelado"}
+    generated_at = datetime.now(timezone.utc)
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Recorrido"
+    sheet.sheet_view.showGridLines = False
+    sheet.merge_cells("A1:G1")
+    sheet["A1"] = "REPORTE DE RECORRIDO"
+    sheet["A1"].font = Font(name="Arial", size=18, bold=True, color="14232D")
+    sheet["A1"].alignment = Alignment(vertical="center")
+    sheet.row_dimensions[1].height = 32
+    sheet.merge_cells("A2:G2")
+    sheet["A2"] = f"Responsable: {target_driver.username if target_driver else 'Equipo asignado'}  |  Periodo: {'Ruta seleccionada' if route_id else 'Últimos 7 días'}  |  Generado: {local_datetime(generated_at)}"
+    sheet["A2"].font = Font(name="Arial", size=9, color="687887")
+    sheet["A2"].alignment = Alignment(wrap_text=True, vertical="center")
+    sheet.row_dimensions[2].height = 25
+
+    delivered = sum(1 for item in locations if item.status == "delivered" or item.delivered)
+    pending = sum(1 for item in locations if item.status in {"pending","assigned","in_transit"})
+    issues = sum(1 for item in locations if item.status == "issue")
+    summary = [
+        ("PARADAS", len(locations)),
+        ("ENTREGADAS", delivered),
+        ("PENDIENTES", pending),
+        ("NOVEDADES", issues)
+    ]
+    for index, (label, value) in enumerate(summary):
+        start = index * 2 + 1
+        end = start + 1
+        sheet.merge_cells(start_row=4, start_column=start, end_row=4, end_column=end)
+        cell = sheet.cell(4, start, f"{label}: {value}")
+        cell.font = Font(name="Arial", size=10, bold=True, color="14232D")
+        cell.fill = PatternFill("solid", fgColor="F2F6F7")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = Border(bottom=Side(style="thin", color="DFE7E9"))
+    sheet.row_dimensions[4].height = 26
+
+    headers = ["N.º", "Ruta", "Dirección", "Municipio / Barrio", "Referencia / Acceso", "Estado", "Última actualización"]
+    header_row = 7
+    for col, value in enumerate(headers, start=1):
+        cell = sheet.cell(header_row, col, value)
+        cell.font = Font(name="Arial", size=9, bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="182832")
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+    sheet.row_dimensions[header_row].height = 24
+
+    thin_border = Border(bottom=Side(style="hair", color="DFE5E9"))
+    for row_index, item in enumerate(locations, start=header_row + 1):
+        state = "delivered" if item.delivered else (item.status or "pending")
+        route_name = item.route.name if item.route else f"Ruta {item.route_id or 'sin asignar'}"
+        area = " · ".join(value for value in [item.municipality, item.neighborhood] if value) or "—"
+        reference = " · ".join(value for value in [item.unit_number, item.entrance_name] if value) or "—"
+        event = latest_events.get(item.id)
+        values = [row_index - header_row, route_name, item.address or item.name or "Dirección no registrada", area, reference, labels.get(state, state.title()), local_datetime(event.changed_at if event else (item.updated_at or item.created_at))]
+        for col, value in enumerate(values, start=1):
+            cell = sheet.cell(row_index, col, value)
+            cell.font = Font(name="Arial", size=9, color="263746")
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            cell.border = thin_border
+            if row_index % 2 == 0:
+                cell.fill = PatternFill("solid", fgColor="F7F9FA")
+        state_cell = sheet.cell(row_index, 6)
+        state_cell.font = Font(name="Arial", size=9, bold=True, color="176B63" if state == "delivered" else ("A16207" if state == "issue" else "475569"))
+        sheet.row_dimensions[row_index].height = 32
+
+    widths = [7, 22, 38, 24, 28, 16, 22]
+    for col, width in enumerate(widths, start=1):
+        sheet.column_dimensions[get_column_letter(col)].width = width
+    sheet.freeze_panes = "A8"
+    sheet.auto_filter.ref = f"A{header_row}:G{header_row + len(locations)}"
+    footer_row = header_row + len(locations) + 3
+
+    logo_image = PILImage.new("RGBA", (360, 76), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(logo_image)
+    draw.ellipse((4, 5, 66, 67), fill="#182832")
+    draw.line((22, 46, 36, 23, 52, 44), fill="#75C1B1", width=4)
+    for point in [(22,46),(36,23),(52,44)]:
+        draw.ellipse((point[0]-4, point[1]-4, point[0]+4, point[1]+4), fill="#75C1B1")
+    try:
+        bold_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 21)
+        small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11)
+    except OSError:
+        bold_font = ImageFont.load_default()
+        small_font = ImageFont.load_default()
+    draw.text((82, 13), "RUTA CLARA", fill="#182832", font=bold_font)
+    draw.text((84, 43), "GESTION LOGISTICA", fill="#687887", font=small_font)
+    image_buffer = BytesIO()
+    logo_image.save(image_buffer, format="PNG")
+    image_buffer.seek(0)
+    logo = ExcelImage(image_buffer)
+    logo.width = 230
+    logo.height = 49
+    sheet.add_image(logo, f"A{footer_row}")
+    sheet.merge_cells(start_row=footer_row + 1, start_column=1, end_row=footer_row + 1, end_column=7)
+    footer = sheet.cell(footer_row + 1, 1, "Documento interno · Ruta Clara")
+    footer.font = Font(name="Arial", size=8, color="687887", italic=True)
+    footer.alignment = Alignment(vertical="center")
+    sheet.row_dimensions[footer_row + 1].height = 18
+    sheet.page_setup.orientation = "landscape"
+    sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    sheet.print_title_rows = "1:7"
+    sheet.print_area = f"A1:G{footer_row + 1}"
+    sheet.oddFooter.center.text = "RUTA CLARA · GESTIÓN LOGÍSTICA  |  Página &[Page] de &[Pages]"
+    sheet.oddFooter.center.size = 8
+    sheet.oddFooter.center.font = "Arial,Regular"
+
+    output = BytesIO()
+    workbook.save(output)
+    filename_slug = re.sub(r"[^a-z0-9]+", "-", (target_driver.username if target_driver else f"ruta-{route_id}").casefold()).strip("-") or "recorrido"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="ruta-clara-{filename_slug}.xlsx"'}
+    )
+
+
 # ============================================================
 # WEEKLY EXPORT
 # ============================================================
