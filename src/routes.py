@@ -702,7 +702,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     sender_marker = re.compile(r"^\s*(?:datos\s+de\s+)?(?:remitente|remitente|origen|direcci[oó]n\s+(?:del\s+)?remitente|devoluci[oó]n|return\s*to|shipper|sender)\b", re.IGNORECASE)
     destination_index = next((index for index, line in enumerate(lines) if destination_marker.search(line)), None)
     sender_indices = [index for index, line in enumerate(lines) if sender_marker.search(line)]
-    if destination_index is not None:
+    if destination_index is not None and any(index < destination_index for index in sender_indices):
         next_sender = next((index for index in sender_indices if index > destination_index), len(lines))
         text = "\n".join(lines[destination_index:next_sender])
     elif sender_indices:
