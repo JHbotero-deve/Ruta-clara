@@ -364,6 +364,31 @@ def test_admin_can_create_all_three_roles_and_login_with_email():
         assert login.status_code == 200, login.text
 
 
+def test_admin_assignment_driver_scope_and_dynamic_pending_route():
+    admin = admin_headers()
+    driver = client.post("/admin/users", json={"email":"repartidor@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    assert driver.status_code == 201, driver.text
+    login = client.post("/token", data={"username":"repartidor@example.com","password":"Password123!"})
+    driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    payload = {"name":"Pedido asignado","latitude":6.2,"longitude":-75.5,"address":"Calle 10 #20-30","entrance_name":"Portería","entrance_confirmed":True}
+    created = client.post("/locations", json=payload, headers=admin)
+    assert created.status_code == 201, created.text
+    assigned = client.patch(f"/locations/{created.json()['id']}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin)
+    assert assigned.status_code == 200
+    assert assigned.json()["assigned_to_id"] == driver.json()["id"]
+    assert len(client.get("/optimal_route", headers=driver_headers).json()) == 1
+    delivered = client.patch(f"/locations/{created.json()['id']}/delivered", json={"delivered":True}, headers=driver_headers)
+    assert delivered.status_code == 200
+    assert client.get("/optimal_route", headers=driver_headers).json() == []
+    completed = client.get("/locations?status=delivered", headers=driver_headers)
+    assert completed.status_code == 200 and len(completed.json()) == 1
+    activity = client.get("/admin/users/activity", headers=admin)
+    assert activity.status_code == 200
+    driver_activity = next(user for user in activity.json()["users"] if user["id"] == driver.json()["id"])
+    assert driver_activity["delivered"] == 1
+    assert driver_activity["pending"] == 0
+
+
 def test_public_registration_is_closed_after_first_account():
     headers = admin_headers()
     response = client.post("/register", json={"username":"intruso","password":"Password123!"})
