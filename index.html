@@ -1674,7 +1674,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(!activeRouteId)return;
             const routeKey=`rc_route_cache_${rutaUser?.id}_${activeRouteId}`,completedKey=`rc_completed_cache_${rutaUser?.id}_${activeRouteId}`;
             try{
-                const response=await fetch(`/optimal_route?route_id=${activeRouteId}`);
+                const params=new URLSearchParams({route_id:activeRouteId});
+                try{
+                    const gps=currentUserLatLng?{latitude:currentUserLatLng[0],longitude:currentUserLatLng[1],accuracy:0}:await getCurrentGpsPosition();
+                    if(gps.accuracy<=50){currentUserLatLng=[gps.latitude,gps.longitude];params.set("start_lat",gps.latitude);params.set("start_lon",gps.longitude);}
+                }catch(error){}
+                const response=await fetch(`/optimal_route?${params.toString()}`);
                 if(!response.ok)throw new Error("Error al cargar paradas pendientes.");
                 currentLocations=await response.json();
                 const deliveredResponse=await fetch(`/locations?route_id=${activeRouteId}&status=delivered`);
@@ -2158,6 +2163,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (locations.length > 1 && activeRouteId) {
                 try {
                     const gps = await getCurrentGpsPosition();
+                    currentUserLatLng = [gps.latitude, gps.longitude];
                     if (gps.accuracy > 50) throw new Error(`GPS impreciso (±${Math.round(gps.accuracy)} m). Espera una precisión de 50 m o menos antes de calcular la ruta.`);
                     const routeResponse = await fetch(`/road_route?route_id=${activeRouteId}&start_lat=${gps.latitude}&start_lon=${gps.longitude}`);
                     if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial desde tu GPS.");
@@ -2169,7 +2175,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 } catch (error) {
                     gpsError = error.message || "GPS no disponible.";
                     roadRoute = null;
-                    isGpsRouteReady = false;
+                    isGpsRouteReady = Boolean(currentUserLatLng);
                     console.warn("Ruta GPS no disponible:", error);
                 }
             }
