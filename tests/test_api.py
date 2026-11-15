@@ -153,7 +153,7 @@ def test_parse_delivery_label():
     res = client.post("/parse-delivery-label", json={"text": label_text})
     assert res.status_code == 200
     parsed = res.json()
-    assert parsed["direccion"] == "Carrera 43A # 1-50"
+    assert parsed["direccion"] == "Carrera 43A #1-50"
     assert parsed["distrito"] == "El Poblado, Medellín"
     assert parsed["referencia"] == "Torre 2 Apto 402"
     assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
@@ -190,7 +190,7 @@ def test_parser_keeps_only_address_reference_from_mixed_reference_line():
     assert parsed["direccion"] == "Calle Venezuela 50"
     assert parsed["referencia"] == "Piso 11 dto 3 Rio"
     assert parsed["municipio"] == "CABA"
-    assert parsed["distrito"] == "MONSERRAT"
+    assert parsed["distrito"] == "Monserrat"
     assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
 
 

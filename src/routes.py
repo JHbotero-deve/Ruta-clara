@@ -576,6 +576,14 @@ def parse_delivery_label_endpoint(payload: dict):
         municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa", "CABA", "Buenos Aires"]
         normalized_text = f" {normalize_geocode_value(text)} "
         municipio = next((name for name in municipalities if f" {normalize_geocode_value(name)} " in normalized_text), "")
+    if not distrito and municipio:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        for position, line in enumerate(lines):
+            if normalize_geocode_value(line) == normalize_geocode_value(municipio):
+                candidate = next((item for item in lines[position + 1:position + 3] if item.isupper() and item.casefold() not in {"residencial", "comercial"}), "")
+                if candidate:
+                    distrito = candidate.title()
+                break
 
     if not direccion:
         address_line = re.search(
@@ -595,9 +603,9 @@ def parse_delivery_label_endpoint(payload: dict):
     if unit_match:
         direccion = direccion[:unit_match.start()] + direccion[unit_match.end():]
     direccion = re.sub(r"\bS?/?N\b", "", direccion, flags=re.IGNORECASE)
-    compact = re.match(r"^(Carrera|Calle)\s*(\d+[a-z]?)\s*(\d{1,3})\s*-\s*(\d{1,3})$", direccion.strip(), re.IGNORECASE)
+    compact = re.match(r"^(Carrera|Calle)\s*(\d+)([a-z]?)\s*(?:#\s*)?(\d{1,3})\s*-\s*(\d{1,3})$", direccion.strip(), re.IGNORECASE)
     if compact:
-        direccion = f"{compact.group(1).title()} {compact.group(2).upper()} #{compact.group(3)}-{compact.group(4)}"
+        direccion = f"{compact.group(1).title()} {compact.group(2)}{compact.group(3).upper()} #{compact.group(4)}-{compact.group(5)}"
     direccion = re.sub(r"\s*#\s*", " # ", direccion)
     direccion = re.sub(r"\s+", " ", direccion).strip(" ,.-")
 
