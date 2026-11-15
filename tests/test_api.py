@@ -45,9 +45,9 @@ client = TestClient(app)
 
 
 def admin_headers():
-    response = client.post("/register", json={"username": "admin_test", "email": "admin@example.com", "password": "Password123!"})
+    response = client.post("/register", json={"email": "jorgebotero190@gmail.com", "password": "Password123!"})
     assert response.status_code == 201, response.text
-    token = client.post("/token", data={"username": "admin_test", "password": "Password123!"})
+    token = client.post("/token", data={"username": "jorgebotero190@gmail.com", "password": "Password123!"})
     assert token.status_code == 200, token.text
     return {"Authorization": f"Bearer {token.json()['access_token']}"}
 
@@ -60,19 +60,18 @@ def test_health_check():
 
 def test_user_registration_and_login():
     reg_payload = {
-        "username": "testdriver",
-        "email": "driver@example.com",
+        "email": "jorgebotero190@gmail.com",
         "password": "Password123!"
     }
     res_reg = client.post("/register", json=reg_payload)
     assert res_reg.status_code == 201
     data = res_reg.json()
-    assert data["username"] == "testdriver"
+    assert data["email"] == "jorgebotero190@gmail.com"
     assert "id" in data
 
     # Login
     login_data = {
-        "username": "testdriver",
+        "username": "jorgebotero190@gmail.com",
         "password": "Password123!"
     }
     res_login = client.post("/token", data=login_data)
@@ -85,7 +84,7 @@ def test_user_registration_and_login():
     headers = {"Authorization": f"Bearer {token_json['access_token']}"}
     res_me = client.get("/users/me", headers=headers)
     assert res_me.status_code == 200
-    assert res_me.json()["username"] == "testdriver"
+    assert res_me.json()["email"] == "jorgebotero190@gmail.com"
 
 
 def test_delivery_routes_crud():
@@ -353,6 +352,16 @@ def test_location_requires_confirmed_entrance():
     response = client.post("/locations", json={"name":"Sin portería","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30"}, headers=headers)
     assert response.status_code == 422
     assert "portería" in response.json()["detail"].lower()
+
+
+def test_admin_can_create_all_three_roles_and_login_with_email():
+    headers = admin_headers()
+    for role, email in [("admin", "admin2@example.com"), ("operator", "operator2@example.com"), ("driver", "driver2@example.com")]:
+        created = client.post("/admin/users", json={"email": email, "password": "ClaveFacil123", "role": role}, headers=headers)
+        assert created.status_code == 201, created.text
+        assert created.json()["role"] == role
+        login = client.post("/token", data={"username": email, "password": "ClaveFacil123"})
+        assert login.status_code == 200, login.text
 
 
 def test_public_registration_is_closed_after_first_account():
