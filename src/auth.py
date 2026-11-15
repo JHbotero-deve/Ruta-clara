@@ -24,8 +24,10 @@ def _resolve_secret_key() -> str:
         os.getenv("ENVIRONMENT", "").strip().lower(),
     }
     is_production = bool(environments & {"production", "prod"})
-    if is_production and (len(configured_secret) < 32 or configured_secret == _DEFAULT_SECRET):
-        raise RuntimeError("SECRET_KEY debe configurarse en producción con un valor único de al menos 32 caracteres.")
+    placeholder_markers = ("change-this", "replace-me", "your-secret", "example", "placeholder", "changeme")
+    is_placeholder = any(marker in configured_secret.casefold() for marker in placeholder_markers)
+    if is_production and (len(configured_secret) < 32 or configured_secret == _DEFAULT_SECRET or is_placeholder):
+        raise RuntimeError("SECRET_KEY debe configurarse en producción con un valor único y no predecible de al menos 32 caracteres.")
     if not configured_secret:
         logger.warning("SECRET_KEY no configurada. Se usa un valor de desarrollo inseguro; no desplegar así en producción.")
         return _DEFAULT_SECRET
