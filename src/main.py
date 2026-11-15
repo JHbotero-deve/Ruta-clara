@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect
 
 from database import engine, SessionLocal
 from src.models import Base, DeliveryRoute, Location, User
@@ -28,41 +29,31 @@ def init_db_and_migrate():
     """Create tables and apply incremental SQLite migrations if needed."""
     Base.metadata.create_all(bind=engine)
 
-    # SQLite migration checks
-    with engine.connect() as conn:
-        try:
-            # Check columns in locations table
-            result = conn.exec_driver_sql("PRAGMA table_info(locations)").fetchall()
-            existing_cols = {col[1] for col in result}
-
-            if "route_id" not in existing_cols:
-                logger.info("Migrando BD: Agregando columna 'route_id' a locations")
-                conn.exec_driver_sql("ALTER TABLE locations ADD COLUMN route_id INTEGER REFERENCES delivery_routes(id)")
-
-            if "delivered" not in existing_cols:
-                logger.info("Migrando BD: Agregando columna 'delivered' a locations")
-                conn.exec_driver_sql("ALTER TABLE locations ADD COLUMN delivered BOOLEAN DEFAULT 0")
+    # Migraciones compatibles con SQLite y PostgreSQL.
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        tables = set(inspector.get_table_names())
+        if "locations" in tables:
+            existing_cols = {column["name"] for column in inspector.get_columns("locations")}
             migrations = {
+                "route_id": "INTEGER REFERENCES delivery_routes(id)",
+                "delivered": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
                 "created_by_id": "INTEGER",
                 "status_updated_by_id": "INTEGER",
-                "created_at": "DATETIME",
-                "updated_at": "DATETIME"
+                "created_at": "TIMESTAMP",
+                "updated_at": "TIMESTAMP"
             }
             for column, definition in migrations.items():
                 if column not in existing_cols:
                     conn.exec_driver_sql(f"ALTER TABLE locations ADD COLUMN {column} {definition}")
-            conn.exec_driver_sql("UPDATE locations SET status = CASE WHEN delivered = 1 THEN 'delivered' ELSE 'pending' END WHERE status IS NULL OR status = ''")
+            conn.exec_driver_sql("UPDATE locations SET status = CASE WHEN delivered = TRUE THEN 'delivered' ELSE 'pending' END WHERE status IS NULL OR status = ''")
             conn.exec_driver_sql("UPDATE locations SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
             conn.exec_driver_sql("UPDATE locations SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL")
-
-            user_cols = {col[1] for col in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
+        if "users" in tables:
+            user_cols = {column["name"] for column in inspector.get_columns("users")}
             if "role" not in user_cols:
                 conn.exec_driver_sql("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'operator'")
-
-            conn.commit()
-        except Exception as e:
-            logger.warning("Verificación de migración: %s", e)
 
     # Promoción explícita y controlada del administrador inicial.
     db = SessionLocal()
