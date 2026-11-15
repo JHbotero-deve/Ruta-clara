@@ -1242,6 +1242,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Vista administrativa":"Tus pedidos registrados";
                 document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
                 document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
+                if(rutaUser.role!=="admin"){
+                    document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
+                }
                 if(typeof initMap==="function")initMap();await loadDashboard();showSection("dashboard");
             } catch(error) {sessionStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("No fue posible validar la sesión. Inicia sesión de nuevo.");}
         }
