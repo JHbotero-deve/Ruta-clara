@@ -15,14 +15,23 @@ from src.models import User, TokenData, UserSession
 logger = logging.getLogger("ruta_clara.auth")
 
 _DEFAULT_SECRET = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-SECRET_KEY = os.getenv("SECRET_KEY", _DEFAULT_SECRET)
 
-if SECRET_KEY == _DEFAULT_SECRET:
-    logger.warning(
-        "⚠️  SECRET_KEY no configurada. Usando valor por defecto INSEGURO. "
-        "Configura SECRET_KEY en tu archivo .env antes de desplegar a producción."
-    )
 
+def _resolve_secret_key() -> str:
+    configured_secret = os.getenv("SECRET_KEY", "").strip()
+    environment = os.getenv("RAILWAY_ENVIRONMENT_NAME", os.getenv("ENVIRONMENT", "")).strip().lower()
+    is_production = environment in {"production", "prod"}
+    if is_production and (len(configured_secret) < 32 or configured_secret == _DEFAULT_SECRET):
+        raise RuntimeError("SECRET_KEY debe configurarse en producción con un valor único de al menos 32 caracteres.")
+    if not configured_secret:
+        logger.warning("SECRET_KEY no configurada. Se usa un valor de desarrollo inseguro; no desplegar así en producción.")
+        return _DEFAULT_SECRET
+    if configured_secret == _DEFAULT_SECRET:
+        logger.warning("Se está usando la SECRET_KEY de desarrollo insegura.")
+    return configured_secret
+
+
+SECRET_KEY = _resolve_secret_key()
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
@@ -32,7 +41,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        # Bcrypt has a strict 72-byte limit
         truncated_password = plain_password[:72] if plain_password else ""
         return pwd_context.verify(truncated_password, hashed_password)
     except Exception:
