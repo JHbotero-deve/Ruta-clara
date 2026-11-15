@@ -54,7 +54,7 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return None
-    if not verify_password(password, user.hashed_password):
+    if user.disabled or not verify_password(password, user.hashed_password):
         return None
     return user
 
@@ -98,8 +98,13 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
     if current_user.disabled:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario desactivado")
+    return current_user
+
+
+async def get_current_admin_user(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Se requieren permisos de administrador")
     return current_user

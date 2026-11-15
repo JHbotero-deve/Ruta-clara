@@ -1,10 +1,14 @@
+import base64
+import io
 import pytest
+from PIL import Image
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import get_db
 from src.models import Base
+from src.routes import GEOCODE_CACHE, address_number_tokens_match
 from src.main import app
 
 from sqlalchemy.pool import StaticPool
@@ -38,6 +42,14 @@ def setup_db():
 
 
 client = TestClient(app)
+
+
+def admin_headers():
+    response = client.post("/register", json={"username": "admin_test", "email": "admin@example.com", "password": "Password123!"})
+    assert response.status_code == 201, response.text
+    token = client.post("/token", data={"username": "admin_test", "password": "Password123!"})
+    assert token.status_code == 200, token.text
+    return {"Authorization": f"Bearer {token.json()['access_token']}"}
 
 
 def test_health_check():
@@ -77,68 +89,84 @@ def test_user_registration_and_login():
 
 
 def test_delivery_routes_crud():
+    headers = admin_headers()
     # Create route
-    res_create = client.post("/delivery-routes", json={"name": "Ruta Envigado"})
+    res_create = client.post("/delivery-routes", json={"name": "Ruta Envigado"}, headers=headers)
     assert res_create.status_code == 201
     route_id = res_create.json()["id"]
 
     # List routes
-    res_list = client.get("/delivery-routes")
+    res_list = client.get("/delivery-routes", headers=headers)
     assert res_list.status_code == 200
     assert len(res_list.json()) >= 1
 
     # Update route
-    res_up = client.put(f"/delivery-routes/{route_id}", json={"name": "Ruta Envigado Tarde"})
+    res_up = client.put(f"/delivery-routes/{route_id}", json={"name": "Ruta Envigado Tarde"}, headers=headers)
     assert res_up.status_code == 200
     assert res_up.json()["name"] == "Ruta Envigado Tarde"
 
     # Delete route
-    res_del = client.delete(f"/delivery-routes/{route_id}")
+    res_del = client.delete(f"/delivery-routes/{route_id}", headers=headers)
     assert res_del.status_code == 204
 
 
 def test_locations_crud_and_optimal_route():
+    headers = admin_headers()
     # Create locations
     loc1 = {
         "name": "Parque Berrio",
         "latitude": 6.2492,
         "longitude": -75.5684,
-        "address": "Calle 50 # 50-00"
+        "address": "Calle 50 # 50-00",
+        "entrance_name": "Portería principal",
+        "entrance_confirmed": True,
+        "location_source": "manual_porteria",
+        "client_id": "offline-delivery-001"
     }
     loc2 = {
         "name": "Parque Poblado",
         "latitude": 6.2089,
         "longitude": -75.5678,
-        "address": "Carrera 43A # 9-00"
+        "address": "Carrera 43A # 9-00",
+        "entrance_name": "Portería principal",
+        "entrance_confirmed": True
     }
-    r1 = client.post("/locations", json=loc1)
-    r2 = client.post("/locations", json=loc2)
+    r1 = client.post("/locations", json=loc1, headers=headers)
+    r2 = client.post("/locations", json=loc2, headers=headers)
     assert r1.status_code == 201
+    assert r1.json()["entrance_name"] == "Portería principal"
+    assert r1.json()["entrance_confirmed"] is True
+    assert r1.json()["location_source"] == "manual_porteria"
+    assert r1.json()["client_id"] == "offline-delivery-001"
+    duplicate = client.post("/locations", json=loc1, headers=headers)
+    assert duplicate.status_code == 201
+    assert duplicate.json()["id"] == r1.json()["id"]
     assert r2.status_code == 201
 
     loc1_id = r1.json()["id"]
 
     # Toggle delivered
-    r_deliv = client.patch(f"/locations/{loc1_id}/delivered", json={"delivered": True})
+    r_deliv = client.patch(f"/locations/{loc1_id}/delivered", json={"delivered": True}, headers=headers)
     assert r_deliv.status_code == 200
     assert r_deliv.json()["delivered"] is True
 
     # Get locations
-    r_get = client.get("/locations")
+    r_get = client.get("/locations", headers=headers)
     assert r_get.status_code == 200
     assert len(r_get.json()) == 2
 
     # Get optimal route
-    r_opt = client.get("/optimal_route")
+    r_opt = client.get("/optimal_route", headers=headers)
     assert r_opt.status_code == 200
     assert len(r_opt.json()) == 2
 
     # Delete location
-    r_del = client.delete(f"/locations/{loc1_id}")
+    r_del = client.delete(f"/locations/{loc1_id}", headers=headers)
     assert r_del.status_code == 204
 
 
 def test_parse_delivery_label():
+    headers = admin_headers()
     label_text = (
         "Dirección: Carrera 43A # 1-50 Apto 402\n"
         "Distrito: El Poblado, Medellín\n"
@@ -146,34 +174,195 @@ def test_parse_delivery_label():
         "Destinatario: Carlos Perez (TRACK123456)\n"
         "RESIDENCIAL"
     )
-    res = client.post("/parse-delivery-label", json={"text": label_text})
+    res = client.post("/parse-delivery-label", json={"text": label_text}, headers=headers)
     assert res.status_code == 200
     parsed = res.json()
-    assert parsed["direccion"] == "Carrera 43A # 1-50 Apto 402"
+    assert parsed["direccion"] == "Carrera 43A #1-50"
     assert parsed["distrito"] == "El Poblado, Medellín"
-    assert parsed["destinatario"] == "Carlos Perez"
-    assert parsed["tracking_id"] == "TRACK123456"
+    assert parsed["referencia"] == "Torre 2 Apto 402"
+    assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
     assert parsed["tipo"] == "Residencial"
 
 
-def test_geocode_five_distinct_addresses():
-    import urllib.parse
+
+def test_parser_handles_ocr_errors_and_excludes_private_fields():
+    headers = admin_headers()
+    label = (
+        "MEDELLIN\nCOMERCIAL\n"
+        "Dlreccion: Cerrera 36a40-70 apartemento 200 SN.\n"
+        "Medellín\nDistrito: La Candelaria\n"
+        "Destinaterio: Nombre Privado (TRACK-123)\n"
+    )
+    response = client.post("/parse-delivery-label", json={"text": label}, headers=headers)
+    assert response.status_code == 200
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 36A #40-70"
+    assert parsed["referencia"].casefold() == "apartamento 200"
+    assert parsed["municipio"] == "Medellín"
+    assert parsed["distrito"] == "La Candelaria"
+    assert parsed["tipo"] == "Comercial"
+    assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
+
+
+def test_parser_keeps_only_address_reference_from_mixed_reference_line():
+    headers = admin_headers()
+    label = (
+        "CABA\nMONSERRAT\nRESIDENCIAL\n"
+        "Direccion: Calle Venezuela 50\n"
+        "Referencia: Piso 11 dto 3 Rio Referencia: A nombre de Persona Privada\n"
+        "Destinatario: Persona Privada (PABLO_123)\n"
+    )
+    parsed = client.post("/parse-delivery-label", json={"text": label}, headers=headers).json()
+    assert parsed["direccion"] == "Calle Venezuela 50"
+    assert parsed["referencia"] == "Piso 11 dto 3 Rio"
+    assert parsed["municipio"] == "CABA"
+    assert parsed["distrito"] == "Monserrat"
+    assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
+
+
+
+def test_parser_ignores_qr_barcode_tracking_and_extracts_unit():
+    headers = admin_headers()
+    label = (
+        "QR Code: https://tracking.example/ZXCV123456\n"
+        "Código de barras: 7701234567890\n"
+        "Tracking: ML-123456789\n"
+        "Dirección: Carrera 43A # 12-34\n"
+        "Municipio: Envigado\n"
+        "Unidad: Torres del Parque 2\n"
+        "Referencia: Torre 3 Apto 402\n"
+        "Destinatario: Nombre Privado\n"
+    )
+    response = client.post("/parse-delivery-label", json={"text": label}, headers=headers)
+    assert response.status_code == 200, response.text
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 43A #12-34"
+    assert parsed["municipio"] == "Envigado"
+    assert parsed["unidad"] == "Torres del Parque 2"
+    assert parsed["referencia"] == "Torre 3 Apto 402"
+    assert not any(value in str(parsed) for value in ("ZXCV123456", "7701234567890", "ML-123456789", "Nombre Privado"))
+
+
+def test_address_number_tokens_match_normalizes_leading_zeroes():
+    assert address_number_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 SUR 4, Envigado")
+    assert not address_number_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 SUR 40, Envigado")
+
+
+def test_geocode_five_distinct_addresses(monkeypatch):
     addresses = [
-        "Calle 30 Sur 48-170, Envigado",
-        "Carrera 42b #25 A-sur 41, Envigado",
-        "Carrera 45a #32 sur-04, Envigado",
-        "Carrera 42 14-74, Medellín",
-        "Calle 50 # 50-00, Medellín"
+        ("Calle 30 Sur 48-170, Envigado", "Envigado"),
+        ("Carrera 42b #25 A-sur 41, Envigado", "Envigado"),
+        ("Carrera 45a #32 sur-04, Envigado", "Envigado"),
+        ("Carrera 42 14-74, Medellín", "Medellín"),
+        ("Calle 50 # 50-00, Medellín", "Medellín")
     ]
 
-    for addr in addresses:
-        res = client.get(f"/geocode?query={urllib.parse.quote(addr)}")
-        if res.status_code == 200:
-            data = res.json()
-            assert len(data) > 0
-            assert "latitude" in data[0]
-            assert "longitude" in data[0]
-            lat = data[0]["latitude"]
-            lon = data[0]["longitude"]
-            assert 5.8 <= lat <= 6.6
-            assert -75.9 <= lon <= -75.1
+    def fake_arcgis(search_text, requested_muni=None):
+        return [{
+            "display_name": search_text,
+            "latitude": 6.2,
+            "longitude": -75.5,
+            "municipality": requested_muni or "",
+            "neighborhood": "",
+            "type": "PointAddress",
+            "class": "arcgis",
+            "score": 95
+        }]
+
+    monkeypatch.setattr("src.routes.query_arcgis_geocoder", fake_arcgis)
+    GEOCODE_CACHE.clear()
+    for address, municipality in addresses:
+        response = client.get("/geocode", params={"query": address})
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data and data[0]["municipality"] == municipality
+        assert 5.8 <= data[0]["latitude"] <= 6.6
+        assert -75.9 <= data[0]["longitude"] <= -75.1
+
+
+def test_ocr_delivery_label_scanner_with_eight_addresses():
+    headers = admin_headers()
+    from PIL import ImageDraw, ImageFont
+
+    labels = [
+        ("Envigado", "San Marcos", "Carrera 45A #32 Sur-04", "Enrique Aguirre", "Residencial"),
+        ("Envigado", "Las Vegas", "Calle 30 Sur 48-170", "Manuela Gonzalez Lanzas", "Ref 1414"),
+        ("Envigado", "Pontevedra", "Carrera 42B #25 A-Sur 41", "Angela Barrientos", "Unidad Ponte Vedra Apto 202"),
+        ("Medellin", "El Poblado", "Calle 15 Sur #48-74", "Wilmer Alexi Pacheco Jimenez", "Primer piso TELESENTINEL"),
+        ("Medellin", "El Poblado", "Calle 11 Sur #29E-115", "Nicolas Bonilla", "Saint Michel T2 1806 Torre 2"),
+        ("Medellin", "El Poblado El Tesoro", "Calle 7 Sur #23-91", "Diana Ochoa", "Ed Cibeles Transversal Superior por ISAGEN"),
+        ("Medellin", "El Poblado", "Calle 5 Sur #32-311", "Claudia Natalia Restrepo", "Apto 102"),
+        ("Medellin", "El Poblado Vizcaya", "Carrera 32B 10-110", "Lucrecia Ines Vasquez Garces", "Vizcaya Real 2 - 419"),
+    ]
+    font = ImageFont.load_default(size=64)
+
+    for municipality, neighborhood, address, recipient, reference in labels:
+        image = Image.new("RGB", (2400, 760), "white")
+        draw = ImageDraw.Draw(image)
+        lines = [
+            f"Direccion: {address}",
+            f"Municipio: {municipality}",
+            f"Barrio: {neighborhood}",
+            f"Destinatario: {recipient}",
+            f"Referencia: {reference}",
+        ]
+        for index, line in enumerate(lines):
+            draw.text((70, 55 + index * 130), line, fill="black", font=font)
+
+        image_buffer = io.BytesIO()
+        image.save(image_buffer, format="PNG")
+        encoded_image = base64.b64encode(image_buffer.getvalue()).decode("ascii")
+        response = client.post("/ocr-delivery-label", json={"image": encoded_image}, headers=headers)
+
+        assert response.status_code == 200, response.text
+        parsed = response.json()
+        assert parsed["direccion"].casefold().startswith(("calle", "carrera"))
+        assert parsed["municipio"].casefold() == municipality.casefold()
+        assert parsed["distrito"]
+        assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
+
+
+
+def test_operator_scope_and_status_audit():
+    admin = admin_headers()
+    created = client.post("/admin/users", json={"username":"operador1","email":"operador@example.com","password":"Password123!"}, headers=admin)
+    assert created.status_code == 201, created.text
+    operator_login = client.post("/token", data={"username":"operador1","password":"Password123!"})
+    operator = {"Authorization": f"Bearer {operator_login.json()['access_token']}"}
+    own = client.post("/locations", json={"name":"Pedido propio","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30","entrance_name":"Acceso principal","entrance_confirmed":True}, headers=operator)
+    other = client.post("/locations", json={"name":"Pedido admin","latitude":6.21,"longitude":-75.51,"address":"Carrera 40 # 10-20","entrance_name":"Portería","entrance_confirmed":True}, headers=admin)
+    assert own.status_code == 201 and other.status_code == 201
+    assert own.json()["created_by_username"] == "operador1"
+    assert own.json()["status"] == "pending"
+    visible = client.get("/locations", headers=operator).json()
+    assert [item["id"] for item in visible] == [own.json()["id"]]
+    assert client.get(f"/locations/{other.json()['id']}/history", headers=operator).status_code == 403
+    changed = client.patch(f"/locations/{own.json()['id']}/status", json={"status":"in_transit"}, headers=operator)
+    assert changed.status_code == 200
+    assert changed.json()["status"] == "in_transit"
+    history = client.get(f"/locations/{own.json()['id']}/history", headers=admin)
+    assert history.status_code == 200
+    assert history.json()[0]["new_status"] == "in_transit"
+    assert history.json()[0]["changed_by"] == "operador1"
+    assert client.get("/admin/users", headers=operator).status_code == 403
+    assert len(client.get("/locations", headers=admin).json()) == 2
+
+
+def test_location_requires_confirmed_entrance():
+    headers = admin_headers()
+    response = client.post("/locations", json={"name":"Sin portería","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30"}, headers=headers)
+    assert response.status_code == 422
+    assert "portería" in response.json()["detail"].lower()
+
+
+def test_public_registration_is_closed_after_first_account():
+    headers = admin_headers()
+    response = client.post("/register", json={"username":"intruso","password":"Password123!"})
+    assert response.status_code == 403
+    assert client.get("/admin/summary", headers=headers).status_code == 200
+
+
+def test_ocr_delivery_label_rejects_invalid_image():
+    headers = admin_headers()
+    response = client.post("/ocr-delivery-label", json={"image": "not-base64"}, headers=headers)
+    assert response.status_code == 400

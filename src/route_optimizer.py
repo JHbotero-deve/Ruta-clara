@@ -74,61 +74,40 @@ def _two_opt(route_indices: List[int], distances: dict) -> List[int]:
     return best_route
 
 
-def calculate_optimal_route(locations: List[Any]) -> List[Any]:
-    """Return locations reordered to form an optimal delivery route.
-
-    Solves the Travelling Salesman Problem (TSP):
-    - For N <= 8: exact solution evaluating all permutations (O(N!)).
-    - For N > 8: Nearest Neighbor + 2-Opt local search refinement (O(N²)).
-
-    Args:
-        locations: List of location objects with `.latitude` and `.longitude`.
-
-    Returns:
-        The same locations list reordered for minimal total travel distance.
-    """
+def calculate_optimal_route(locations: List[Any], start=None) -> List[Any]:
+    """Ordena las paradas desde un origen GPS opcional, sin cambiar la primera."""
     if not locations or len(locations) <= 1:
         return list(locations) if locations else []
-
     n = len(locations)
-
-    # Precalculate full distance matrix
     distances = {}
     for i, loc1 in enumerate(locations):
         distances[(i, i)] = 0.0
         for j, loc2 in enumerate(locations):
             if i != j:
-                distances[(i, j)] = haversine(
-                    loc1.latitude, loc1.longitude,
-                    loc2.latitude, loc2.longitude,
-                )
-
-    # For small N, brute-force exact optimal path
+                distances[(i, j)] = haversine(loc1.latitude, loc1.longitude, loc2.latitude, loc2.longitude)
+    if start is not None:
+        start_index = min(range(n), key=lambda idx: haversine(start[0], start[1], locations[idx].latitude, locations[idx].longitude))
+    else:
+        start_index = 0
     if n <= 8:
+        remaining = [idx for idx in range(n) if idx != start_index]
         min_distance = float("inf")
-        optimal_perm = tuple(range(n))
-        for perm in permutations(range(n)):
-            total_distance = sum(
-                distances[(perm[i], perm[i + 1])]
-                for i in range(len(perm) - 1)
-            )
-            if total_distance < min_distance:
-                min_distance = total_distance
-                optimal_perm = perm
+        optimal_perm = (start_index, *remaining)
+        for perm in permutations(remaining):
+            route = (start_index, *perm)
+            total = sum(distances[(route[i], route[i + 1])] for i in range(len(route) - 1))
+            if total < min_distance:
+                min_distance = total
+                optimal_perm = route
         return [locations[i] for i in optimal_perm]
-
-    # For larger N, use Nearest Neighbor algorithm + 2-Opt local search
-    unvisited = set(range(1, n))
-    current = 0
-    route_indices = [current]
-
+    unvisited = set(range(n))
+    unvisited.remove(start_index)
+    route_indices = [start_index]
+    current = start_index
     while unvisited:
         next_loc = min(unvisited, key=lambda idx: distances[(current, idx)])
         unvisited.remove(next_loc)
         route_indices.append(next_loc)
         current = next_loc
-
-    # Optimize route with 2-Opt
     optimized_indices = _two_opt(route_indices, distances)
-
     return [locations[i] for i in optimized_indices]

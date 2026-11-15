@@ -1,4 +1,5 @@
 import logging
+import pytesseract
 import unicodedata
 
 import os
@@ -25,10 +26,11 @@ from src.auth import (
     authenticate_user,
     create_access_token,
     get_current_active_user,
+    get_current_admin_user,
     get_password_hash,
 )
 from src.models import (
-    User, Location, Reference, DeliveryRoute,
+    User, Location, Reference, DeliveryRoute, LocationStatusHistory,
     UserCreate, UserResponse,
     LocationCreate, LocationResponse, LocationUpdateDelivered,
     ReferenceCreate, ReferenceResponse,
@@ -44,7 +46,9 @@ router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 MAP_FILE = STATIC_DIR / "offline" / "valle_aburra.mbtiles"
-LOG_FILE = BASE_DIR / "weekly_routes_log.csv"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR)))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = DATA_DIR / "weekly_routes_log.csv"
 
 GEOCODE_CACHE_MAX = 500
 GEOCODE_CACHE: OrderedDict = OrderedDict()
@@ -194,24 +198,16 @@ def offline_map_status():
     status_code=status.HTTP_201_CREATED
 )
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
-
-    existing_user = (
-        db.query(User)
-        .filter(User.username == user_in.username)
-        .first()
-    )
-
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already registered"
-        )
-
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=403, detail="El registro público está deshabilitado. Solicita acceso al administrador.")
+    if len(user_in.password) < 8:
+        raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
     new_user = User(
-        username=user_in.username,
+        username=user_in.username.strip(),
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
-        disabled=user_in.disabled or False
+        disabled=False,
+        role="admin"
     )
 
     db.add(new_user)
@@ -254,18 +250,92 @@ def read_users_me(
     return current_user
 
 
+@router.get("/admin/users", response_model=List[UserResponse], tags=["Administration"])
+def admin_list_users(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    return db.query(User).order_by(User.username.asc()).all()
+
+
+@router.post("/admin/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Administration"])
+def admin_create_user(user_in: UserCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    if len(user_in.password) < 8:
+        raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
+    if db.query(User).filter(User.username == user_in.username.strip()).first():
+        raise HTTPException(status_code=409, detail="El usuario ya existe.")
+    if user_in.email and db.query(User).filter(User.email == user_in.email).first():
+        raise HTTPException(status_code=409, detail="El correo ya está registrado.")
+    user = User(username=user_in.username.strip(), email=user_in.email, hashed_password=get_password_hash(user_in.password), disabled=False, role="operator")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/admin/users/{user_id}/disabled", response_model=UserResponse, tags=["Administration"])
+def admin_set_user_disabled(user_id: int, payload: dict, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta.")
+    disabled = payload.get("disabled")
+    if not isinstance(disabled, bool):
+        raise HTTPException(status_code=422, detail="El campo disabled debe ser booleano.")
+    if disabled and user.role == "admin":
+        active_admins = db.query(User).filter(User.role == "admin", User.disabled == False).count()
+        if active_admins <= 1:
+            raise HTTPException(status_code=400, detail="Debe existir al menos un administrador activo.")
+    user.disabled = disabled
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.get("/admin/summary", tags=["Administration"])
+def admin_summary(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    total = db.query(Location).count()
+    counts = {key: db.query(Location).filter(Location.status == key).count() for key in ("pending", "assigned", "in_transit", "delivered", "issue", "cancelled")}
+    return {"total": total, "by_status": counts, "users": db.query(User).count()}
+
+
+@router.get("/locations/{location_id}/history", tags=["Locations"])
+def location_status_history(location_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este pedido.")
+    events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc(), LocationStatusHistory.id.desc()).all()
+    return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
+
+
 # ============================================================
 # GEOCODING Y PARSER DE GUÍAS DE ENTREGA (COLOMBIA / VALLE DE ABURRÁ)
 # ============================================================
 
-def clean_address_for_geocoding(raw_text: str) -> str:
-    """
-    Limpia una dirección colombiana para que el geocodificador encuentre la vía exacta.
-    Remueve apartamentos, interiores, oficinas, torres y SN que confunden a los mapas.
-    """
+def normalize_geocode_value(value: str) -> str:
     import re
-    cleaned = raw_text
-    # Remover patrones de unidades internas
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", normalized.casefold()).strip()
+
+
+def address_number_tokens_match(query: str, candidate_address: str) -> bool:
+    import re
+    def normalize_number(token: str) -> str:
+        suffix = token[-1] if token[-1].isalpha() else ""
+        number = token[:-1] if suffix else token
+        return f"{int(number)}{suffix}"
+    expected = [normalize_number(token) for token in re.findall(r"\d+[a-z]?", normalize_geocode_value(query))]
+    actual = [normalize_number(token) for token in re.findall(r"\d+[a-z]?", normalize_geocode_value(candidate_address))]
+    return bool(expected) and all(token in actual for token in expected)
+
+
+def clean_address_for_geocoding(raw_text: str) -> str:
+    """Normaliza abreviaturas colombianas y conserva la nomenclatura (# y guion)."""
+    import re
+    cleaned = unicodedata.normalize("NFKC", raw_text).strip()
+    cleaned = re.sub(r"\b(?:cra|cr|carrera)\.?\s*(?=\d)", "Carrera ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:cll|cl|calle)\.?\s*(?=\d)", "Calle ", cleaned, flags=re.IGNORECASE)
     patterns = [
         r'\b(apartamento|apto|apt|ap)\.?\s*(\d+[a-zA-Z]*)',
         r'\b(oficina|ofc|ofi)\.?\s*(\d+[a-zA-Z]*)',
@@ -277,16 +347,16 @@ def clean_address_for_geocoding(raw_text: str) -> str:
         r'\bS/N\b',
         r'\b(bloque|blq)\.?\s*(\d+[a-zA-Z]*)'
     ]
-    for p in patterns:
-        cleaned = re.sub(p, '', cleaned, flags=re.IGNORECASE)
-
-    # Limpiar espacios repetidos y símbolos huérfanos
-    cleaned = re.sub(r'[,#\s]+', ' ', cleaned).strip()
-    return cleaned
+    for pattern in patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*#\s*", " # ", cleaned)
+    cleaned = re.sub(r"\s*,\s*", ", ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip(" ,")
 
 
 def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None) -> List[dict]:
-    """Consulta ArcGIS World Geocoding Service, optimizado para Colombia con respuesta < 0.5s."""
+    """Consulta ArcGIS y descarta resultados de otro municipio o ubicaciones genéricas."""
+    import re
     results = []
     try:
         searches = []
@@ -314,29 +384,34 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
                 score = candidate.get("score", 0)
                 if score < 70:
                     continue
-
                 point = candidate.get("location", {})
                 attrs = candidate.get("attributes", {})
                 if "x" not in point or "y" not in point:
                     continue
-
-                lat = float(point["y"])
-                lon = float(point["x"])
-
-                # Delimitar aproximadamente el Valle de Aburrá (Medellín, Envigado, etc.)
+                lat, lon = float(point["y"]), float(point["x"])
                 if not (5.8 <= lat <= 6.6 and -75.9 <= lon <= -75.1):
                     continue
 
-                municipality = attrs.get("City") or attrs.get("Subregion") or ""
+                municipality = attrs.get("City") or attrs.get("Municipality") or attrs.get("Subregion") or ""
                 neighborhood = attrs.get("Nbrhd") or attrs.get("District") or ""
+                if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
+                    continue
+
+                address_type = attrs.get("Addr_type", "")
+                display_name = attrs.get("LongLabel") or candidate.get("address") or ""
+                if re.search(r"\d", search_text):
+                    if address_type.casefold() not in {"pointaddress", "subaddress"}:
+                        continue
+                    if not address_number_tokens_match(search_text, display_name):
+                        continue
 
                 results.append({
-                    "display_name": attrs.get("LongLabel") or candidate.get("address"),
+                    "display_name": display_name,
                     "latitude": lat,
                     "longitude": lon,
                     "municipality": municipality,
                     "neighborhood": neighborhood,
-                    "type": attrs.get("Addr_type", "PointAddress"),
+                    "type": address_type or "PointAddress",
                     "class": "arcgis",
                     "score": score
                 })
@@ -354,6 +429,7 @@ def search_address(query: str = Query(..., min_length=3)):
     Busca direcciones colombianas ultra-rápido (< 0.5s) con prioridad ArcGIS
     y normalización inteligente para nomenclatura del Valle de Aburrá.
     """
+    import re
     global GEOCODE_LAST_REQUEST
 
     raw_query = " ".join(query.strip().split())
@@ -370,8 +446,9 @@ def search_address(query: str = Query(..., min_length=3)):
         "La Estrella", "Caldas", "Bello",
         "Copacabana", "Girardota", "Barbosa"
     ]
-    normalized_q = raw_query.casefold()
-    requested_muni = next((m for m in municipalities if m.casefold() in normalized_q), None)
+    normalized_q = normalize_geocode_value(raw_query)
+    padded_query = f" {normalized_q} "
+    requested_muni = next((m for m in municipalities if f" {normalize_geocode_value(m)} " in padded_query), None)
 
     # 1. Limpieza de dirección (quitar apto 200, SN, oficina, etc. para geocodificar)
     cleaned_q = clean_address_for_geocoding(raw_query)
@@ -406,11 +483,21 @@ def search_address(query: str = Query(..., min_length=3)):
             for item in data:
                 if item.get("lat") and item.get("lon"):
                     addr = item.get("address", {})
+                    municipality = addr.get("city") or addr.get("town") or addr.get("municipality") or addr.get("county") or ""
+                    if requested_muni and normalize_geocode_value(municipality) != normalize_geocode_value(requested_muni):
+                        continue
+                    item_type = (item.get("type") or "").casefold()
+                    display_name = item.get("display_name", "")
+                    if re.search(r"\d", cleaned_q):
+                        if item_type in {"city", "town", "suburb", "neighbourhood", "administrative", "road", "residential"}:
+                            continue
+                        if not address_number_tokens_match(cleaned_q, display_name):
+                            continue
                     results.append({
-                        "display_name": item.get("display_name", ""),
+                        "display_name": display_name,
                         "latitude": float(item["lat"]),
                         "longitude": float(item["lon"]),
-                        "municipality": addr.get("city") or addr.get("town") or addr.get("municipality") or "",
+                        "municipality": municipality,
                         "neighborhood": addr.get("suburb") or addr.get("neighbourhood") or "",
                         "type": item.get("type", ""),
                         "class": "nominatim"
@@ -432,64 +519,185 @@ def search_address(query: str = Query(..., min_length=3)):
     return results
 
 
-@router.post("/parse-delivery-label", tags=["Geocoding"])
-def parse_delivery_label_endpoint(payload: dict):
-    """
-    Parsea automáticamente el texto o OCR de una guía de entrega (Mercado Libre / Flex / transportadora):
-    - Tipo: RESIDENCIAL / COMERCIAL
-    - Dirección: Carrera/Calle ...
-    - Distrito: Barrio/Comuna
-    - Referencia: Apto / Torre / Indicaciones
-    - Destinatario: Nombre (ID)
-    """
+@router.get("/reverse-geocode", tags=["Geocoding"])
+def reverse_geocode(latitude: float = Query(..., ge=-90, le=90), longitude: float = Query(..., ge=-180, le=180)):
+    """Convierte el punto seleccionado en el mapa a una dirección legible."""
+    global GEOCODE_LAST_REQUEST
+    try:
+        elapsed = time.monotonic() - GEOCODE_LAST_REQUEST
+        if elapsed < 1.0:
+            time.sleep(1.0 - elapsed)
+        params = urllib.parse.urlencode({
+            "lat": latitude,
+            "lon": longitude,
+            "format": "jsonv2",
+            "addressdetails": 1,
+            "zoom": 18,
+            "accept-language": "es"
+        })
+        request = urllib.request.Request(
+            f"https://nominatim.openstreetmap.org/reverse?{params}",
+            headers={"User-Agent": "RutaClaraDeliveryApp/5.0"}
+        )
+        GEOCODE_LAST_REQUEST = time.monotonic()
+        with urllib.request.urlopen(request, timeout=6) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        if not data.get("display_name"):
+            raise ValueError("El proveedor no devolvió una dirección")
+        details = data.get("address", {})
+        municipality = details.get("city") or details.get("town") or details.get("municipality") or details.get("county") or ""
+        neighborhood = details.get("neighbourhood") or details.get("suburb") or details.get("quarter") or ""
+        return {
+            "display_name": data["display_name"],
+            "municipality": municipality,
+            "neighborhood": neighborhood
+        }
+    except Exception as error:
+        logger.warning("Error de geocodificación inversa: %s", error)
+        raise HTTPException(status_code=502, detail="No fue posible obtener la dirección del punto seleccionado.")
+
+
+@router.post("/ocr-delivery-label", tags=["Geocoding"])
+def ocr_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_current_active_user)):
+    """Recibe una foto de cámara, aplica OCR en español y analiza la etiqueta."""
+    import base64
+    import binascii
+    import io
     import re
-    text = payload.get("text", "")
-    if not text.strip():
+    from PIL import Image, ImageOps, ImageEnhance
+
+    image_data = payload.get("image", "")
+    if not isinstance(image_data, str) or not image_data:
+        raise HTTPException(status_code=400, detail="No se recibió una imagen.")
+    image_data = re.sub(r"^data:image/[a-zA-Z0-9.+-]+;base64,", "", image_data)
+    try:
+        raw_image = base64.b64decode(image_data, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="La imagen enviada no es válida.")
+    if len(raw_image) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen supera el límite de 8 MB.")
+    try:
+        image = Image.open(io.BytesIO(raw_image))
+        if image.width * image.height > 20_000_000:
+            raise HTTPException(status_code=413, detail="La imagen supera el límite de 20 megapíxeles.")
+        image = ImageOps.exif_transpose(image).convert("L")
+        image = ImageEnhance.Contrast(image).enhance(1.7)
+        recognized_text = pytesseract.image_to_string(image, lang="spa+eng", config="--psm 6")
+    except HTTPException:
+        raise
+    except pytesseract.TesseractNotFoundError:
+        logger.exception("Tesseract OCR no está instalado")
+        raise HTTPException(status_code=503, detail="El lector OCR no está instalado en el servidor.")
+    except Exception as error:
+        logger.exception("No se pudo procesar la imagen de la guía")
+        raise HTTPException(status_code=422, detail="No se pudo leer la imagen. Enfoca la guía e inténtalo de nuevo.")
+    if not recognized_text.strip():
+        raise HTTPException(status_code=422, detail="No se detectó texto. Acerca la cámara, mejora la iluminación y captura de nuevo.")
+    parsed = parse_delivery_label_endpoint({"text": recognized_text})
+    return parsed
+
+
+def sanitize_label_ocr_text(raw_text: str) -> str:
+    """Descarta QR, códigos de barras, enlaces y códigos de seguimiento del OCR."""
+    import re
+    safe_lines = []
+    for line in unicodedata.normalize("NFKC", raw_text).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if re.match(r"^\s*(?:qr(?:\s*code)?|barcode|c[oó]digo\s+de\s+barras|tracking|seguimiento|awb|waybill|n[uú]mero\s+de\s+gu[ií]a)\b", line, re.IGNORECASE):
+            continue
+        line = re.sub(r"https?://\S+|www\.\S+", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?:qr(?:\s*code)?|barcode|c[oó]digo\s+de\s+barras)\s*[:#-]?\s*\S*", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?:tracking|seguimiento|awb|waybill|n[uú]mero\s+de\s+gu[ií]a)\b.*$", "", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?=[A-Z0-9_-]{9,}\b)(?=(?:[A-Z0-9_-]*[A-Z]){2,})(?=(?:[A-Z0-9_-]*\d){4,})[A-Z0-9_-]+\b", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b\d{12,}\b", " ", line)
+        if re.fullmatch(r"[\W_]*\d{8,}[\W_]*", line) or re.fullmatch(r"[\W_]*(?=[A-Z0-9_-]{9,}[\W_]*$)(?=(?:[A-Z0-9_-]*[A-Z]){2,})(?=(?:[A-Z0-9_-]*\d){4,})[A-Z0-9_-]{9,}[\W_]*", line, re.IGNORECASE):
+            continue
+        line = re.sub(r"\s+", " ", line).strip(" \t-•")
+        if line:
+            safe_lines.append(line)
+    return "\n".join(safe_lines)
+
+
+@router.post("/parse-delivery-label", tags=["Geocoding"])
+def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_current_active_user)):
+    """Extrae solo datos de ubicación; nunca devuelve nombres ni códigos de seguimiento."""
+    import re
+
+    raw_text = payload.get("text", "")
+    if not isinstance(raw_text, str) or not raw_text.strip():
         raise HTTPException(status_code=400, detail="Texto vacío")
 
-    # 1. Tipo
-    is_comercial = bool(re.search(r'\bCOMERCIAL\b', text, re.IGNORECASE))
-    is_residencial = bool(re.search(r'\bRESIDENCIAL\b', text, re.IGNORECASE))
-    destination_type = "Comercial" if is_comercial else ("Residencial" if is_residencial else "Residencial")
+    text = sanitize_label_ocr_text(raw_text).replace("\u00a0", " ")
+    text = re.sub(r"\bDlrecci[oó0]n\b", "Dirección", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bCerrera\b", "Carrera", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bapartemento\b", "apartamento", text, flags=re.IGNORECASE)
 
-    # 2. Dirección
-    dir_match = re.search(r'Direcci[oó]n:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
-    direccion = dir_match.group(1).strip() if dir_match else ""
+    def extract_field(label_pattern: str) -> str:
+        match = re.search(
+            rf"^[ \t]*(?:{label_pattern})[ \t]*[:：-][ \t]*([^\r\n]+)",
+            text,
+            re.IGNORECASE | re.MULTILINE
+        )
+        return match.group(1).strip(" \t-•") if match else ""
 
-    # 3. Distrito
-    dist_match = re.search(r'Distrito:[ \t]*([^\n\r]+)', text, re.IGNORECASE)
-    distrito = dist_match.group(1).strip() if dist_match else ""
+    destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
+    direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
+    distrito = extract_field(r"distrito|barrio|sector|comuna")
+    municipio = extract_field(r"municipio|ciudad|localidad")
+    unidad = extract_field(r"unidad|conjunto|edificio|urbanizaci[oó]n|condominio|establecimiento")
+    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|interior|local|bloque")
 
-    # 4. Referencia
-    ref_match = re.search(r'Referencia:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
-    referencia = ref_match.group(1).strip() if ref_match else ""
+    if not municipio:
+        municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa", "CABA", "Buenos Aires"]
+        normalized_text = f" {normalize_geocode_value(text)} "
+        municipio = next((name for name in municipalities if f" {normalize_geocode_value(name)} " in normalized_text), "")
+    if not distrito and municipio:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        for position, line in enumerate(lines):
+            if normalize_geocode_value(line) == normalize_geocode_value(municipio):
+                candidate = next((item for item in lines[position + 1:position + 3] if item.isupper() and item.casefold() not in {"residencial", "comercial"}), "")
+                if candidate:
+                    distrito = candidate.title()
+                break
 
-    # 5. Destinatario y Tracking
-    dest_match = re.search(r'Destinatario:[ \t]*([^\n\r]*)', text, re.IGNORECASE)
-    dest_raw = dest_match.group(1).strip() if dest_match else ""
-    tracking_id = ""
-    id_m = re.search(r'\(([^)]+)\)', dest_raw)
-    if id_m:
-        tracking_id = id_m.group(1).strip()
-        destinatario = re.sub(r'\([^)]+\)', '', dest_raw).strip()
-    else:
-        destinatario = dest_raw
+    if not direccion:
+        address_line = re.search(
+            r"^[ \t]*((?:calle|cl\.?|carrera|cra\.?|carr\.?|cerrera|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
+            text,
+            re.IGNORECASE | re.MULTILINE
+        )
+        direccion = address_line.group(1).strip() if address_line else ""
 
-    # Si la referencia está vacía pero la dirección tiene apartamento/oficina, extraerlo
-    if not referencia and direccion:
-        match_unit = re.search(r'(apartamento|apto|oficina|ofc|torre|interior|local|sn)\s*[\w\d\s]*', direccion, re.IGNORECASE)
-        if match_unit:
-            referencia = match_unit.group(0).strip()
+    if not direccion:
+        raise HTTPException(status_code=422, detail="No se encontró una dirección en la guía.")
+
+    direccion = re.sub(r"\bCerrera\b", "Carrera", direccion, flags=re.IGNORECASE)
+    unit_match = re.search(r"\b(apartamento|apartemento|apto\.?|apt\.?|piso|oficina|ofc\.?|torre|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+", direccion, re.IGNORECASE)
+    if unit_match and not referencia:
+        referencia = unit_match.group(0).strip()
+    if unit_match:
+        direccion = direccion[:unit_match.start()] + direccion[unit_match.end():]
+    direccion = re.sub(r"\bS?/?N\b", "", direccion, flags=re.IGNORECASE)
+    direccion = direccion.strip(" ,.-")
+    compact = re.match(r"^(Carrera|Calle)\s*(\d+)([a-z]?)\s*(?:#\s*)?(\d{1,3})\s*-\s*(\d{1,3})$", direccion, re.IGNORECASE)
+    if compact:
+        direccion = f"{compact.group(1).title()} {compact.group(2)}{compact.group(3).upper()} #{compact.group(4)}-{compact.group(5)}"
+    direccion = re.sub(r"\s*#\s*", " #", direccion)
+    direccion = re.sub(r"\s+", " ", direccion).strip(" ,.-")
+
+    referencia = re.sub(r"(?i)\breferencia\s*[:：].*$", "", referencia).strip(" ,;:-")
+    referencia = re.split(r"(?i)\b(?:a nombre de|destinatario|destinaterio|recibe|cliente)\b", referencia)[0].strip(" ,;:-")
 
     return {
         "tipo": destination_type,
         "direccion": direccion,
         "distrito": distrito,
-        "referencia": referencia,
-        "destinatario": destinatario,
-        "tracking_id": tracking_id
+        "municipio": municipio,
+        "unidad": unidad,
+        "referencia": referencia
     }
-
 
 # ============================================================
 # WEEKLY CSV HISTORY
@@ -555,7 +763,7 @@ def get_or_create_default_route(db: Session) -> DeliveryRoute:
     response_model=List[DeliveryRouteResponse],
     tags=["Delivery Routes"]
 )
-def list_delivery_routes(db: Session = Depends(get_db)):
+def list_delivery_routes(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """Lista todas las rutas de entrega con la cantidad de paradas asignadas."""
     routes = db.query(DeliveryRoute).order_by(DeliveryRoute.created_at.desc()).all()
     result = []
@@ -579,7 +787,8 @@ def list_delivery_routes(db: Session = Depends(get_db)):
 )
 def create_delivery_route(
     route_in: DeliveryRouteCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
 ):
     """Crea una nueva ruta de entrega independiente."""
     new_route = DeliveryRoute(name=route_in.name.strip(), is_active=True)
@@ -603,7 +812,8 @@ def create_delivery_route(
 def update_delivery_route(
     route_id: int,
     route_update: DeliveryRouteUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
 ):
     """Actualiza el nombre o estado de una ruta."""
     route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
@@ -634,7 +844,8 @@ def update_delivery_route(
 )
 def delete_delivery_route(
     route_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
 ):
     """Elimina una ruta completa y todas sus paradas asociadas."""
     route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
@@ -662,12 +873,15 @@ def delete_delivery_route(
 )
 def read_locations(
     route_id: Optional[int] = Query(None, description="Filtrar por ID de ruta"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
-    return query.all()
+    return query.order_by(Location.created_at.desc()).all()
 
 
 @router.post(
@@ -677,8 +891,17 @@ def read_locations(
 )
 def create_location(
     location: LocationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
+    if not location.entrance_confirmed or not (location.entrance_name or "").strip():
+        raise HTTPException(status_code=422, detail="La portería debe estar indicada y confirmada en el mapa.")
+    if location.client_id:
+        existing = db.query(Location).filter(Location.client_id == location.client_id).first()
+        if existing:
+            if existing.created_by_id != current_user.id:
+                raise HTTPException(status_code=409, detail="La clave de sincronización ya pertenece a otro usuario.")
+            return existing
     if not (-90 <= location.latitude <= 90):
         raise HTTPException(status_code=400, detail="Latitud inválida")
 
@@ -705,11 +928,20 @@ def create_location(
         municipality=location.municipality,
         neighborhood=location.neighborhood,
         unit_number=location.unit_number,
+        entrance_name=location.entrance_name,
+        entrance_confirmed=location.entrance_confirmed,
+        location_source=location.location_source,
+        client_id=location.client_id,
         route_id=target_route_id,
         delivered=location.delivered or False,
+        status="delivered" if location.delivered else "pending",
+        created_by_id=current_user.id,
+        status_updated_by_id=current_user.id,
     )
 
     db.add(db_location)
+    db.flush()
+    db.add(LocationStatusHistory(location_id=db_location.id, old_status=None, new_status=db_location.status, changed_by_id=current_user.id))
     db.commit()
     db.refresh(db_location)
 
@@ -731,16 +963,45 @@ def create_location(
 def toggle_location_delivered(
     location_id: int,
     payload: LocationUpdateDelivered,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """Marca una parada como entregada o pendiente."""
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Parada no encontrada")
 
+    if current_user.role != "admin" and loc.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
+    new_status = "delivered" if payload.delivered else "pending"
+    if loc.status != new_status:
+        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
+        loc.status = new_status
+        loc.status_updated_by_id = current_user.id
     loc.delivered = payload.delivered
     db.commit()
     db.refresh(loc)
+    return loc
+
+
+@router.patch("/locations/{location_id}/status", response_model=LocationResponse, tags=["Locations"])
+def update_location_status(location_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    allowed = {"pending", "assigned", "in_transit", "delivered", "issue", "cancelled"}
+    new_status = payload.get("status")
+    if new_status not in allowed:
+        raise HTTPException(status_code=422, detail="Estado no válido.")
+    loc = db.query(Location).filter(Location.id == location_id).first()
+    if not loc:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if current_user.role != "admin" and loc.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
+    if loc.status != new_status:
+        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
+        loc.status = new_status
+        loc.delivered = new_status == "delivered"
+        loc.status_updated_by_id = current_user.id
+        db.commit()
+        db.refresh(loc)
     return loc
 
 
@@ -750,7 +1011,8 @@ def toggle_location_delivered(
 )
 def delete_location(
     location_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     location = (
         db.query(Location)
@@ -760,6 +1022,8 @@ def delete_location(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este pedido.")
 
     db.delete(location)
     db.commit()
@@ -773,9 +1037,12 @@ def delete_location(
 )
 def clear_all_locations(
     route_id: Optional[int] = Query(None, description="Borrar paradas solo de esta ruta"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     query.delete(synchronize_session=False)
@@ -788,7 +1055,7 @@ def clear_all_locations(
 # ============================================================
 
 @router.get("/export/weekly_routes")
-def export_weekly_routes():
+def export_weekly_routes(admin: User = Depends(get_current_admin_user)):
 
     if not LOG_FILE.is_file():
         with open(
@@ -822,8 +1089,11 @@ def export_weekly_routes():
     "/references",
     response_model=List[ReferenceResponse]
 )
-def read_references(db: Session = Depends(get_db)):
-    return db.query(Reference).all()
+def read_references(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    query = db.query(Reference).join(Location, Reference.location_id == Location.id)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
+    return query.all()
 
 
 @router.post(
@@ -833,7 +1103,8 @@ def read_references(db: Session = Depends(get_db)):
 )
 def create_reference(
     reference: ReferenceCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     location = (
         db.query(Location)
@@ -842,10 +1113,9 @@ def create_reference(
     )
 
     if not location:
-        raise HTTPException(
-            status_code=404,
-            detail="Location not found"
-        )
+        raise HTTPException(status_code=404, detail="Location not found")
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para este pedido.")
 
     db_reference = Reference(
         description=reference.description,
@@ -863,15 +1133,91 @@ def create_reference(
 # OPTIMAL ROUTE
 # ============================================================
 
+@router.get("/road_route", tags=["Routing"])
+def get_road_route(
+    route_id: Optional[int] = Query(None),
+    start_lat: Optional[float] = Query(None, ge=-90, le=90),
+    start_lon: Optional[float] = Query(None, ge=-180, le=180),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Calcula recorrido vial desde el GPS del repartidor y ordena las paradas."""
+    if (start_lat is None) != (start_lon is None):
+        raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
+    query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
+    if route_id is not None:
+        query = query.filter(Location.route_id == route_id)
+    start = (start_lat, start_lon) if start_lat is not None else None
+    locations = calculate_optimal_route(query.all(), start=start)
+    if not locations:
+        return {"distance_m": 0, "duration_s": 0, "geometry": [], "legs": [], "stop_ids": []}
+    coordinates = []
+    if start is not None:
+        coordinates.append(f"{start_lon:.6f},{start_lat:.6f}")
+    coordinates.extend(f"{loc.longitude:.6f},{loc.latitude:.6f}" for loc in locations)
+    if len(coordinates) < 2:
+        return {"distance_m": 0, "duration_s": 0, "geometry": [], "legs": [], "stop_ids": [loc.id for loc in locations], "origin_included": start is not None}
+    base_url = os.getenv("OSRM_BASE_URL", "https://router.project-osrm.org").rstrip("/")
+    route = None
+    optimization = "nearest_neighbor"
+    if start is not None:
+        trip_url = f"{base_url}/trip/v1/driving/{';'.join(coordinates)}?roundtrip=false&source=first&destination=any&overview=full&geometries=geojson&steps=false"
+        try:
+            trip_request = urllib.request.Request(trip_url, headers={"User-Agent": "RutaClara/1.0"})
+            with urllib.request.urlopen(trip_request, timeout=20) as response:
+                trip_payload = json.loads(response.read().decode("utf-8"))
+            waypoints = trip_payload.get("waypoints", [])
+            if trip_payload.get("code") == "Ok" and trip_payload.get("trips") and len(waypoints) == len(coordinates):
+                waypoint_order = sorted(range(len(waypoints)), key=lambda index: waypoints[index].get("waypoint_index", index))
+                stop_order = [index - 1 for index in waypoint_order if index != 0]
+                if len(stop_order) == len(locations) and set(stop_order) == set(range(len(locations))):
+                    locations = [locations[index] for index in stop_order]
+                    route = trip_payload["trips"][0]
+                    optimization = "road_duration"
+        except Exception as trip_error:
+            logger.warning("OSRM trip no disponible; se usa orden aproximado: %s", trip_error)
+    try:
+        if route is None:
+            url = f"{base_url}/route/v1/driving/{';'.join(coordinates)}?overview=full&geometries=geojson&steps=false"
+            request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if payload.get("code") != "Ok" or not payload.get("routes"):
+                raise ValueError(payload.get("message") or "OSRM no encontró un recorrido")
+            route = payload["routes"][0]
+        geometry = route.get("geometry", {}).get("coordinates", [])
+        legs = route.get("legs", [])
+        expected_legs = len(locations) if start is not None else len(locations) - 1
+        if len(geometry) < 2 or len(legs) != expected_legs:
+            raise ValueError("OSRM devolvió una ruta incompleta")
+        return {
+            "distance_m": route["distance"],
+            "duration_s": route["duration"],
+            "geometry": geometry,
+            "legs": [{"distance_m": leg["distance"], "duration_s": leg["duration"]} for leg in legs],
+            "stop_ids": [loc.id for loc in locations],
+            "origin_included": start is not None,
+            "optimization": optimization
+        }
+    except Exception as error:
+        logger.exception("Error calculando recorrido vial con OSRM")
+        raise HTTPException(status_code=502, detail=f"No fue posible calcular la ruta vial: {error}")
+
+
 @router.get(
     "/optimal_route",
     response_model=List[LocationResponse]
 )
 def get_optimal_route(
     route_id: Optional[int] = Query(None, description="Optimizar paradas de una ruta específica"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
+    if current_user.role != "admin":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
 

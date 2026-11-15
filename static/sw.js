@@ -1,10 +1,11 @@
-const CACHE_NAME = 'ruta-clara-v4';
+const CACHE_NAME = 'ruta-clara-v6';
 const ASSETS = [
   '/map',
   '/static/leaflet.css',
   '/static/leaflet.js',
   '/static/logo.svg',
-  '/static/manifest.json'
+  '/static/manifest.json',
+  '/static/safety.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -33,8 +34,17 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
+  const sameOrigin = requestUrl.origin === self.location.origin;
+  const isMapTile = requestUrl.hostname.endsWith('tile.openstreetmap.org');
+  const isOfflineTile = sameOrigin && requestUrl.pathname.startsWith('/tiles/');
+  const isStaticAsset = sameOrigin && requestUrl.pathname.startsWith('/static/');
+  // No almacenar respuestas autenticadas ni datos de pedidos/usuarios en Cache Storage.
+  if (sameOrigin && !isOfflineTile && !isStaticAsset && requestUrl.pathname !== '/map' && requestUrl.pathname !== '/sw.js') return;
+  if (!sameOrigin && !isMapTile) return;
   // Navegación (HTML /map): Network-First para que el usuario reciba siempre el código más reciente
-  if (event.request.mode === 'navigate' || event.request.url.endsWith('/map')) {
+  if (event.request.mode === 'navigate' || (sameOrigin && requestUrl.pathname === '/map')) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
@@ -58,7 +68,7 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
       return fetch(event.request).then((networkResponse) => {
-        if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
+        if (event.request.method === 'GET' && (sameOrigin || isMapTile)) {
           const copy = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }

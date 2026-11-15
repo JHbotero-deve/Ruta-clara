@@ -10,6 +10,8 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    tesseract-ocr \
+    tesseract-ocr-spa \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -25,7 +27,7 @@ RUN useradd -m -u 1000 appuser && \
     mkdir -p /app/data && \
     chown -R appuser:appuser /app
 
-USER appuser
+USER root
 
 # Expose port 8000
 EXPOSE 8000
@@ -35,4 +37,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
 
 # Command to run application with Uvicorn
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "chown -R appuser:appuser /app/data && exec su -s /bin/sh appuser -c 'uvicorn src.main:app --host 0.0.0.0 --port 8000'"]

@@ -808,12 +808,91 @@
             .route-bar { padding: 6px 10px; }
             .map-card-wrapper { height: calc(100vh - 185px); height: calc(100dvh - 185px); min-height: 340px; padding: 6px; }
         }
+
+        .login-gate{position:fixed;inset:0;z-index:20000;background:#0f172a;display:flex;align-items:center;justify-content:center;padding:20px}
+        .login-card{width:min(100%,390px);background:var(--bg-card,#fff);color:var(--text-main,#0f172a);padding:28px;border-radius:18px;box-shadow:0 20px 60px #0005}
+        .login-card h2{margin:0 0 8px;font-size:22px}.login-card p{font-size:13px;color:var(--text-muted,#64748b);margin:0 0 20px}
+        .login-card input{width:100%;padding:12px;margin:6px 0 12px;border:1px solid var(--border,#cbd5e1);border-radius:9px;background:var(--bg-card,#fff);color:var(--text-main,#0f172a)}
+        .login-card button{width:100%;padding:12px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}
+        .login-error{color:#dc2626;font-size:12px;min-height:18px;margin-bottom:8px}
+        .menu-toggle{background:transparent;border:1px solid #ffffff55;color:white;border-radius:8px;padding:7px 11px;font-size:20px;cursor:pointer}
+        .menu-drawer{position:fixed;z-index:15000;top:62px;left:12px;width:230px;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 35px #0003;display:none}
+        .menu-drawer.open{display:block}.menu-drawer button{display:block;width:100%;text-align:left;padding:12px;border:0;border-radius:8px;background:transparent;color:var(--text-main);font-weight:650;cursor:pointer}.menu-drawer button:hover{background:var(--bg-hover,#eef2ff)}
+        .account-label{font-size:11px;color:white;padding:0 6px}.logout-btn{border:1px solid #ffffff55;background:transparent;color:white;border-radius:8px;padding:6px 9px;font-size:11px;cursor:pointer}
+        .dashboard-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+        .dashboard-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px}.dashboard-stat span{display:block;color:var(--text-muted);font-size:11px}.dashboard-stat strong{display:block;font-size:24px;margin-top:5px}
+        .dashboard-table-wrap{overflow:auto}.dashboard-table{width:100%;border-collapse:collapse;font-size:12px}.dashboard-table th,.dashboard-table td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}.dashboard-table th{color:var(--text-muted);font-size:10px;text-transform:uppercase}
+        .dashboard-table select{padding:6px;border:1px solid var(--border);border-radius:7px;background:var(--bg-card);color:var(--text-main)}
+        .admin-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.admin-form input{padding:9px;border:1px solid var(--border);border-radius:8px;min-width:150px;background:var(--bg-card);color:var(--text-main)}.admin-form button{padding:9px 14px;border:0;border-radius:8px;background:#2563eb;color:white;font-weight:700}
+        .view-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.view-heading h2{margin:0;font-size:19px;color:var(--text-main)}
+        @media(max-width:700px){.dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.account-label{display:none}.dashboard-table{min-width:780px}}
+        .tab-navigation{display:none!important}.route-bar{display:none}
+    
+        /* RUTA CLARA UI REFRESH 2026 */
+        :root{--bg-main:#f4f7fb;--bg-card:#fff;--text-main:#172033;--text-muted:#68758a;--border:#e3e9f2;--input-bg:#fff;--input-border:#d5deea;--bg-hover:#eef3fb}
+        [data-theme="dark"]{--bg-main:#0b1220;--bg-card:#121d30;--text-main:#edf3fc;--text-muted:#9aabc2;--border:#263650;--input-bg:#17243a;--input-border:#344966;--bg-hover:#1c2b43}
+        body{background:var(--bg-main);color:var(--text-main)}
+        .navbar{height:66px;padding:0 clamp(14px,3vw,30px);background:linear-gradient(115deg,#101b31,#172b49);box-shadow:0 5px 22px #0b17301a}
+        .brand-logo{width:40px;height:40px;border-radius:12px;box-shadow:none}
+        .navbar h1{font-size:clamp(14px,1.4vw,18px);letter-spacing:-.45px}
+        .menu-toggle{border-color:#ffffff30;border-radius:11px}
+        .nav-actions{gap:7px}
+        .badge-status{padding:6px 10px;font-size:10px;letter-spacing:.2px}
+        .route-bar{display:flex;gap:12px;padding:10px clamp(14px,3vw,30px);background:var(--bg-card);color:var(--text-main);border-bottom:1px solid var(--border);box-shadow:0 2px 10px #0f172a08}
+        .route-selector-wrap label{color:var(--text-muted)}
+        .route-select{background:var(--input-bg);color:var(--text-main);border-color:var(--input-border);min-height:38px}
+        .btn-route-action{min-height:38px;padding:8px 13px;border-radius:10px;font-size:11px}
+        .btn-route-secondary{background:var(--bg-main);color:var(--text-main);border-color:var(--border)}
+        .app-container{padding:clamp(14px,2.4vw,28px);background:var(--bg-main)}
+        .tab-content{max-width:1240px;gap:18px}
+        .card{padding:clamp(16px,2vw,22px);border-radius:18px;border-color:var(--border);box-shadow:0 8px 28px #15223a0a}
+        .card-header{margin-bottom:16px}
+        .card h2,.map-header h2{font-size:15px;letter-spacing:-.2px}
+        .view-heading{margin-bottom:18px}
+        .view-heading h2{font-size:clamp(20px,2vw,25px);font-weight:800;letter-spacing:-.7px}
+        #viewDashboard{max-width:1240px}
+        .dashboard-grid{gap:14px}
+        .dashboard-stat{padding:18px;border-radius:16px;background:var(--bg-card);border-color:var(--border);box-shadow:0 6px 20px #15223a08}
+        .dashboard-stat span{font-size:12px;font-weight:600}
+        .dashboard-stat strong{font-size:30px;letter-spacing:-1px}
+        .dashboard-table-wrap{border:1px solid var(--border);border-radius:12px}
+        .dashboard-table th,.dashboard-table td{padding:13px 12px}
+        .dashboard-table th{background:var(--bg-main)}
+        #viewScanner.active{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);align-items:start;gap:18px;max-width:1240px}
+        #viewScanner>.card:first-child{background:linear-gradient(145deg,#eef5ff 0%,var(--bg-card) 58%);border-color:#d6e5fb}
+        [data-theme="dark"] #viewScanner>.card:first-child{background:linear-gradient(145deg,#172943 0%,var(--bg-card) 65%);border-color:var(--border)}
+        #currentRouteBadge{border-radius:20px!important;padding:6px 11px!important}
+        .btn{border-radius:12px;font-weight:750}
+        .btn-pro-scanner{min-height:54px;border-radius:13px;background:linear-gradient(110deg,#4f46e5,#2563eb);box-shadow:0 8px 18px #315ce52b}
+        .btn-magic-paste{min-height:48px;border-radius:12px;background:linear-gradient(110deg,#087eae,#0369a1);box-shadow:0 6px 16px #0369a11c}
+        input,textarea,select{border-radius:11px}
+        input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 16%,transparent)}
+        #pasteGuideCard{border-color:#9bc8ee!important}
+        #manualFormDetails{border-color:var(--border)!important}
+        #manualFormDetails summary{padding:9px 0}
+        .nav-container{gap:12px;max-height:58vh;padding:2px}
+        .nav-step-item{padding:16px;background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--warning);border-radius:14px;box-shadow:0 4px 14px #15223a08}
+        .nav-step-item.delivered{background:color-mix(in srgb,var(--success) 7%,var(--bg-card));border-left-color:var(--success)}
+        .nav-step-item strong{font-size:14px}
+        .btn-nav-internal{border-radius:10px;min-height:40px}
+        .map-card-wrapper{padding:14px;border-radius:18px;border-color:var(--border);background:var(--bg-card);height:calc(100dvh - 230px);min-height:480px}
+        #map{border-radius:13px}
+        .menu-drawer{top:72px;border-radius:14px;padding:8px}
+        .menu-drawer button{border-radius:10px}
+        button{transition:filter .16s ease,transform .16s ease}
+        button:focus-visible{outline:3px solid color-mix(in srgb,var(--primary) 55%,white);outline-offset:2px}
+        @media(max-width:900px){#viewScanner.active{grid-template-columns:minmax(0,1fr);max-width:760px}.nav-container{max-height:52vh}.map-card-wrapper{height:calc(100dvh - 220px);min-height:420px}}
+        @media(max-width:600px){.navbar{height:60px;padding:0 10px}.brand-container{gap:7px}.brand-logo{width:34px;height:34px}.navbar h1{font-size:12px;max-width:150px}.nav-actions{gap:5px}.nav-actions #themeToggleBtn{padding:5px 7px!important;font-size:10px!important}.badge-status{font-size:9px;padding:5px 7px}.logout-btn{padding:5px 7px;font-size:10px}.route-bar{padding:8px 10px;gap:6px}.route-selector-wrap{gap:5px}.route-selector-wrap label{font-size:9px}.route-select{padding:6px;font-size:11px;min-width:0}.btn-route-action{padding:7px 8px;font-size:10px}.app-container{padding:10px;gap:12px}.card{padding:14px;border-radius:15px}.dashboard-grid{gap:8px}.dashboard-stat{padding:12px}.dashboard-stat strong{font-size:25px}.view-heading h2{font-size:20px}.map-card-wrapper{padding:8px;height:calc(100dvh - 205px);min-height:350px}.map-header{gap:8px;flex-wrap:wrap}.map-header h2{font-size:12px}.map-header button{padding:7px 8px!important;font-size:10px!important}.inapp-nav-hud{left:8px;right:8px;bottom:8px;padding:10px}.inapp-nav-controls{flex-wrap:wrap}.btn-nav-hud{min-height:38px}.account-label{display:none}}
+        @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
     </style>
 </head>
 
 <body>
+    <div id="loginGate" class="login-gate"><form class="login-card" onsubmit="loginRutaClara(event)"><h2>Ruta Clara</h2><p>Acceso seguro al panel de entregas</p><label>Usuario</label><input id="loginUsername" autocomplete="username" required><label>Contraseña</label><input id="loginPassword" type="password" autocomplete="current-password" required><div id="loginError" class="login-error"></div><button type="submit">Iniciar sesión</button><button type="button" onclick="registerFirstAdmin()" style="margin-top:9px;background:#475569">Crear administrador inicial</button></form></div>
     <!-- BARRA SUPERIOR -->
     <header class="navbar">
+        <button class="menu-toggle" onclick="toggleMenu()" aria-label="Abrir menú">☰</button>
         <div class="brand-container">
             <img src="/static/logo.svg" alt="Ruta Clara Logo" class="brand-logo">
             <h1>Ruta Clara - Escáner de Guías y GPS</h1>
@@ -826,9 +905,12 @@
                 📲 Instalar App
             </button>
             <span id="connectionBadge" class="badge-status">🟢 En línea</span>
+            <span id="accountLabel" class="account-label"></span>
+            <button class="logout-btn" onclick="logoutRutaClara()">Salir</button>
         </div>
     </header>
 
+    <nav id="menuDrawer" class="menu-drawer"><button onclick="showSection('dashboard')">▦ Resumen y pedidos</button><button onclick="showSection('scanner')">▣ Registrar pedido</button><button onclick="showSection('map')">⌖ Mapa y navegación</button><button id="menuUsersButton" onclick="showSection('users')" style="display:none">♙ Usuarios</button></nav>
     <!-- BARRA DE GESTIÓN DE MÚLTIPLES RUTAS -->
     <div class="route-bar">
         <div class="route-selector-wrap">
@@ -865,9 +947,23 @@
 
     <!-- CONTENEDOR PRINCIPAL -->
     <div class="app-container">
+        <div id="viewDashboard" class="tab-content active">
+            <div class="view-heading"><h2>Resumen de entregas</h2><span id="dashboardRole" style="font-size:11px;color:var(--text-muted)"></span></div>
+            <div class="dashboard-grid">
+                <div class="dashboard-stat"><span>Total de pedidos</span><strong id="statTotal">0</strong></div>
+                <div class="dashboard-stat"><span>Pendientes</span><strong id="statPending">0</strong></div>
+                <div class="dashboard-stat"><span>En camino</span><strong id="statTransit">0</strong></div>
+                <div class="dashboard-stat"><span>Entregados</span><strong id="statDelivered">0</strong></div>
+            </div>
+            <div class="card"><div class="view-heading"><h2>Pedidos recientes</h2><button class="btn-route-action" onclick="loadDashboard()">Actualizar</button></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Pedido</th><th>Dirección</th><th>Municipio / Barrio</th><th>Estado</th><th>Registrado por</th><th>Última actualización</th><th>Acciones</th></tr></thead><tbody id="dashboardOrders"><tr><td colspan="7">Cargando pedidos...</td></tr></tbody></table></div></div>
+        </div>
+        <div id="viewUsers" class="tab-content">
+            <div class="view-heading"><h2>Gestión de usuarios</h2></div>
+            <div class="card"><form id="createOperatorForm" class="admin-form" onsubmit="createOperator(event)"><input id="newOperatorUsername" placeholder="Usuario" required><input id="newOperatorEmail" type="email" placeholder="Correo (opcional)"><input id="newOperatorPassword" type="password" placeholder="Contraseña (mín. 8)" minlength="8" required><button type="submit">Crear operador</button></form><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="adminUsersList"></tbody></table></div></div>
+        </div>
 
         <!-- VISTA 1: ESCÁNER Y DIRECCIONES -->
-        <div id="viewScanner" class="tab-content active">
+        <div id="viewScanner" class="tab-content">
 
             <!-- TARJETA DEL ESCÁNER Y CAPTURA DE GUÍAS -->
             <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
@@ -881,7 +977,7 @@
                 <!-- Botones de Acción Inmediata -->
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     <button type="button" class="btn btn-pro-scanner" onclick="startProScanner()">
-                        📷 Iniciar Cámara Continua (Escanear Guías y QR)
+                        📷 Iniciar Cámara (solo lectura de direcciones)
                     </button>
                     <button type="button" class="btn-magic-paste" onclick="togglePasteCard()">
                         📋 Pegar Texto de Guía Completa (Autocompletar Todo)
@@ -896,6 +992,9 @@
                             🎤 Dictar Guía
                         </button>
                     </div>
+                    <label for="guideImageFile" style="display:block; margin:10px 0 5px; color:var(--text-main);">📷 Cargar guía directamente desde el dispositivo</label>
+                    <input id="guideImageFile" type="file" accept="image/*" onchange="processUploadedGuide(this.files[0])" style="margin-bottom:8px;">
+                    <small style="display:block; color:var(--text-muted); margin-bottom:8px;">Selecciona una foto o imagen de la guía. Se leerá y registrará automáticamente.</small>
                     <textarea id="rawLabelInput" rows="3" placeholder="Ejemplo:
 Direccion: Carrera 32b 10-110, Medellín
 Referencia: Vizcaya real 2. 419
@@ -919,7 +1018,15 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideAddress" placeholder="Ej. Carrera 32b 10-110, Medellín" required enterkeyhint="next">
+                            <input type="text" id="guideAddress" placeholder="Ej. Cra 66 #56A-98" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideMunicipality">Municipio *</label>
+                            <input type="text" id="guideMunicipality" placeholder="Ej. Bello" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideDistrict">Barrio</label>
+                            <input type="text" id="guideDistrict" placeholder="Ej. El Paraíso" enterkeyhint="next">
                         </div>
 
                         <!-- Referencia / Indicaciones -->
@@ -936,12 +1043,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         <!-- Nombre del Cliente -->
                         <div class="form-group">
                             <label for="guideRecipient" style="display:flex; justify-content:space-between; align-items:center;">
-                                <span>👤 Nombre del Cliente *</span>
+                                <span>👤 Nombre de la unidad / conjunto *</span>
                                 <button type="button" onclick="startVoiceDictation('guideRecipient')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:3px;">
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideRecipient" placeholder="Ej. Lucrecia Inés Vasquez garcés" required enterkeyhint="send">
+                            <input type="text" id="guideRecipient" placeholder="Ej. Unidad Vizcaya Real 2 o Casa" required enterkeyhint="send">
                         </div>
 
                         <button type="submit" class="btn btn-success">➕ Guardar Parada en esta Ruta</button>
@@ -997,6 +1104,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
                 <div id="totalSummary" class="total-summary" style="display:none;">
                     Distancia total de la ruta: <span id="totalDistKm">0</span> km
+                    <div id="routeStatus" style="font-size:11px; margin-top:4px; color:var(--text-muted);"></div>
                 </div>
 
                 <div id="map"></div>
@@ -1061,14 +1169,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 <div class="scanner-corner sc-br"></div>
                 <div class="scanner-laser"></div>
                 <span id="scannerHint" style="font-size:11px; color:rgba(255,255,255,0.85); background:rgba(0,0,0,0.65); padding:4px 10px; border-radius:6px; position:absolute; bottom:12px; text-align:center;">
-                    Apunta a la guía / código QR o presiona capturar
+                    Enfoca la dirección de la guía y captura
                 </span>
             </div>
         </div>
 
         <div class="pro-scanner-bottom">
-            <button class="btn-capture-big" onclick="captureContinuousStop()">
-                📸 Capturar Parada en este Punto (GPS)
+            <button class="btn-capture-big" onclick="captureAndReadGuide()">
+                📷 Leer guía con cámara (OCR)
+            </button>
+            <button onclick="captureContinuousStop()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                📍 Registrar solo ubicación GPS
             </button>
             <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
                 🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
@@ -1151,12 +1262,109 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             recognition.start();
         }
 
+
+        const rutaFetch = window.fetch.bind(window);
+        let rutaUser = null;
+        window.fetch = (input, init = {}) => {
+            const headers = new Headers(init.headers || {});
+            const token = sessionStorage.getItem("ruta_clara_token");
+            if (token && !String(input).includes("/token") && !String(input).includes("/register")) headers.set("Authorization", "Bearer " + token);
+            return rutaFetch(input, {...init, headers});
+        };
+        function showLoginError(message) { document.getElementById("loginError").textContent = message || ""; }
+        async function loginRutaClara(event) {
+            event.preventDefault(); showLoginError("");
+            const body = new URLSearchParams({username:document.getElementById("loginUsername").value.trim(),password:document.getElementById("loginPassword").value});
+            try {
+                const response = await rutaFetch("/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
+                const data = await response.json(); if(!response.ok) throw new Error(data.detail||"Credenciales incorrectas.");
+                sessionStorage.setItem("ruta_clara_token",data.access_token); await bootRutaClara();
+            } catch(error) { showLoginError(error.message); }
+        }
+        async function registerFirstAdmin() {
+            const username=document.getElementById("loginUsername").value.trim(),password=document.getElementById("loginPassword").value;
+            if(!username||password.length<8){showLoginError("Ingresa usuario y contraseña de al menos 8 caracteres.");return;}
+            try {
+                const response=await rutaFetch("/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
+                const data=await response.json();if(!response.ok)throw new Error(data.detail||"No se pudo crear el administrador inicial.");
+                showLoginError("Administrador creado. Ahora inicia sesión.");
+            } catch(error){showLoginError(error.message);}
+        }
+        async function bootRutaClara() {
+            const token=sessionStorage.getItem("ruta_clara_token");
+            if(!token){document.getElementById("loginGate").style.display="flex";return;}
+            try {
+                const response=await fetch("/users/me");if(!response.ok)throw new Error("Sesión inválida");
+                rutaUser=await response.json();document.getElementById("loginGate").style.display="none";
+                document.getElementById("accountLabel").textContent=rutaUser.username+" · "+(rutaUser.role==="admin"?"Administrador":"Operador");
+                document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Vista administrativa":"Tus pedidos registrados";
+                document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
+                document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
+                if(rutaUser.role!=="admin"){
+                    document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
+                }
+                if(typeof initMap==="function")initMap();await loadDashboard();showSection("dashboard");
+            } catch(error) {sessionStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("No fue posible validar la sesión. Inicia sesión de nuevo.");}
+        }
+        function logoutRutaClara(){sessionStorage.removeItem("ruta_clara_token");location.reload();}
+        function toggleMenu(){document.getElementById("menuDrawer").classList.toggle("open");}
+        function showSection(section){
+            document.getElementById("menuDrawer").classList.remove("open");
+            ["viewDashboard","viewScanner","viewMap","viewUsers"].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove("active");});
+            const target=document.getElementById("view"+section.charAt(0).toUpperCase()+section.slice(1));if(target)target.classList.add("active");
+            const routeBar=document.querySelector(".route-bar");if(routeBar)routeBar.style.display=(section==="scanner"||section==="map")?"flex":"none";
+            if(section==="map")setTimeout(()=>{if(map)map.invalidateSize();},150);
+            if(section==="dashboard")loadDashboard();if(section==="users"&&rutaUser?.role==="admin")loadAdminUsers();if(section==="scanner")loadRouteData();
+        }
+        async function loadDashboard(){
+            const body=document.getElementById("dashboardOrders");if(!body||!rutaUser)return;
+            try{
+                const response=await fetch("/locations");if(!response.ok)throw new Error("No se pudieron cargar los pedidos.");
+                const orders=await response.json(),counts={pending:0,assigned:0,in_transit:0,delivered:0,issue:0,cancelled:0};
+                orders.forEach(order=>counts[order.status||(order.delivered?"delivered":"pending")]++);
+                document.getElementById("statTotal").textContent=orders.length;
+                document.getElementById("statPending").textContent=counts.pending+counts.assigned;
+                document.getElementById("statTransit").textContent=counts.in_transit;
+                document.getElementById("statDelivered").textContent=counts.delivered;
+                body.innerHTML=orders.length?orders.map(order=>'<tr><td>#'+order.id+'</td><td>'+escapeHtml(order.address||"Sin dirección")+'</td><td>'+escapeHtml([order.municipality,order.neighborhood].filter(Boolean).join(" · "))+'</td><td><select onchange="changeOrderStatus('+order.id+',this.value)">'+statusOptions(order.status||"pending")+'</select></td><td>'+escapeHtml(order.created_by_username||"Registro anterior")+'</td><td>'+escapeHtml(order.status_updated_by_username||"Sin cambios")+'<br><small>'+(order.updated_at?new Date(order.updated_at).toLocaleString():"")+'</small></td><td><button onclick="showOrderHistory('+order.id+')" class="btn-route-action">Historial</button></td></tr>').join(""):'<tr><td colspan="7">No hay pedidos registrados.</td></tr>';
+            }catch(error){body.innerHTML='<tr><td colspan="7">'+escapeHtml(error.message)+'</td></tr>';}
+        }
+        function statusOptions(selected){
+            const values=[["pending","Pendiente"],["assigned","Asignado"],["in_transit","En camino"],["delivered","Entregado"],["issue","Novedad"],["cancelled","Cancelado"]];
+            return values.map(([value,label])=>'<option value="'+value+'" '+(selected===value?"selected":"")+'>'+label+'</option>').join("");
+        }
+        async function changeOrderStatus(id,status){
+            const response=await fetch("/locations/"+id+"/status",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
+            if(!response.ok){alert((await response.json()).detail||"No se pudo actualizar el estado.");await loadDashboard();return;}
+            await loadDashboard();if(typeof loadRouteData==="function")await loadRouteData();
+        }
+        async function showOrderHistory(id){
+            const response=await fetch("/locations/"+id+"/history");if(!response.ok){alert("No se pudo consultar el historial.");return;}
+            const events=await response.json(),labels={pending:"Pendiente",assigned:"Asignado",in_transit:"En camino",delivered:"Entregado",issue:"Novedad",cancelled:"Cancelado"};
+            alert(events.map(event=>new Date(event.changed_at).toLocaleString()+" · "+(labels[event.new_status]||event.new_status)+" · "+(event.changed_by||"Sistema")).join("\\n")||"Sin cambios registrados.");
+        }
+        async function loadAdminUsers(){
+            const response=await fetch("/admin/users");if(!response.ok)return;const users=await response.json();
+            document.getElementById("adminUsersList").innerHTML=users.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.email||"—")+'</td><td>'+(user.role==="admin"?"Administrador":"Operador")+'</td><td>'+(user.disabled?"Desactivado":"Activo")+'</td><td>'+(user.role==="admin"?"—":'<button class="btn-route-action" onclick="setOperatorDisabled('+user.id+','+(!user.disabled)+')">'+(user.disabled?"Activar":"Desactivar")+'</button>')+'</td></tr>').join("");
+        }
+        async function createOperator(event){
+            event.preventDefault();const payload={username:document.getElementById("newOperatorUsername").value.trim(),email:document.getElementById("newOperatorEmail").value.trim()||null,password:document.getElementById("newOperatorPassword").value};
+            const response=await fetch("/admin/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),data=await response.json();
+            if(!response.ok){alert(data.detail||"No se pudo crear el usuario.");return;}event.target.reset();await loadAdminUsers();alert("Operador creado.");
+        }
+        async function setOperatorDisabled(id,disabled){
+            const response=await fetch("/admin/users/"+id+"/disabled",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({disabled})});
+            if(!response.ok){alert("No se pudo actualizar el usuario.");return;}await loadAdminUsers();
+        }
+
         // ========================================================
         // ESTADO GLOBAL
         // ========================================================
         let map;
         let markersGroup = L.layerGroup();
         let polylineGroup = L.layerGroup();
+        let roadRouteRequestId = 0;
+        let isGpsRouteReady = false;
         let userMarker = null;
         let navGuidanceLine = null;
         let tempMarker = null;
@@ -1237,10 +1445,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             map = L.map('map', { zoomControl: false }).setView([6.2442, -75.5812], 12);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap | Ruta Clara'
-            }).addTo(map);
+            let fallbackMapLayer = null;
+            const offlineTiles = L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: 'Mapa offline Ruta Clara' });
+            offlineTiles.on('tileerror', () => {
+                if (!fallbackMapLayer) fallbackMapLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap | Ruta Clara' }).addTo(map);
+            });
+            offlineTiles.addTo(map);
 
             markersGroup.addTo(map);
             polylineGroup.addTo(map);
@@ -1248,8 +1458,19 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             map.on('click', async function(e) {
                 const lat = e.latlng.lat;
                 const lng = e.latlng.lng;
-                const name = `Parada Mapa (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-                const address = `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                let place = null;
+                try {
+                    const response = await fetch(`/reverse-geocode?latitude=${lat}&longitude=${lng}`);
+                    if (response.ok) place = await response.json();
+                } catch (error) {
+                    console.warn('No se pudo resolver la dirección del punto:', error);
+                }
+                const address = place?.display_name || prompt('No se pudo reconocer la dirección del punto. Escribe la dirección para guardar esta parada:');
+                if (!address || !address.trim()) {
+                    showToast('No se guardó el punto porque falta la dirección.', '⚠️');
+                    return;
+                }
+                const name = 'Punto en mapa';
 
                 const pinIcon = L.divIcon({
                     className: 'custom-icon',
@@ -1265,17 +1486,13 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     address,
                     latitude: lat,
                     longitude: lng,
+                    municipality: place?.municipality || null,
+                    neighborhood: place?.neighborhood || null,
                     unit_number: 'Punto fijado en mapa'
                 });
             });
 
-            if ('BarcodeDetector' in window) {
-                try {
-                    barcodeDetector = new BarcodeDetector({
-                        formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix']
-                    });
-                } catch (e) {}
-            }
+            barcodeDetector = null;
 
             loadDeliveryRoutes();
         }
@@ -1458,107 +1675,153 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             currentDestinationType = type;
             const btnRes = document.getElementById('btnTypeRes');
             const btnCom = document.getElementById('btnTypeCom');
-            if (type === 'Residencial') {
-                btnRes.className = 'type-btn active res';
-                btnCom.className = 'type-btn com';
-            } else {
-                btnRes.className = 'type-btn res';
-                btnCom.className = 'type-btn active com';
-            }
+            if (btnRes) btnRes.className = type === 'Residencial' ? 'type-btn active res' : 'type-btn res';
+            if (btnCom) btnCom.className = type === 'Comercial' ? 'type-btn active com' : 'type-btn com';
         }
 
         async function processPastedLabel() {
             const text = document.getElementById('rawLabelInput').value.trim();
-            if (!text) {
-                alert('Pega el texto de la etiqueta primero.');
-                return;
-            }
-
+            if (!text) { alert('Pega el texto de la etiqueta primero.'); return; }
             showToast('Analizando guía de entrega...', '🔍');
-
             try {
                 const res = await fetch('/parse-delivery-label', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
-
-                if (!res.ok) throw new Error('Error analizando guía');
-                const parsed = await res.json();
-
-                // Autocompletar formulario
-                document.getElementById('guideAddress').value = parsed.direccion;
-                document.getElementById('guideDistrict').value = parsed.distrito;
-                document.getElementById('guideReference').value = parsed.referencia;
-                document.getElementById('guideRecipient').value = parsed.destinatario;
-                selectDestinationType(parsed.tipo || 'Residencial');
-
-                // Geocodificar de inmediato con dirección + distrito y reintento resiliente
-                let searchGeo = parsed.direccion;
-                if (parsed.distrito && !searchGeo.toLowerCase().includes(parsed.distrito.toLowerCase())) {
-                    searchGeo += `, ${parsed.distrito}`;
-                }
-
-                showToast(`Buscando: ${parsed.direccion}...`, '📍');
-                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                let geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if ((!geoData || geoData.length === 0) && searchGeo !== parsed.direccion) {
-                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(parsed.direccion)}`);
-                    geoData = geoRes.ok ? await geoRes.json() : [];
-                }
-
-                if (geoData && geoData.length > 0) {
-                    const lat = Number(geoData[0].latitude);
-                    const lng = Number(geoData[0].longitude);
-
-                    // Guardar parada completa
-                    await saveLocationAutomatically({
-                        name: parsed.destinatario || parsed.direccion,
-                        address: parsed.direccion,
-                        latitude: lat,
-                        longitude: lng,
-                        neighborhood: parsed.distrito,
-                        unit_number: parsed.referencia || 'Principal / Directa',
-                        route_id: activeRouteId
-                    });
-
-                    document.getElementById('rawLabelInput').value = '';
-                    togglePasteCard();
-                    showToast(`¡Parada guardada: ${parsed.destinatario || 'Guía'}!`, '🎉');
-                } else {
-                    alert('No se encontraron coordenadas exactas para la dirección. Verifica la nomenclatura.');
-                }
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'No se pudo interpretar el texto de la guía.');
+                await processParsedGuide(data);
+                document.getElementById('rawLabelInput').value = '';
             } catch (err) {
-                console.error(err);
-                alert('No se pudo procesar la guía automáticamente. Verifica los datos.');
+                console.error('Error procesando guía:', err);
+                alert(err.message || 'No se pudo procesar la guía.');
             }
+        }
+
+        async function captureAndReadGuide() {
+            const video = document.getElementById('cameraStream');
+            if (!mediaStream || !video || video.readyState < 2 || !video.videoWidth) {
+                alert('La cámara aún no está lista. Espera a que aparezca la imagen y vuelve a intentar.');
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(1, 1600 / video.videoWidth);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            showToast('Leyendo texto de la guía...', '🔎');
+            try {
+                const res = await fetch('/ocr-delivery-label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'No se pudo leer la guía.');
+                await processParsedGuide(data);
+                showToast('Guía leída y parada registrada.', '✅');
+            } catch (err) {
+                console.error('Error OCR:', err);
+                alert(err.message || 'No se pudo leer la guía. Acerca la cámara, enfoca y vuelve a capturar.');
+            }
+        }
+
+        async function processUploadedGuide(file) {
+            if (!file) return;
+            const input = document.getElementById('guideImageFile');
+            if (!file.type.startsWith('image/')) {
+                alert('Selecciona una imagen JPG, PNG o WEBP de la guía.');
+                input.value = '';
+                return;
+            }
+            if (file.size > 12 * 1024 * 1024) {
+                alert('La imagen supera 12 MB. Reduce su tamaño e inténtalo de nuevo.');
+                input.value = '';
+                return;
+            }
+            showToast('Preparando imagen de la guía...', '📷');
+            try {
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('No se pudo abrir el archivo seleccionado.'));
+                    reader.readAsDataURL(file);
+                });
+                const image = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error('El archivo no contiene una imagen válida.'));
+                    img.src = dataUrl;
+                });
+                const scale = Math.min(1, 1800 / Math.max(image.width, image.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.width * scale));
+                canvas.height = Math.max(1, Math.round(image.height * scale));
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                const response = await fetch('/ocr-delivery-label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.88) })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || 'No se pudo procesar la guía.');
+                await processParsedGuide(result);
+                showToast('Guía cargada y parada guardada.', '✅');
+            } catch (error) {
+                console.error('Error cargando guía:', error);
+                alert(error.message || 'No se pudo cargar la guía. Verifica la imagen e inténtalo de nuevo.');
+            } finally {
+                input.value = '';
+            }
+        }
+
+        async function processParsedGuide(parsed) {
+            if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
+            document.getElementById('guideAddress').value = parsed.direccion;
+            const municipalityField = document.getElementById('guideMunicipality');
+            const districtField = document.getElementById('guideDistrict');
+            if (municipalityField) municipalityField.value = parsed.municipio || '';
+            if (districtField) districtField.value = parsed.distrito || '';
+            document.getElementById('guideReference').value = parsed.referencia || '';
+            selectDestinationType(parsed.tipo || 'Residencial');
+            if (!parsed.municipio) throw new Error('La guía no indica el municipio. Completa el campo Municipio antes de registrar la parada.');
+            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
+            showToast(`Buscando: ${parsed.direccion}, ${parsed.municipio}...`, '📍');
+            const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+            const geoData = geoRes.ok ? await geoRes.json() : [];
+            if (!geoData || !geoData.length) throw new Error('No se encontró una dirección válida en el municipio indicado. Revisa dirección, barrio y municipio.');
+            const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
+            await saveLocationAutomatically({
+                name: parsed.direccion,
+                address: parsed.direccion,
+                latitude: lat,
+                longitude: lng,
+                neighborhood: parsed.distrito,
+                unit_number: parsed.referencia || 'Principal / Directa',
+                municipality: parsed.municipio,
+                route_id: activeRouteId
+            });
         }
 
         async function handleGuideFormSubmit(e) {
             e.preventDefault();
             const addr = document.getElementById('guideAddress').value.trim();
-            const dist = document.getElementById('guideDistrict').value.trim();
+            const municipality = document.getElementById('guideMunicipality').value.trim();
+            const districtField = document.getElementById('guideDistrict');
+            const dist = districtField ? districtField.value.trim() : '';
             const ref = document.getElementById('guideReference').value.trim() || 'Principal / Directa';
             const recip = document.getElementById('guideRecipient').value.trim();
 
             if (!addr) { alert('Ingresa la dirección.'); return; }
+            if (!municipality) { alert('Ingresa el municipio para evitar ubicar la dirección en otra ciudad.'); return; }
 
             showToast('Geocodificando dirección...', '🔍');
-
-            let searchGeo = addr;
-            if (dist && !searchGeo.toLowerCase().includes(dist.toLowerCase())) {
-                searchGeo += `, ${dist}`;
-            }
+            const searchGeo = [addr, dist, municipality, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
 
             try {
-                let geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                let geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if ((!geoData || geoData.length === 0) && searchGeo !== addr) {
-                    geoRes = await fetch(`/geocode?query=${encodeURIComponent(addr)}`);
-                    geoData = geoRes.ok ? await geoRes.json() : [];
-                }
+                const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
+                const geoData = geoRes.ok ? await geoRes.json() : [];
 
                 if (geoData && geoData.length > 0) {
                     const lat = Number(geoData[0].latitude);
@@ -1571,11 +1834,13 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         longitude: lng,
                         neighborhood: dist,
                         unit_number: ref,
+                        municipality,
                         route_id: activeRouteId
                     });
 
                     document.getElementById('guideAddress').value = '';
-                    document.getElementById('guideDistrict').value = '';
+                    document.getElementById('guideMunicipality').value = '';
+                    if (districtField) districtField.value = '';
                     document.getElementById('guideReference').value = '';
                     document.getElementById('guideRecipient').value = '';
                     showToast('Parada guardada con éxito', '✅');
@@ -1598,7 +1863,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 longitude: data.longitude,
                 neighborhood: data.neighborhood || null,
                 unit_number: data.unit_number || null,
-                route_id: activeRouteId,
+                entrance_name: data.entrance_name || null,
+                entrance_confirmed: data.entrance_confirmed === true,
+                location_source: data.location_source || null,
+                client_id: data.client_id || (window.crypto?.randomUUID ? crypto.randomUUID() : `rc-${Date.now()}-${Math.random().toString(36).slice(2)}`),
+                municipality: data.municipality || null,
+                route_id: data.route_id ?? activeRouteId,
                 delivered: false
             };
 
@@ -1637,6 +1907,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // ========================================================
         async function startProScanner() {
             const overlay = document.getElementById('proScannerOverlay');
+            if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('La cámara requiere abrir Ruta Clara mediante HTTPS en un navegador compatible.');
+                return;
+            }
             overlay.style.display = 'flex';
             updateRouteBadges();
             updateStopsCountInSelector();
@@ -1648,18 +1922,14 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     audio: false
                 });
                 video.srcObject = mediaStream;
+                await video.play();
             } catch (err) {
-                try {
-                    mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: "environment" },
-                        audio: false
-                    });
-                    video.srcObject = mediaStream;
-                } catch (err2) {
-                    alert('No se pudo acceder a la cámara trasera.');
-                    stopProScanner();
-                    return;
-                }
+                const message = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+                    ? 'Permite el acceso a la cámara en los permisos del navegador para usar el escáner.'
+                    : 'No se pudo iniciar la cámara. Verifica que no esté siendo usada por otra aplicación y vuelve a intentar.';
+                alert(message);
+                stopProScanner();
+                return;
             }
 
             if (barcodeDetector) {
@@ -1781,7 +2051,19 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        function renderNavigationGuide(locations) {
+        function getCurrentGpsPosition() {
+            return new Promise((resolve, reject) => {
+                if (!window.isSecureContext) return reject(new Error('La ubicación GPS requiere abrir Ruta Clara mediante HTTPS.'));
+                if (!navigator.geolocation) return reject(new Error('Este navegador no ofrece geolocalización.'));
+                navigator.geolocation.getCurrentPosition(
+                    position => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy }),
+                    error => reject(new Error(error.code === 1 ? 'Permite el acceso a la ubicación en los permisos del navegador para calcular la ruta.' : error.code === 3 ? 'El GPS tardó demasiado. Activa la ubicación del celular e inténtalo de nuevo.' : 'No se pudo obtener una ubicación GPS válida.')),
+                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+                );
+            });
+        }
+
+        async function renderNavigationGuide(locations) {
             markersGroup.clearLayers();
             polylineGroup.clearLayers();
             if (tempMarker) map.removeLayer(tempMarker);
@@ -1789,6 +2071,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const stepsContainer = document.getElementById('navStepsList');
             const totalSummary = document.getElementById('totalSummary');
             const stopsCountBadge = document.getElementById('stopsCountBadge');
+            const requestId = ++roadRouteRequestId;
+            isGpsRouteReady = locations && locations.length <= 1;
 
             if (stopsCountBadge) stopsCountBadge.innerText = locations ? locations.length : 0;
             stepsContainer.innerHTML = '';
@@ -1803,7 +2087,47 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 return;
             }
 
+            for (const loc of locations) {
+                const legacyCoordinates = /^Coordenadas:/i.test(loc.address || '') || /^Parada Mapa\s*\(/i.test(loc.name || '');
+                if (!legacyCoordinates) continue;
+                loc.name = 'Punto en mapa';
+                try {
+                    const response = await fetch(`/reverse-geocode?latitude=${loc.latitude}&longitude=${loc.longitude}`);
+                    if (response.ok) {
+                        const place = await response.json();
+                        loc.address = place.display_name || 'Dirección no disponible';
+                        loc.municipality = place.municipality || loc.municipality || '';
+                        loc.neighborhood = place.neighborhood || loc.neighborhood || '';
+                    } else {
+                        loc.address = 'Dirección no disponible';
+                    }
+                } catch (error) {
+                    loc.address = 'Dirección no disponible';
+                }
+            }
+
             let totalDist = 0;
+            let roadRoute = null;
+            let gpsError = null;
+            if (locations.length > 1 && activeRouteId) {
+                try {
+                    const gps = await getCurrentGpsPosition();
+                    if (gps.accuracy > 50) throw new Error(`GPS impreciso (±${Math.round(gps.accuracy)} m). Espera una precisión de 50 m o menos antes de calcular la ruta.`);
+                    const routeResponse = await fetch(`/road_route?route_id=${activeRouteId}&start_lat=${gps.latitude}&start_lon=${gps.longitude}`);
+                    if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial desde tu GPS.");
+                    roadRoute = await routeResponse.json();
+                    const orderedLocations = roadRoute.stop_ids.map(id => locations.find(location => String(location.id) === String(id)));
+                    if (orderedLocations.length !== locations.length || orderedLocations.some(location => !location) || !roadRoute.origin_included) throw new Error("El servidor devolvió un orden de paradas incompleto.");
+                    locations.splice(0, locations.length, ...orderedLocations);
+                    isGpsRouteReady = true;
+                } catch (error) {
+                    gpsError = error.message || "GPS no disponible.";
+                    roadRoute = null;
+                    isGpsRouteReady = false;
+                    console.warn("Ruta GPS no disponible:", error);
+                }
+            }
+            if (requestId !== roadRouteRequestId) return;
             const points = [];
 
             locations.forEach((loc, idx) => {
@@ -1821,13 +2145,15 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 });
 
                 let refHtml = loc.unit_number ? `<div style="background:#fef08a; color:#713f12; padding:4px 6px; border-radius:4px; font-weight:bold; font-size:11px; margin:4px 0;">🏷️ Ref: ${escapeHtml(loc.unit_number)}</div>` : '';
+                let entranceHtml = loc.entrance_name ? `<div style="background:#dcfce7; color:#166534; padding:4px 6px; border-radius:4px; font-weight:bold; font-size:11px; margin:4px 0;">🚪 Portería: ${escapeHtml(loc.entrance_name)}</div>` : '<div style="background:#fff7ed; color:#9a3412; padding:4px 6px; border-radius:4px; font-size:11px; margin:4px 0;">⚠️ Portería sin confirmar</div>';
                 const marker = L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
-                    .bindPopup(`<b>Parada ${idx + 1}: ${escapeHtml(loc.name)}</b><br/><span style="font-size:11px; color:#475569;">${escapeHtml(loc.address || '')}</span>${refHtml}<button onclick="startNavigationToStop(${loc.id})" style="background:#2563eb; color:white; border:none; border-radius:6px; padding:4px 8px; font-size:11px; margin-top:4px; cursor:pointer;">🧭 Navegar Aquí</button>`);
+                    .bindPopup(`<b>Parada ${idx + 1}: ${escapeHtml(loc.name)}</b><br/><span style="font-size:11px; color:#475569;">${escapeHtml(loc.address || '')}</span>${refHtml}${entranceHtml}<button onclick="startNavigationToStop(${loc.id})" style="background:#2563eb; color:white; border:none; border-radius:6px; padding:4px 8px; font-size:11px; margin-top:4px; cursor:pointer;">🧭 Navegar Aquí</button>`);
                 markersGroup.addLayer(marker);
             });
 
-            if (points.length > 1) {
-                const polyline = L.polyline(points, { color: '#ea580c', weight: 5, opacity: 0.85, dashArray: '8, 8' });
+            if (roadRoute && roadRoute.geometry.length > 1) {
+                const roadPoints = roadRoute.geometry.map(point => [point[1], point[0]]);
+                const polyline = L.polyline(roadPoints, { color: '#ea580c', weight: 5, opacity: 0.9 });
                 polylineGroup.addLayer(polyline);
                 map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
             } else if (points.length === 1) {
@@ -1835,12 +2161,14 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
 
             locations.forEach((loc, idx) => {
-                let distText = "Punto de partida";
-                if (idx > 0) {
-                    const prev = locations[idx - 1];
-                    const segmentDist = calculateDistanceKm(prev.latitude, prev.longitude, loc.latitude, loc.longitude);
+                let distText = "Primera parada desde tu ubicación GPS";
+                const leg = roadRoute && roadRoute.origin_included ? roadRoute.legs[idx] : null;
+                if (leg) {
+                    const segmentDist = leg.distance_m / 1000;
                     totalDist += segmentDist;
-                    distText = `Distancia desde anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                    distText = idx === 0 ? `Desde tu GPS: <b>${segmentDist.toFixed(2)} km</b>` : `Desde parada anterior: <b>${segmentDist.toFixed(2)} km</b>`;
+                } else if (gpsError) {
+                    distText = "Sin calcular: ubicación GPS requerida";
                 }
 
                 const isDelivered = loc.delivered === true;
@@ -1852,11 +2180,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
                         <div style="flex:1;">
                             <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                                <strong>Parada ${idx + 1}: ${escapeHtml(loc.name)}</strong>
+                                <strong>Parada ${idx + 1}</strong><div style="font-size:12px; margin-top:3px;"><b>Destinatario:</b> ${escapeHtml(loc.name || 'Sin nombre')}</div>
                                 ${isDelivered ? '<span class="badge-tag-res">✔ Entregado</span>' : '<span style="background:#ffedd5; color:#c2410c; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px;">Pendiente</span>'}
                             </div>
                             <div style="font-size:12px; color:#1e293b; font-weight:600;">
-                                📍 ${escapeHtml(loc.address || '')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''}
+                                📍 <b>Dirección:</b> ${escapeHtml(loc.address || 'Dirección no disponible')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''} ${loc.municipality ? `• ${escapeHtml(loc.municipality)}` : ''}
                             </div>
                             <!-- CUADRO DE REFERENCIA DESTACADO -->
                             ${loc.unit_number ? `
@@ -1883,7 +2211,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             if (locations.length > 1) {
                 totalSummary.style.display = 'block';
-                document.getElementById('totalDistKm').innerText = totalDist.toFixed(2);
+                document.getElementById('totalDistKm').innerText = roadRoute ? (roadRoute.distance_m / 1000).toFixed(2) : '--';
+                document.getElementById('totalSummary').title = roadRoute ? `Recorrido vial desde GPS: ${(roadRoute.duration_s / 60).toFixed(0)} min` : 'No se calculó la ruta porque falta una ubicación GPS válida';
+                document.getElementById('routeStatus').innerText = roadRoute ? `GPS confirmado · Primera parada desde tu ubicación · ${(roadRoute.duration_s / 60).toFixed(0)} min estimados` : (gpsError || 'Activa la ubicación del celular para calcular una ruta segura. No se ha optimizado el recorrido.');
             } else {
                 totalSummary.style.display = 'none';
             }
@@ -1922,6 +2252,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 return;
             }
 
+            if (currentLocations.length > 1 && !isGpsRouteReady) {
+                alert('No se puede iniciar: primero activa el GPS y espera a que Ruta Clara calcule el recorrido desde tu ubicación.');
+                return;
+            }
             isNavigating = true;
             document.getElementById('btnToggleNav').innerText = '🛑 Detener';
             document.getElementById('btnToggleNav').style.background = '#ef4444';
@@ -1959,6 +2293,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
         function onUserPositionUpdate(pos) {
+            if (pos.coords.accuracy > 50) {
+                const status = document.getElementById('routeStatus');
+                if (status) status.innerText = `GPS impreciso (±${Math.round(pos.coords.accuracy)} m). Esperando precisión de 50 m o menos.`;
+                return;
+            }
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             currentUserLatLng = [lat, lng];
@@ -1983,7 +2322,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (!target) return;
 
             document.getElementById('hudStopTitle').innerText = `Parada ${activeNavIndex + 1}/${currentLocations.length}: ${target.name}`;
-            document.getElementById('hudStopAddress').innerText = `${target.address || ''} ${target.neighborhood ? '• ' + target.neighborhood : ''}`;
+            document.getElementById('hudStopAddress').innerText = `Dirección: ${target.address || 'Dirección no disponible'} ${target.neighborhood ? '• ' + target.neighborhood : ''}`;
 
             const refEl = document.getElementById('hudStopReference');
             if (target.unit_number) {
@@ -2111,8 +2450,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
 
-        function downloadWeeklyHistory() {
-            window.location.href = '/export/weekly_routes';
+        async function downloadWeeklyHistory() {
+            try {
+                const response = await fetch('/export/weekly_routes');
+                if (!response.ok) throw new Error('No fue posible descargar el historial.');
+                const url = URL.createObjectURL(await response.blob());
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'rutas_semana_registros.csv';
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) { alert(error.message); }
         }
 
         function switchTab(tabName) {
@@ -2140,7 +2488,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js')
+                navigator.serviceWorker.register('/sw.js')
                     .then(reg => {
                         if (reg.waiting) {
                             reg.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -2186,8 +2534,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (map) setTimeout(() => map.invalidateSize(), 200);
         });
 
-        window.onload = initMap;
+        window.onload = bootRutaClara;
     </script>
+    <script src="/static/safety.js?v=1"></script>
 </body>
 
 </html>
