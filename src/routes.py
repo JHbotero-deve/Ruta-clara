@@ -199,12 +199,16 @@ def offline_map_status():
 )
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).count() > 0:
-        raise HTTPException(status_code=403, detail="El registro público está deshabilitado. Solicita acceso al administrador.")
+        raise HTTPException(status_code=403, detail="La cuenta inicial ya fue creada. Inicia sesión o solicita al administrador que cree tu usuario.")
+    email = (user_in.email or "").strip().lower()
+    if email != "jorgebotero190@gmail.com":
+        raise HTTPException(status_code=403, detail="El registro inicial está reservado al correo autorizado.")
     if len(user_in.password) < 8:
         raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
+    username = (user_in.username or email).strip()
     new_user = User(
-        username=user_in.username.strip(),
-        email=user_in.email,
+        username=username,
+        email=email,
         hashed_password=get_password_hash(user_in.password),
         disabled=False,
         role="admin"
@@ -231,7 +235,7 @@ def login_for_access_token(
     if not user:
         raise HTTPException(
             status_code=401,
-            detail="Incorrect username or password",
+            detail="Correo o contraseña incorrectos.",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
@@ -257,13 +261,18 @@ def admin_list_users(db: Session = Depends(get_db), admin: User = Depends(get_cu
 
 @router.post("/admin/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Administration"])
 def admin_create_user(user_in: UserCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    email = (user_in.email or "").strip().lower()
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=422, detail="Ingresa un correo electrónico válido.")
     if len(user_in.password) < 8:
         raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
-    if db.query(User).filter(User.username == user_in.username.strip()).first():
-        raise HTTPException(status_code=409, detail="El usuario ya existe.")
-    if user_in.email and db.query(User).filter(User.email == user_in.email).first():
+    role = user_in.role or "operator"
+    if role not in {"admin", "operator", "driver"}:
+        raise HTTPException(status_code=422, detail="Rol no válido.")
+    username = (user_in.username or email).strip()
+    if db.query(User).filter((User.username == username) | (User.email == email)).first():
         raise HTTPException(status_code=409, detail="El correo ya está registrado.")
-    user = User(username=user_in.username.strip(), email=user_in.email, hashed_password=get_password_hash(user_in.password), disabled=False, role="operator")
+    user = User(username=username, email=email, hashed_password=get_password_hash(user_in.password), disabled=False, role=role)
     db.add(user)
     db.commit()
     db.refresh(user)
