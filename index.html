@@ -1445,10 +1445,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             map = L.map('map', { zoomControl: false }).setView([6.2442, -75.5812], 12);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap | Ruta Clara'
-            }).addTo(map);
+            let fallbackMapLayer = null;
+            const offlineTiles = L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: 'Mapa offline Ruta Clara' });
+            offlineTiles.on('tileerror', () => {
+                if (navigator.onLine && !fallbackMapLayer) fallbackMapLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap | Ruta Clara' }).addTo(map);
+            });
+            offlineTiles.addTo(map);
 
             markersGroup.addTo(map);
             polylineGroup.addTo(map);
@@ -2109,6 +2111,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (locations.length > 1 && activeRouteId) {
                 try {
                     const gps = await getCurrentGpsPosition();
+                    if (gps.accuracy > 50) throw new Error(`GPS impreciso (±${Math.round(gps.accuracy)} m). Espera una precisión de 50 m o menos antes de calcular la ruta.`);
                     const routeResponse = await fetch(`/road_route?route_id=${activeRouteId}&start_lat=${gps.latitude}&start_lon=${gps.longitude}`);
                     if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial desde tu GPS.");
                     roadRoute = await routeResponse.json();
@@ -2289,6 +2292,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
         function onUserPositionUpdate(pos) {
+            if (pos.coords.accuracy > 50) {
+                const status = document.getElementById('routeStatus');
+                if (status) status.innerText = `GPS impreciso (±${Math.round(pos.coords.accuracy)} m). Esperando precisión de 50 m o menos.`;
+                return;
+            }
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             currentUserLatLng = [lat, lng];
