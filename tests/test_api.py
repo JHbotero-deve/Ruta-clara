@@ -383,6 +383,10 @@ def test_admin_assignment_driver_scope_and_dynamic_pending_route():
     assert len(client.get("/optimal_route", headers=driver_headers).json()) == 1
     assert client.get("/locations", headers=other_headers).json() == []
     assert client.get("/optimal_route", headers=other_headers).json() == []
+    before_delivery = client.get("/admin/users/activity", headers=admin).json()
+    driver_before = next(user for user in before_delivery["users"] if user["id"] == driver.json()["id"])
+    assert driver_before["pending"] == 1
+    assert driver_before["pending_orders"][0]["address"] == payload["address"]
     delivered = client.patch(f"/locations/{created.json()['id']}/delivered", json={"delivered":True}, headers=driver_headers)
     assert delivered.status_code == 200
     assert client.get("/optimal_route", headers=driver_headers).json() == []
