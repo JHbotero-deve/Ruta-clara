@@ -271,13 +271,13 @@ def admin_users_activity(db: Session = Depends(get_db), admin: User = Depends(ge
         orders = db.query(Location).filter(or_(Location.assigned_to_id == user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == user.id))).all()
         pending = sum(1 for order in orders if order.status in {"pending", "assigned", "in_transit"} and not order.delivered)
         in_transit = sum(1 for order in orders if order.status == "in_transit")
-        delivered = db.query(LocationStatusHistory).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered").count()
+        delivered = db.query(LocationStatusHistory.location_id).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered").distinct().count()
         events = db.query(LocationStatusHistory).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered", LocationStatusHistory.changed_at >= week_start).order_by(LocationStatusHistory.changed_at.desc()).all()
         daily = { (today - timedelta(days=6-offset)).isoformat(): 0 for offset in range(7) }
         for event in events:
             key = event.changed_at.date().isoformat()
             if key in daily: daily[key] += 1
-        activity.append({"id":user.id,"username":user.username,"email":user.email,"disabled":user.disabled,"status":"Inactivo" if user.disabled else ("En recorrido" if in_transit else "Disponible"),"delivered":delivered,"pending":pending,"in_transit":in_transit,"delivered_today":daily.get(today.isoformat(),0),"deliveries_by_day":daily})
+        activity.append({"id":user.id,"username":user.username,"email":user.email,"disabled":user.disabled,"status":"Inactivo" if user.disabled else ("En recorrido" if in_transit else ("Con pedidos asignados" if pending else "Disponible")),"delivered":delivered,"pending":pending,"in_transit":in_transit,"delivered_today":daily.get(today.isoformat(),0),"deliveries_by_day":daily})
     return {"users":activity,"total_drivers":len(drivers),"drivers_on_route":sum(1 for user in activity if user["in_transit"]>0),"deliveries_today":sum(user["delivered_today"] for user in activity)}
 
 
