@@ -1281,7 +1281,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let rutaUser = null;
         window.fetch = (input, init = {}) => {
             const headers = new Headers(init.headers || {});
-            const token = sessionStorage.getItem("ruta_clara_token");
+            const token = localStorage.getItem("ruta_clara_token");
             if (token && !String(input).includes("/token") && !String(input).includes("/register")) headers.set("Authorization", "Bearer " + token);
             return rutaFetch(input, {...init, headers});
         };
@@ -1292,7 +1292,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             try {
                 const response = await rutaFetch("/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
                 const data = await response.json(); if(!response.ok) throw new Error(data.detail||"Credenciales incorrectas.");
-                sessionStorage.setItem("ruta_clara_token",data.access_token); await bootRutaClara();
+                localStorage.setItem("ruta_clara_token",data.access_token); await bootRutaClara();
             } catch(error) { showLoginError(error.message); }
         }
         async function registerFirstAdmin() {
@@ -1305,7 +1305,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             } catch(error){showLoginError(error.message);}
         }
         async function bootRutaClara() {
-            const token=sessionStorage.getItem("ruta_clara_token");
+            const token=localStorage.getItem("ruta_clara_token");
             if(!token){document.getElementById("loginGate").style.display="flex";return;}
             try {
                 const response=await fetch("/users/me");if(!response.ok)throw new Error("Sesión inválida");
@@ -1319,9 +1319,13 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
                 }
                 if(typeof initMap==="function")initMap();await syncPendingDeliveryUpdates();await loadDashboard();showSection("dashboard");
-            } catch(error) {sessionStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("No fue posible validar la sesión. Inicia sesión de nuevo.");}
+            } catch(error) {localStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("No fue posible validar la sesión. Inicia sesión de nuevo.");}
         }
-        function logoutRutaClara(){sessionStorage.removeItem("ruta_clara_token");location.reload();}
+        async function logoutRutaClara(){
+            try{if(localStorage.getItem("ruta_clara_token"))await fetch("/logout",{method:"POST"});}catch(error){}
+            localStorage.removeItem("ruta_clara_token");
+            location.reload();
+        }
         function toggleMenu(){document.getElementById("menuDrawer").classList.toggle("open");}
         function showSection(section){
             document.getElementById("menuDrawer").classList.remove("open");
