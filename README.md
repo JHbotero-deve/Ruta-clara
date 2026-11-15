@@ -286,7 +286,8 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - **CI del PR #6 aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
 - **Seguridad y permisos integrados en main** mediante PR #11 y PR #12; se limitaron los pedidos visibles al repartidor asignado, se protegieron las entregas finalizadas y se cerró CORS abierto en producción. Commit: 1f5253a8f1e1ce5fd8ed5e030d16bc8f3288da72.
 - **CI de PR #11 y PR #12 aprobado**, incluidas pruebas de backend y sintaxis JavaScript.
-- La sincronización automática de nuevas paradas offline está en revisión en el PR #14; no se considera integrada hasta que su CI pase y se fusione.
+- **Sincronización de nuevas paradas offline integrada en main** mediante PR #14, commit: 0db135a52bd9f23d5863897f1a17852051d8632d.
+- **CI del PR #14 aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
 - Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
 
 ## 🎨 Identidad visual y experiencia de usuario
