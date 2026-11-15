@@ -1151,14 +1151,33 @@ def get_road_route(
     if len(coordinates) < 2:
         return {"distance_m": 0, "duration_s": 0, "geometry": [], "legs": [], "stop_ids": [loc.id for loc in locations], "origin_included": start is not None}
     base_url = os.getenv("OSRM_BASE_URL", "https://router.project-osrm.org").rstrip("/")
-    url = f"{base_url}/route/v1/driving/{';'.join(coordinates)}?overview=full&geometries=geojson&steps=false"
-    request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
-    try:
+    route = None
+    optimization = "nearest_neighbor"
+    if start is not None:
+        trip_url = f"{base_url}/trip/v1/driving/{';'.join(coordinates)}?roundtrip=false&source=first&destination=any&overview=full&geometries=geojson&steps=false"
+        try:
+            trip_request = urllib.request.Request(trip_url, headers={"User-Agent": "RutaClara/1.0"})
+            with urllib.request.urlopen(trip_request, timeout=20) as response:
+                trip_payload = json.loads(response.read().decode("utf-8"))
+            waypoints = trip_payload.get("waypoints", [])
+            if trip_payload.get("code") == "Ok" and trip_payload.get("trips") and len(waypoints) == len(coordinates):
+                waypoint_order = sorted(range(len(waypoints)), key=lambda index: waypoints[index].get("waypoint_index", index))
+                stop_order = [index - 1 for index in waypoint_order if index != 0]
+                if len(stop_order) == len(locations) and set(stop_order) == set(range(len(locations))):
+                    locations = [locations[index] for index in stop_order]
+                    route = trip_payload["trips"][0]
+                    optimization = "road_duration"
+        except Exception as trip_error:
+            logger.warning("OSRM trip no disponible; se usa orden aproximado: %s", trip_error)
+    if route is None:
+        url = f"{base_url}/route/v1/driving/{';'.join(coordinates)}?overview=full&geometries=geojson&steps=false"
+        request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
         if payload.get("code") != "Ok" or not payload.get("routes"):
-            raise ValueError(payload.get("message") or "OSRM no encontró un recorrido")
+            raise HTTPException(status_code=502, detail=payload.get("message") or "OSRM no encontró un recorrido")
         route = payload["routes"][0]
+    try:
         geometry = route.get("geometry", {}).get("coordinates", [])
         legs = route.get("legs", [])
         expected_legs = len(locations) if start is not None else len(locations) - 1
@@ -1170,7 +1189,8 @@ def get_road_route(
             "geometry": geometry,
             "legs": [{"distance_m": leg["distance"], "duration_s": leg["duration"]} for leg in legs],
             "stop_ids": [loc.id for loc in locations],
-            "origin_included": start is not None
+            "origin_included": start is not None,
+            "optimization": optimization
         }
     except Exception as error:
         logger.exception("Error calculando recorrido vial con OSRM")
