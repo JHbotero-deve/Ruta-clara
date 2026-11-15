@@ -1090,8 +1090,11 @@ def toggle_location_delivered(
         raise HTTPException(status_code=404, detail="Parada no encontrada")
 
     ensure_location_access(loc, current_user)
-    if current_user.role == "driver" and not payload.delivered:
-        raise HTTPException(status_code=403, detail="Un repartidor no puede reabrir una entrega finalizada.")
+    if current_user.role == "driver":
+        if not payload.delivered:
+            raise HTTPException(status_code=403, detail="Un repartidor no puede reabrir una entrega finalizada.")
+        if loc.status == "cancelled":
+            raise HTTPException(status_code=409, detail="Un pedido cancelado no puede marcarse como entregado desde el módulo del repartidor.")
     new_status = "delivered" if payload.delivered else "pending"
     if loc.status != new_status:
         db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
