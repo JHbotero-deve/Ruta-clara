@@ -80,6 +80,9 @@ class Location(Base):
     municipality = Column(String(150), nullable=True)
     neighborhood = Column(String(150), nullable=True)
     unit_number = Column(String(150), nullable=True)
+    entrance_name = Column(String(150), nullable=True)
+    entrance_confirmed = Column(Boolean, nullable=False, default=False, server_default="0")
+    location_source = Column(String(30), nullable=True)
 
     # Estado de entrega y trazabilidad
     delivered = Column(Boolean, default=False)
@@ -241,6 +244,9 @@ class LocationBase(BaseModel):
     municipality: Optional[str] = None
     neighborhood: Optional[str] = None
     unit_number: Optional[str] = None
+    entrance_name: Optional[str] = None
+    entrance_confirmed: bool = False
+    location_source: Optional[str] = None
     route_id: Optional[int] = None
     delivered: Optional[bool] = False
 
@@ -282,6 +288,9 @@ class LocationCreate(LocationBase):
         max_length=150
     )
 
+    entrance_name: Optional[str] = Field(default=None, max_length=150)
+    entrance_confirmed: bool = False
+    location_source: Optional[str] = Field(default=None, max_length=30)
     route_id: Optional[int] = None
     delivered: Optional[bool] = False
 
