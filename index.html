@@ -1285,9 +1285,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             <button class="btn-capture-big" onclick="captureAndReadGuide()">
                 📷 Leer guía con cámara (OCR)
             </button>
-            <button onclick="captureContinuousStop()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
-                📍 Registrar solo ubicación GPS
-            </button>
             <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
                 🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
             </button>
@@ -2165,47 +2162,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.getElementById('guideAddress').focus();
                 showToast(`Código ${codeText} asignado. Ingresa o dicta la dirección.`, '✍️');
             }
-        }
-
-        async function captureContinuousStop() {
-            if (!navigator.geolocation) {
-                alert('Geolocalización no disponible');
-                return;
-            }
-
-            const hint = document.getElementById('scannerHint');
-            hint.innerText = "⏳ Obteniendo coordenadas GPS precisas...";
-
-            navigator.geolocation.getCurrentPosition(async pos => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                hint.innerText = "Apunta a la guía / código QR o presiona capturar";
-
-                let name = `Parada #${currentLocations.length + 1}`;
-                let address = `Ubicación GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-
-                try {
-                    const res = await fetch(`/geocode?query=${lat},${lng}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data && data.length > 0) {
-                            address = data[0].display_name;
-                            name = data[0].display_name.split(',')[0];
-                        }
-                    }
-                } catch (e) {}
-
-                await saveLocationAutomatically({
-                    name,
-                    address,
-                    latitude: lat,
-                    longitude: lng,
-                    unit_number: 'Marcado en campo'
-                });
-            }, () => {
-                hint.innerText = "Apunta a la guía / código QR o presiona capturar";
-                alert('No se pudo obtener el GPS.');
-            }, { enableHighAccuracy: true });
         }
 
         function goToMapFromScanner() {
