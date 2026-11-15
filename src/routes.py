@@ -1250,10 +1250,7 @@ def export_delivery_route_pdf(
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     if target_driver:
-        query = query.filter(or_(
-            Location.assigned_to_id == target_driver.id,
-            and_(Location.assigned_to_id.is_(None), Location.created_by_id == target_driver.id)
-        ))
+        query = query.filter(Location.assigned_to_id == target_driver.id)
     if route_id is None:
         query = query.filter(Location.updated_at >= datetime.now(timezone.utc) - timedelta(days=7))
 
@@ -1493,10 +1490,7 @@ def export_delivery_route_xlsx(
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     if target_driver:
-        query = query.filter(or_(
-            Location.assigned_to_id == target_driver.id,
-            and_(Location.assigned_to_id.is_(None), Location.created_by_id == target_driver.id)
-        ))
+        query = query.filter(Location.assigned_to_id == target_driver.id)
     if route_id is None:
         query = query.filter(Location.updated_at >= datetime.now(timezone.utc) - timedelta(days=7))
     locations = query.order_by(Location.route_id.asc(), Location.created_at.asc(), Location.id.asc()).all()
