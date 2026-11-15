@@ -826,7 +826,7 @@
         .admin-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.admin-form input{padding:9px;border:1px solid var(--border);border-radius:8px;min-width:150px;background:var(--bg-card);color:var(--text-main)}.admin-form button{padding:9px 14px;border:0;border-radius:8px;background:#2563eb;color:white;font-weight:700}
         .view-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.view-heading h2{margin:0;font-size:19px;color:var(--text-main)}
         @media(max-width:700px){.dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.account-label{display:none}.dashboard-table{min-width:780px}}
-        .tab-navigation{display:none!important}
+        .tab-navigation{display:none!important}.route-bar{display:none}
     </style>
 </head>
 
@@ -1254,6 +1254,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             document.getElementById("menuDrawer").classList.remove("open");
             ["viewDashboard","viewScanner","viewMap","viewUsers"].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove("active");});
             const target=document.getElementById("view"+section.charAt(0).toUpperCase()+section.slice(1));if(target)target.classList.add("active");
+            const routeBar=document.querySelector(".route-bar");if(routeBar)routeBar.style.display=(section==="scanner"||section==="map")?"flex":"none";
             if(section==="map")setTimeout(()=>{if(map)map.invalidateSize();},150);
             if(section==="dashboard")loadDashboard();if(section==="users"&&rutaUser?.role==="admin")loadAdminUsers();if(section==="scanner")loadRouteData();
         }
