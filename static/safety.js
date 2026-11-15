@@ -2,6 +2,7 @@
 'use strict';
 if(typeof window==='undefined')return;
 window.barcodeDetector=null;
+try{barcodeDetector=null;}catch(error){}
 window.onBarcodeDetected=function(){showToast('Los QR y códigos de barras se ignoran. Enfoca únicamente la dirección de entrega.','⚠️');};
 let reviewMap=null,reviewMarker=null,reviewResolve=null,reviewReject=null,reviewPointSelected=false,reviewOfflineMap=false;
 function el(tag,attrs,text){const node=document.createElement(tag);Object.keys(attrs||{}).forEach(k=>node.setAttribute(k,attrs[k]));if(text!==undefined)node.textContent=text;return node;}
