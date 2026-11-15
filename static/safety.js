@@ -4,6 +4,7 @@ if(typeof window==='undefined')return;
 window.barcodeDetector=null;
 try{barcodeDetector=null;}catch(error){}
 window.onBarcodeDetected=function(){showToast('Los QR y códigos de barras se ignoran. Enfoca únicamente la dirección de entrega.','⚠️');};
+window.startBarcodeDetectionLoop=function(){};
 let reviewMap=null,reviewMarker=null,reviewResolve=null,reviewReject=null,reviewPointSelected=false,reviewOfflineMap=false;
 function el(tag,attrs,text){const node=document.createElement(tag);Object.keys(attrs||{}).forEach(k=>node.setAttribute(k,attrs[k]));if(text!==undefined)node.textContent=text;return node;}
 function distanceMeters(a,b){const r=6371000,p=Math.PI/180,dLat=(b[0]-a[0])*p,dLon=(b[1]-a[1])*p,x=Math.sin(dLat/2)**2+Math.cos(a[0]*p)*Math.cos(b[0]*p)*Math.sin(dLon/2)**2;return 2*r*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
