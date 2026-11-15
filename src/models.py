@@ -164,8 +164,11 @@ class UserBase(BaseModel):
     disabled: Optional[bool] = False
 
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
+    role: Optional[str] = None
 
 
 class UserResponse(UserBase):
