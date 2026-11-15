@@ -1616,7 +1616,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // INICIALIZACIÓN DEL MAPA
         // ========================================================
         function initMap() {
-            map = L.map('map', { zoomControl: false }).setView([6.2442, -75.5812], 12);
+            map = L.map('map', { zoomControl: false, doubleClickZoom: false, boxZoom: false, touchZoom: true, dragging: true }).setView([6.2442, -75.5812], 12);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
             let fallbackMapLayer = null;
