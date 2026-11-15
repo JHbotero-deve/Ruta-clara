@@ -81,6 +81,37 @@ const parsed={direccion:document.getElementById('guideAddress').value.trim(),mun
 if(!parsed.direccion||!parsed.municipio){alert('La dirección y el municipio son obligatorios.');return;}
 try{await window.processParsedGuide(parsed);document.getElementById('deliveryGuideForm').reset();showToast('Portería confirmada y parada guardada.','✅');}catch(error){alert(error.message);}
 };
+const originalSaveLocation=window.saveLocationAutomatically;
+if(typeof originalSaveLocation==='function'){
+window.saveLocationAutomatically=async function(data){
+if(!data||data.entrance_confirmed!==true||!String(data.entrance_name||'').trim())throw new Error('No se puede guardar: debes confirmar el nombre de la portería y el punto exacto en el mapa.');
+return originalSaveLocation(data);
+};
+}
+window.captureContinuousStop=function(){
+showToast('La ubicación GPS sola no registra entregas. Ingresa la dirección y confirma la portería en el mapa.','⚠️');
+const field=document.getElementById('guideAddress');if(field)field.focus();
+};
+async function syncOfflineLocations(){
+if(!navigator.onLine||!sessionStorage.getItem('ruta_clara_token'))return;
+let queue;try{queue=JSON.parse(localStorage.getItem('rc_offline_locations')||'[]');}catch(error){queue=[];}
+if(!queue.length)return;
+const remaining=[];
+for(const item of queue){
+try{
+const payload=Object.assign({},item);delete payload.id;
+if(!payload.client_id)payload.client_id=window.crypto?.randomUUID?crypto.randomUUID():'rc-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+const response=await window.fetch('/locations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+if(!response.ok)remaining.push(payload);
+}catch(error){remaining.push(item);}
+}
+localStorage.setItem('rc_offline_locations',JSON.stringify(remaining));
+}
+window.addEventListener('online',syncOfflineLocations);
+if(typeof window.loadRouteData==='function'){
+const originalLoadRouteData=window.loadRouteData;
+window.loadRouteData=async function(){await syncOfflineLocations();return originalLoadRouteData.apply(this,arguments);};
+}
 const nativeFetch=window.fetch.bind(window);
 window.__rcOfflineRouteUsed=false;
 window.fetch=async function(input,init){
