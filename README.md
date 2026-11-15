@@ -224,6 +224,7 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - La ruta activa contiene únicamente pedidos pendientes, asignados o en camino. Los entregados, cancelados o reportados como novedad no aparecen en navegación.
 - Al confirmar **Entregado**, guardar estado, hora y usuario; retirar el domicilio de la lista pendiente y pasarlo al apartado de entregados.
 - Después de cada entrega, recalcular el orden desde la ubicación GPS actual y presentar la siguiente parada pendiente.
+- Sin conexión, reordenar localmente las paradas pendientes por distancia desde el GPS actual; el trazado vial detallado requiere los datos de calles offline o conectividad.
 - No borrar pedidos entregados: conservarlos en el historial y permitir consultarlos por fecha.
 - Si un pedido no pudo entregarse, registrar una novedad; no marcarlo como entregado.
 - Sin conexión, conservar la confirmación localmente y sincronizarla al recuperar conectividad, evitando duplicados.
