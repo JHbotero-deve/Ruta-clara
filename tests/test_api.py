@@ -157,7 +157,8 @@ def test_locations_crud_and_optimal_route():
     # Get optimal route
     r_opt = client.get("/optimal_route", headers=headers)
     assert r_opt.status_code == 200
-    assert len(r_opt.json()) == 2
+    assert len(r_opt.json()) == 1
+    assert r_opt.json()[0]["name"] == "Parque Poblado"
 
     # Delete location
     r_del = client.delete(f"/locations/{loc1_id}", headers=headers)
@@ -362,6 +363,40 @@ def test_admin_can_create_all_three_roles_and_login_with_email():
         assert created.json()["role"] == role
         login = client.post("/token", data={"username": email, "password": "ClaveFacil123"})
         assert login.status_code == 200, login.text
+
+
+def test_admin_assignment_driver_scope_and_dynamic_pending_route():
+    admin = admin_headers()
+    driver = client.post("/admin/users", json={"email":"repartidor@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    assert driver.status_code == 201, driver.text
+    login = client.post("/token", data={"username":"repartidor@example.com","password":"Password123!"})
+    driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    other_driver = client.post("/admin/users", json={"email":"otro@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    other_login = client.post("/token", data={"username":"otro@example.com","password":"Password123!"})
+    other_headers = {"Authorization": f"Bearer {other_login.json()['access_token']}"}
+    payload = {"name":"Pedido asignado","latitude":6.2,"longitude":-75.5,"address":"Calle 10 #20-30","entrance_name":"Portería","entrance_confirmed":True}
+    created = client.post("/locations", json=payload, headers=admin)
+    assert created.status_code == 201, created.text
+    assigned = client.patch(f"/locations/{created.json()['id']}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin)
+    assert assigned.status_code == 200
+    assert assigned.json()["assigned_to_id"] == driver.json()["id"]
+    assert len(client.get("/optimal_route", headers=driver_headers).json()) == 1
+    assert client.get("/locations", headers=other_headers).json() == []
+    assert client.get("/optimal_route", headers=other_headers).json() == []
+    before_delivery = client.get("/admin/users/activity", headers=admin).json()
+    driver_before = next(user for user in before_delivery["users"] if user["id"] == driver.json()["id"])
+    assert driver_before["pending"] == 1
+    assert driver_before["pending_orders"][0]["address"] == payload["address"]
+    delivered = client.patch(f"/locations/{created.json()['id']}/delivered", json={"delivered":True}, headers=driver_headers)
+    assert delivered.status_code == 200
+    assert client.get("/optimal_route", headers=driver_headers).json() == []
+    completed = client.get("/locations?status=delivered", headers=driver_headers)
+    assert completed.status_code == 200 and len(completed.json()) == 1
+    activity = client.get("/admin/users/activity", headers=admin)
+    assert activity.status_code == 200
+    driver_activity = next(user for user in activity.json()["users"] if user["id"] == driver.json()["id"])
+    assert driver_activity["delivered"] == 1
+    assert driver_activity["pending"] == 0
 
 
 def test_public_registration_is_closed_after_first_account():

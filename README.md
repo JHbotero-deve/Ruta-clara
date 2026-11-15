@@ -197,3 +197,70 @@ El proyecto incluye un visualizador de mapa interno integrado servido directamen
 ## 📄 Licencia
 
 Este proyecto está distribuido bajo la licencia MIT.
+
+
+---
+
+## Requisitos funcionales y hoja de ruta (actualizado: 15-11-2026)
+
+Esta sección conserva las decisiones funcionales del producto para retomar el trabajo sin perder contexto.
+
+### Roles y responsabilidades
+
+- **Administrador:** administra usuarios y roles, asigna pedidos a domiciliarios y supervisa el trabajo del equipo. Su panel principal muestra personas y actividad, no un contador global de pedidos.
+- **Operador:** registra y gestiona los pedidos que le corresponden según sus permisos.
+- **Repartidor / domiciliario:** consulta y actualiza sus pedidos asignados, ejecuta su recorrido y registra entregas o novedades.
+
+### Panel del administrador
+
+- Mostrar domiciliarios, cuántos tienen pedidos en recorrido y las entregas realizadas durante el día.
+- Mostrar por domiciliario: entregas realizadas, pendientes, entregas del día e historial diario de los últimos siete días.
+- Permitir asignar y retirar pedidos de un domiciliario activo.
+- Consultar el historial de cambios de cada pedido.
+- Calcular métricas desde los pedidos y su historial persistido; no mantener contadores duplicados.
+
+### Aplicación del domiciliario y ruta dinámica
+
+- La ruta activa contiene únicamente pedidos pendientes, asignados o en camino. Los entregados, cancelados o reportados como novedad no aparecen en navegación.
+- Al confirmar **Entregado**, guardar estado, hora y usuario; retirar el domicilio de la lista pendiente y pasarlo al apartado de entregados.
+- Después de cada entrega, recalcular el orden desde la ubicación GPS actual y presentar la siguiente parada pendiente.
+- Sin conexión, reordenar localmente las paradas pendientes por distancia desde el GPS actual; el trazado vial detallado requiere los datos de calles offline o conectividad.
+- No borrar pedidos entregados: conservarlos en el historial y permitir consultarlos por fecha.
+- Si un pedido no pudo entregarse, registrar una novedad; no marcarlo como entregado.
+- Sin conexión, conservar la confirmación localmente y sincronizarla al recuperar conectividad, evitando duplicados.
+
+### Asignación y trazabilidad
+
+- Cada pedido puede tener un domiciliario responsable (assigned_to_id) distinto del usuario que lo registró (created_by_id).
+- Los repartidores solo consultan pedidos propios sin asignación o pedidos asignados a ellos; el administrador puede supervisar todos los usuarios y pedidos.
+- Mantener una única fuente de verdad en SQLite/API y un historial de cambios por pedido.
+
+### Requisitos de operación y calidad
+
+- Prioridad: funcionamiento offline, rapidez, estabilidad y facilidad de uso en el Valle de Aburrá.
+- Conservar el escáner OCR: extraer únicamente dirección y datos de ubicación necesarios; excluir destinatario, tracking, códigos y contenido ajeno a la ubicación.
+- Conservar el mapa Leaflet local y SQLite. La navegación vial/geocodificación puede requerir servicios externos mientras no estén disponibles los datos locales.
+- Mantener acceso simple por correo y contraseña. El administrador gestiona los roles desde la aplicación.
+- No desplegar ni modificar servicios remotos de producción sin autorización explícita.
+
+### Criterios de aceptación
+
+1. El administrador ve usuarios/domiciliarios y su actividad, no el resumen global de pedidos.
+2. El administrador puede asignar un pedido a un domiciliario activo y el pedido aparece en su lista.
+3. Un repartidor no consulta pedidos asignados a otro repartidor.
+4. La ruta no incluye pedidos ya entregados.
+5. Al marcar una parada como entregada, pasa a Entregados y la navegación continúa con la siguiente parada, recalculando desde el GPS actual.
+6. La entrega conserva usuario, fecha y hora en el historial y se refleja en el panel administrativo.
+7. Una entrega sin conexión se sincroniza al recuperar conectividad sin duplicarse.
+
+### Pendientes de validación antes de producción
+
+- Ejecutar pruebas automatizadas y validar la migración SQLite sobre una copia de una base existente.
+- Probar en un dispositivo móvil el ciclo de asignación, navegación, entrega, pérdida de conexión y sincronización.
+- Probar OCR con guías físicas reales y confirmar la geocodificación.
+- Incorporar y validar MBTiles del Valle de Aburrá y datos de calles para navegación totalmente offline.
+- Revisar SECRET_KEY, CORS y configuración del entorno antes de cualquier despliegue.
+
+### Estado de esta actualización
+
+Los cambios de administración por domiciliario, asignación de pedidos y ruta dinámica se preparan en la rama feat/admin-driver-activity-dynamic-route. No se consideran integrados en main ni listos para producción hasta que la revisión del diff y las pruebas de CI finalicen correctamente.

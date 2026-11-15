@@ -89,6 +89,7 @@ class Location(Base):
     delivered = Column(Boolean, default=False)
     status = Column(String(30), nullable=False, default="pending", server_default="pending")
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     status_updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -99,6 +100,7 @@ class Location(Base):
 
     route = relationship("DeliveryRoute", back_populates="locations")
     created_by = relationship("User", foreign_keys=[created_by_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     status_updated_by = relationship("User", foreign_keys=[status_updated_by_id])
     status_history = relationship("LocationStatusHistory", back_populates="location", cascade="all, delete-orphan", order_by="LocationStatusHistory.changed_at")
 
@@ -109,6 +111,10 @@ class Location(Base):
     @property
     def status_updated_by_username(self):
         return self.status_updated_by.username if self.status_updated_by else None
+
+    @property
+    def assigned_to_username(self):
+        return self.assigned_to.username if self.assigned_to else None
 
     references = relationship(
         "Reference",
@@ -314,6 +320,8 @@ class LocationResponse(LocationBase):
     created_by_username: Optional[str] = None
     status_updated_by_id: Optional[int] = None
     status_updated_by_username: Optional[str] = None
+    assigned_to_id: Optional[int] = None
+    assigned_to_username: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
