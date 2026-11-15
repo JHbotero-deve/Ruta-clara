@@ -19,8 +19,11 @@ _DEFAULT_SECRET = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d
 
 def _resolve_secret_key() -> str:
     configured_secret = os.getenv("SECRET_KEY", "").strip()
-    environment = os.getenv("RAILWAY_ENVIRONMENT_NAME", os.getenv("ENVIRONMENT", "")).strip().lower()
-    is_production = environment in {"production", "prod"}
+    environments = {
+        os.getenv("RAILWAY_ENVIRONMENT_NAME", "").strip().lower(),
+        os.getenv("ENVIRONMENT", "").strip().lower(),
+    }
+    is_production = bool(environments & {"production", "prod"})
     if is_production and (len(configured_secret) < 32 or configured_secret == _DEFAULT_SECRET):
         raise RuntimeError("SECRET_KEY debe configurarse en producción con un valor único de al menos 32 caracteres.")
     if not configured_secret:
