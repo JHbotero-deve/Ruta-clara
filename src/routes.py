@@ -1269,9 +1269,13 @@ def get_road_route(
 )
 def get_optimal_route(
     route_id: Optional[int] = Query(None, description="Optimizar paradas de una ruta específica"),
+    start_lat: Optional[float] = Query(None, ge=-90, le=90),
+    start_lon: Optional[float] = Query(None, ge=-180, le=180),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    if (start_lat is None) != (start_lon is None):
+        raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
     query = db.query(Location)
     if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
     elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
@@ -1282,4 +1286,5 @@ def get_optimal_route(
     if not locations:
         return []
 
-    return calculate_optimal_route(locations)
+    start = (start_lat, start_lon) if start_lat is not None else None
+    return calculate_optimal_route(locations, start=start)
