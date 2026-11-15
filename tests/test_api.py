@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from database import get_db
 from src.models import Base
-from src.routes import GEOCODE_CACHE, address_number_tokens_match
+from src.routes import GEOCODE_CACHE, address_number_tokens_match, clean_address_for_geocoding
 from src.main import app
 
 from sqlalchemy.pool import StaticPool
@@ -506,3 +506,10 @@ def test_map_taps_cannot_create_delivery_stops():
     assert "captureContinuousStop" not in html
 
 
+
+
+def test_colombian_street_abbreviations_are_normalized():
+    assert clean_address_for_geocoding("CRA 45 # 20-15").startswith("Carrera 45")
+    assert clean_address_for_geocoding("Carrera 45 # 20-15").startswith("Carrera 45")
+    assert clean_address_for_geocoding("CL 30 # 10-25").startswith("Calle 30")
+    assert clean_address_for_geocoding("Calle 30 # 10-25").startswith("Calle 30")
