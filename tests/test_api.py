@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from database import get_db
 from src.models import Base
 from src.routes import GEOCODE_CACHE, address_number_tokens_match, clean_address_for_geocoding
-from src.main import app
+from src.main import app, resolve_allowed_origins
 
 from sqlalchemy.pool import StaticPool
 
@@ -50,6 +50,13 @@ def admin_headers():
     token = client.post("/token", data={"username": "jorgebotero190@gmail.com", "password": "Password123!"})
     assert token.status_code == 200, token.text
     return {"Authorization": f"Bearer {token.json()['access_token']}"}
+
+
+def test_cors_requires_explicit_origins_in_production():
+    assert resolve_allowed_origins("", False) == []
+    assert resolve_allowed_origins("https://app.example.com, https://admin.example.com/", True) == ["https://app.example.com", "https://admin.example.com"]
+    with pytest.raises(RuntimeError):
+        resolve_allowed_origins("*", True)
 
 
 def test_health_check():
