@@ -597,6 +597,29 @@ def ocr_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_
     return parsed
 
 
+def sanitize_label_ocr_text(raw_text: str) -> str:
+    """Descarta QR, códigos de barras, enlaces y códigos de seguimiento del OCR."""
+    import re
+    safe_lines = []
+    for line in unicodedata.normalize("NFKC", raw_text).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if re.match(r"^\s*(?:qr(?:\s*code)?|barcode|c[oó]digo\s+de\s+barras|tracking|seguimiento|awb|waybill|n[uú]mero\s+de\s+gu[ií]a)\b", line, re.IGNORECASE):
+            continue
+        line = re.sub(r"https?://\S+|www\.\S+", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?:qr(?:\s*code)?|barcode|c[oó]digo\s+de\s+barras)\s*[:#-]?\s*\S*", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?:tracking|seguimiento|awb|waybill|n[uú]mero\s+de\s+gu[ií]a)\b.*$", "", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b(?=[A-Z0-9_-]{8,}\b)(?=[A-Z0-9_-]*[A-Z])(?=[A-Z0-9_-]*\d)[A-Z0-9_-]+\b", " ", line, flags=re.IGNORECASE)
+        line = re.sub(r"\b\d{12,}\b", " ", line)
+        if re.fullmatch(r"[\W_]*\d{8,}[\W_]*", line) or re.fullmatch(r"[\W_]*(?=[A-Z0-9_-]*[A-Z])(?=[A-Z0-9_-]*\d)[A-Z0-9_-]{8,}[\W_]*", line, re.IGNORECASE):
+            continue
+        line = re.sub(r"\s+", " ", line).strip(" \t-•")
+        if line:
+            safe_lines.append(line)
+    return "\n".join(safe_lines)
+
+
 @router.post("/parse-delivery-label", tags=["Geocoding"])
 def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_current_active_user)):
     """Extrae solo datos de ubicación; nunca devuelve nombres ni códigos de seguimiento."""
@@ -606,7 +629,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise HTTPException(status_code=400, detail="Texto vacío")
 
-    text = unicodedata.normalize("NFKC", raw_text).replace("\u00a0", " ")
+    text = sanitize_label_ocr_text(raw_text).replace("\u00a0", " ")
     text = re.sub(r"\bDlrecci[oó0]n\b", "Dirección", text, flags=re.IGNORECASE)
     text = re.sub(r"\bCerrera\b", "Carrera", text, flags=re.IGNORECASE)
     text = re.sub(r"\bapartemento\b", "apartamento", text, flags=re.IGNORECASE)
@@ -623,7 +646,8 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
     distrito = extract_field(r"distrito|barrio|sector|comuna")
     municipio = extract_field(r"municipio|ciudad|localidad")
-    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
+    unidad = extract_field(r"unidad|conjunto|edificio|urbanizaci[oó]n|condominio|establecimiento")
+    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|interior|local|bloque")
 
     if not municipio:
         municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa", "CABA", "Buenos Aires"]
@@ -671,6 +695,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
         "direccion": direccion,
         "distrito": distrito,
         "municipio": municipio,
+        "unidad": unidad,
         "referencia": referencia
     }
 
