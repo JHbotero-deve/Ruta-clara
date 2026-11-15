@@ -103,7 +103,7 @@ cp .env.example .env
 
 | Variable | Descripción | Valor por Defecto |
 | :--- | :--- | :--- |
-| `SECRET_KEY` | Clave secreta para firmar tokens JWT | *Cadena generada para desarrollo* |
+| `SECRET_KEY` | Clave secreta para firmar tokens JWT | Vacía en plantilla; fallback inseguro solo para desarrollo |
 | `ALGORITHM` | Algoritmo de firma JWT | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Expiración de tokens JWT heredados o de compatibilidad (en minutos); el inicio de sesión actual usa sesiones persistentes revocables | `30` |
 | `DATABASE_URL` | String de conexión a base de datos (SQLite, PostgreSQL, MySQL) | `sqlite:///./app.db` |
