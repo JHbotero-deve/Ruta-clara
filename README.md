@@ -24,7 +24,7 @@
 - **Cálculo y Optimización de Rutas**: Algoritmo `Haversine` para distancias esféricas reales en la Tierra y motor híbrido de optimización de rutas (Fuerza Bruta exacta para $N \le 8$ y *Nearest Neighbor* con refinamiento *2-Opt* para conjuntos mayores).
 - **Gestión de Ubicaciones y Referencias**: Modelado ORM completo con SQLAlchemy y validación estricta de datos de entrada/salida mediante esquemas Pydantic v2.
 - **Pruebas Automatizadas y Auditoría**: Suite de pruebas unitarias e integración con Pytest y script de verificación de dependencias de producción.
-- **Preparado para Producción**: Configuración flexible con variables de entorno (`DATABASE_URL`, `SECRET_KEY`, `ALLOWED_ORIGINS`), middleware CORS, usuario sin privilegios en Dockerfile y `docker-compose.yml`.
+- **Preparado para Producción**: Configuración flexible con variables de entorno (`DATABASE_URL`, `SECRET_KEY`, `ALLOWED_ORIGINS`), CORS restringido, usuario sin privilegios en Dockerfile y `docker-compose.yml`.
 - **Documentación OpenAPI Automática**: Swagger UI interactivo disponible nativamente en `/docs` y Redoc en `/redoc`.
 
 ---
@@ -107,7 +107,7 @@ cp .env.example .env
 | `ALGORITHM` | Algoritmo de firma JWT | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Expiración de tokens JWT heredados o de compatibilidad (en minutos); el inicio de sesión actual usa sesiones persistentes revocables | `30` |
 | `DATABASE_URL` | String de conexión a base de datos (SQLite, PostgreSQL, MySQL) | `sqlite:///./app.db` |
-| `ALLOWED_ORIGINS` | Orígenes permitidos para CORS (separados por coma) | `*` |
+| `ALLOWED_ORIGINS` | Orígenes permitidos para CORS (separados por coma); vacío permite solo mismo origen | vacío |
 
 ---
 
@@ -270,7 +270,8 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - Probar en un dispositivo móvil el ciclo de asignación, navegación, entrega, pérdida de conexión y sincronización.
 - Probar OCR con guías físicas reales y confirmar la geocodificación.
 - Incorporar y validar MBTiles del Valle de Aburrá y datos de calles para navegación totalmente offline.
-- Revisar SECRET_KEY, CORS y configuración del entorno antes de cualquier despliegue.
+- Configurar el origen exacto del dominio en `ALLOWED_ORIGINS`; el comodín `*` está bloqueado en producción.
+- Completar una verificación real de propiedad del correo para el primer administrador antes de exponer el registro inicial a Internet.
 
 ### Estado de esta actualización
 
