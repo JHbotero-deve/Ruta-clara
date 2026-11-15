@@ -1429,7 +1429,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
                 if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
                 if(typeof initMap==="function")initMap();
-                try{await syncPendingDeliveryUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
+                try{await syncPendingOfflineLocations();await syncPendingDeliveryUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
                 showSection("dashboard");
             }catch(error){showLoginError("La sesión está activa, pero no se pudo cargar el panel. Intenta actualizar la aplicación.");}
         }
@@ -1791,7 +1791,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 localStorage.setItem(completedKey,JSON.stringify(completedLocations));
             }catch(error){
                 const cached=JSON.parse(localStorage.getItem(routeKey)||"[]"),offline=JSON.parse(localStorage.getItem("rc_offline_locations")||"[]");
-                currentLocations=[...cached,...offline.filter(item=>(item.route_id===activeRouteId||!item.route_id)&&!item.delivered&&item.status!=="delivered")].filter((item,index,all)=>all.findIndex(candidate=>String(candidate.id)===String(item.id))===index);
+                currentLocations=[...cached,...offline.filter(item=>(!item.offline_user_id||Number(item.offline_user_id)===Number(rutaUser?.id))&&(item.route_id===activeRouteId||!item.route_id)&&!item.delivered&&item.status!=="delivered")].filter((item,index,all)=>all.findIndex(candidate=>String(candidate.id)===String(item.id))===index);
                 completedLocations=JSON.parse(localStorage.getItem(completedKey)||localStorage.getItem("rc_offline_delivered")||"[]");
                 currentLocations=reorderPendingStopsFromGps(currentLocations);
             }
@@ -2053,25 +2053,36 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         body: JSON.stringify(payload),
                         signal: AbortSignal.timeout(8000)
                     });
-                    if (response.ok) {
-                        saved = true;
-                        break;
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        showToast(error.detail || "El servidor rechazó el pedido. Revisa los datos e inténtalo de nuevo.", "⚠️");
+                        return false;
                     }
-                } catch (e) {
-                    await new Promise(r => setTimeout(r, 500));
+                    saved = true;
+                    break;
+                } catch (error) {
+                    if (attempt < 1) await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
 
             if (!saved) {
-                let allOffline = JSON.parse(localStorage.getItem('rc_offline_locations') || '[]');
-                payload.id = Date.now();
-                allOffline.push(payload);
-                localStorage.setItem('rc_offline_locations', JSON.stringify(allOffline));
+                const allOffline = JSON.parse(localStorage.getItem('rc_offline_locations') || '[]');
+                if (!allOffline.some(item => item.client_id === payload.client_id)) {
+                    allOffline.push({...payload,id:"offline-"+payload.client_id,offline_user_id:rutaUser?.id||null});
+                    try {
+                        localStorage.setItem('rc_offline_locations', JSON.stringify(allOffline));
+                    } catch (error) {
+                        showToast("No hay espacio local para guardar el pedido sin conexión.", "⚠️");
+                        return false;
+                    }
+                }
+                showToast("Pedido guardado en este dispositivo. Se sincronizará al recuperar conexión.", "⚠️");
             }
 
             playSuccessChime();
             triggerHaptic();
             await loadRouteData();
+            return true;
         }
 
         // ========================================================
@@ -2599,14 +2610,48 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             playSuccessChime();
             return true;
         }
+        async function syncPendingOfflineLocations(){
+            if(!navigator.onLine||!rutaUser)return;
+            const pending=JSON.parse(localStorage.getItem("rc_offline_locations")||"[]"),remaining=[];
+            let synced=0;
+            for(const item of pending){
+                if(item.offline_user_id&&Number(item.offline_user_id)!==Number(rutaUser.id)){remaining.push(item);continue;}
+                const payload={...item},oldId=String(payload.id);
+                delete payload.id;
+                delete payload.offline_user_id;
+                try{
+                    const response=await fetch("/locations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+                    if(!response.ok){remaining.push(item);continue;}
+                    const saved=await response.json();
+                    const replace=list=>Array.isArray(list)?list.map(value=>String(value.id)===oldId?{...value,...saved}:value):list;
+                    for(let index=0;index<localStorage.length;index++){
+                        const key=localStorage.key(index);
+                        if(key&&(key.startsWith("rc_route_cache_")||key.startsWith("rc_completed_cache_"))){
+                            try{localStorage.setItem(key,JSON.stringify(replace(JSON.parse(localStorage.getItem(key)||"[]"))));}catch(error){}
+                        }
+                    }
+                    currentLocations=replace(currentLocations);
+                    completedLocations=replace(completedLocations);
+                    const done=JSON.parse(localStorage.getItem("rc_offline_delivered")||"[]");
+                    localStorage.setItem("rc_offline_delivered",JSON.stringify(replace(done)));
+                    const updates=JSON.parse(localStorage.getItem("rc_pending_delivery_updates")||"[]");
+                    localStorage.setItem("rc_pending_delivery_updates",JSON.stringify(updates.map(update=>String(update.location_id)===oldId?{...update,location_id:saved.id}:update)));
+                    synced++;
+                }catch(error){remaining.push(item);}
+            }
+            localStorage.setItem("rc_offline_locations",JSON.stringify(remaining));
+            if(synced)showToast(synced+" pedido(s) sincronizado(s).","✓");
+        }
         async function syncPendingDeliveryUpdates(){
-            if(!navigator.onLine)return;
+            if(!navigator.onLine||!rutaUser)return;
             const queue=JSON.parse(localStorage.getItem("rc_pending_delivery_updates")||"[]"),remaining=[];
             const synced=[];
             for(const item of queue){
                 try{
                     const response=await fetch(`/locations/${item.location_id}/delivered`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({delivered:item.delivered})});
-                    if(response.ok)synced.push(String(item.location_id));else remaining.push(item);
+                    if(response.ok)synced.push(String(item.location_id));
+                    else if(![403,404,409].includes(response.status))remaining.push(item);
+                    else showToast("Una actualización offline no se aplicó porque el pedido cambió o ya no está asignado.","⚠️");
                 }catch(error){remaining.push(item);}
             }
             localStorage.setItem("rc_pending_delivery_updates",JSON.stringify(remaining));
@@ -2726,7 +2771,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
         window.addEventListener('online', updateConnectionStatus);
-        window.addEventListener('online', syncPendingDeliveryUpdates);
+
         window.addEventListener('online', syncPendingLogoutRevocations);
         window.addEventListener('online', () => { if(localStorage.getItem("ruta_clara_token"))bootRutaClara(); });
         window.addEventListener('offline', updateConnectionStatus);
