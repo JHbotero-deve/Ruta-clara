@@ -2147,8 +2147,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 });
 
                 let refHtml = loc.unit_number ? `<div style="background:#fef08a; color:#713f12; padding:4px 6px; border-radius:4px; font-weight:bold; font-size:11px; margin:4px 0;">🏷️ Ref: ${escapeHtml(loc.unit_number)}</div>` : '';
+                let entranceHtml = loc.entrance_name ? `<div style="background:#dcfce7; color:#166534; padding:4px 6px; border-radius:4px; font-weight:bold; font-size:11px; margin:4px 0;">🚪 Portería: ${escapeHtml(loc.entrance_name)}</div>` : '<div style="background:#fff7ed; color:#9a3412; padding:4px 6px; border-radius:4px; font-size:11px; margin:4px 0;">⚠️ Portería sin confirmar</div>';
                 const marker = L.marker([loc.latitude, loc.longitude], { icon: markerIcon })
-                    .bindPopup(`<b>Parada ${idx + 1}: ${escapeHtml(loc.name)}</b><br/><span style="font-size:11px; color:#475569;">${escapeHtml(loc.address || '')}</span>${refHtml}<button onclick="startNavigationToStop(${loc.id})" style="background:#2563eb; color:white; border:none; border-radius:6px; padding:4px 8px; font-size:11px; margin-top:4px; cursor:pointer;">🧭 Navegar Aquí</button>`);
+                    .bindPopup(`<b>Parada ${idx + 1}: ${escapeHtml(loc.name)}</b><br/><span style="font-size:11px; color:#475569;">${escapeHtml(loc.address || '')}</span>${refHtml}${entranceHtml}<button onclick="startNavigationToStop(${loc.id})" style="background:#2563eb; color:white; border:none; border-radius:6px; padding:4px 8px; font-size:11px; margin-top:4px; cursor:pointer;">🧭 Navegar Aquí</button>`);
                 markersGroup.addLayer(marker);
             });
 
