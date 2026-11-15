@@ -469,6 +469,13 @@ def test_delivery_route_pdf_export_and_driver_permissions():
     assert admin_sheet.status_code == 200
     assert admin_sheet.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     assert admin_sheet.content.startswith(b"PK")
+    from openpyxl import load_workbook
+    workbook = load_workbook(io.BytesIO(admin_sheet.content))
+    sheet = workbook["Recorrido"]
+    assert sheet["A1"].value == "REPORTE DE RECORRIDO"
+    assert sheet["A7"].value == "N.º"
+    assert sheet["C8"].value == "Carrera 43A # 12-34"
+    assert len(sheet._images) == 1
 
     login = client.post("/token", data={"username": "domiciliario_pdf@example.com", "password": "Password123!"})
     assert login.status_code == 200
@@ -482,6 +489,8 @@ def test_delivery_route_pdf_export_and_driver_permissions():
 
     forbidden = client.get(f"/export/delivery-route.pdf?route_id={route_id}&driver_id={driver_id + 100}", headers=driver_headers)
     assert forbidden.status_code == 403
+    forbidden_sheet = client.get(f"/export/delivery-route.xlsx?route_id={route_id}&driver_id={driver_id + 100}", headers=driver_headers)
+    assert forbidden_sheet.status_code == 403
 
 
 def test_map_taps_cannot_create_delivery_stops():
@@ -492,6 +501,7 @@ def test_map_taps_cannot_create_delivery_stops():
     map_initialization = html[map_start:map_end]
     assert "map.on('click'" not in map_initialization
     assert "map.on(\"click\"" not in map_initialization
+    assert "doubleClickZoom: false" in map_initialization
     assert "saveLocationAutomatically" not in map_initialization
     assert "captureContinuousStop" not in html
 
