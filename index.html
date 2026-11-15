@@ -896,6 +896,9 @@
                             🎤 Dictar Guía
                         </button>
                     </div>
+                    <label for="guideImageFile" style="display:block; margin:10px 0 5px; color:var(--text-main);">📷 Cargar guía directamente desde el dispositivo</label>
+                    <input id="guideImageFile" type="file" accept="image/*" onchange="processUploadedGuide(this.files[0])" style="margin-bottom:8px;">
+                    <small style="display:block; color:var(--text-muted); margin-bottom:8px;">Selecciona una foto o imagen de la guía. Se leerá y registrará automáticamente.</small>
                     <textarea id="rawLabelInput" rows="3" placeholder="Ejemplo:
 Direccion: Carrera 32b 10-110, Medellín
 Referencia: Vizcaya real 2. 419
@@ -1261,8 +1264,19 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             map.on('click', async function(e) {
                 const lat = e.latlng.lat;
                 const lng = e.latlng.lng;
-                const name = `Parada Mapa (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-                const address = `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                let place = null;
+                try {
+                    const response = await fetch(`/reverse-geocode?latitude=${lat}&longitude=${lng}`);
+                    if (response.ok) place = await response.json();
+                } catch (error) {
+                    console.warn('No se pudo resolver la dirección del punto:', error);
+                }
+                const address = place?.display_name || prompt('No se pudo reconocer la dirección del punto. Escribe la dirección para guardar esta parada:');
+                if (!address || !address.trim()) {
+                    showToast('No se guardó el punto porque falta la dirección.', '⚠️');
+                    return;
+                }
+                const name = 'Punto en mapa';
 
                 const pinIcon = L.divIcon({
                     className: 'custom-icon',
@@ -1278,6 +1292,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     address,
                     latitude: lat,
                     longitude: lng,
+                    municipality: place?.municipality || null,
+                    neighborhood: place?.neighborhood || null,
                     unit_number: 'Punto fijado en mapa'
                 });
             });
@@ -1523,6 +1539,55 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
 
+        async function processUploadedGuide(file) {
+            if (!file) return;
+            const input = document.getElementById('guideImageFile');
+            if (!file.type.startsWith('image/')) {
+                alert('Selecciona una imagen JPG, PNG o WEBP de la guía.');
+                input.value = '';
+                return;
+            }
+            if (file.size > 12 * 1024 * 1024) {
+                alert('La imagen supera 12 MB. Reduce su tamaño e inténtalo de nuevo.');
+                input.value = '';
+                return;
+            }
+            showToast('Preparando imagen de la guía...', '📷');
+            try {
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('No se pudo abrir el archivo seleccionado.'));
+                    reader.readAsDataURL(file);
+                });
+                const image = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error('El archivo no contiene una imagen válida.'));
+                    img.src = dataUrl;
+                });
+                const scale = Math.min(1, 1800 / Math.max(image.width, image.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.width * scale));
+                canvas.height = Math.max(1, Math.round(image.height * scale));
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                const response = await fetch('/ocr-delivery-label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.88) })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || 'No se pudo procesar la guía.');
+                await processParsedGuide(result);
+                showToast('Guía cargada y parada guardada.', '✅');
+            } catch (error) {
+                console.error('Error cargando guía:', error);
+                alert(error.message || 'No se pudo cargar la guía. Verifica la imagen e inténtalo de nuevo.');
+            } finally {
+                input.value = '';
+            }
+        }
+
         async function processParsedGuide(parsed) {
             if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
             document.getElementById('guideAddress').value = parsed.direccion;
@@ -1547,6 +1612,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 longitude: lng,
                 neighborhood: parsed.distrito,
                 unit_number: parsed.referencia || 'Principal / Directa',
+                municipality: parsed.municipio,
                 route_id: activeRouteId
             });
         }
@@ -1581,6 +1647,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         longitude: lng,
                         neighborhood: dist,
                         unit_number: ref,
+                        municipality,
                         route_id: activeRouteId
                     });
 
@@ -1609,6 +1676,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 longitude: data.longitude,
                 neighborhood: data.neighborhood || null,
                 unit_number: data.unit_number || null,
+                municipality: data.municipality || null,
                 route_id: data.route_id ?? activeRouteId,
                 delivered: false
             };
@@ -1876,11 +1944,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
                         <div style="flex:1;">
                             <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                                <strong>Parada ${idx + 1}: ${escapeHtml(loc.name)}</strong>
+                                <strong>Parada ${idx + 1}</strong><div style="font-size:12px; margin-top:3px;"><b>Destinatario:</b> ${escapeHtml(loc.name || 'Sin nombre')}</div>
                                 ${isDelivered ? '<span class="badge-tag-res">✔ Entregado</span>' : '<span style="background:#ffedd5; color:#c2410c; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px;">Pendiente</span>'}
                             </div>
                             <div style="font-size:12px; color:#1e293b; font-weight:600;">
-                                📍 ${escapeHtml(loc.address || '')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''}
+                                📍 <b>Dirección:</b> ${escapeHtml(loc.address || 'Dirección no disponible')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''}
                             </div>
                             <!-- CUADRO DE REFERENCIA DESTACADO -->
                             ${loc.unit_number ? `
@@ -2009,7 +2077,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (!target) return;
 
             document.getElementById('hudStopTitle').innerText = `Parada ${activeNavIndex + 1}/${currentLocations.length}: ${target.name}`;
-            document.getElementById('hudStopAddress').innerText = `${target.address || ''} ${target.neighborhood ? '• ' + target.neighborhood : ''}`;
+            document.getElementById('hudStopAddress').innerText = `Dirección: ${target.address || 'Dirección no disponible'} ${target.neighborhood ? '• ' + target.neighborhood : ''}`;
 
             const refEl = document.getElementById('hudStopReference');
             if (target.unit_number) {
