@@ -1,10 +1,11 @@
-const CACHE_NAME = 'ruta-clara-v4';
+const CACHE_NAME = 'ruta-clara-v5';
 const ASSETS = [
   '/map',
   '/static/leaflet.css',
   '/static/leaflet.js',
   '/static/logo.svg',
-  '/static/manifest.json'
+  '/static/manifest.json',
+  '/static/safety.js'
 ];
 
 self.addEventListener('install', (event) => {
