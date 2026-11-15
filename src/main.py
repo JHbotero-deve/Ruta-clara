@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import engine, SessionLocal
-from src.models import Base, DeliveryRoute, Location
+from src.models import Base, DeliveryRoute, Location, User
 from src.routes import router
 
 # Load environment variables from .env file
@@ -42,14 +42,40 @@ def init_db_and_migrate():
             if "delivered" not in existing_cols:
                 logger.info("Migrando BD: Agregando columna 'delivered' a locations")
                 conn.exec_driver_sql("ALTER TABLE locations ADD COLUMN delivered BOOLEAN DEFAULT 0")
+            migrations = {
+                "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+                "created_by_id": "INTEGER",
+                "status_updated_by_id": "INTEGER",
+                "created_at": "DATETIME",
+                "updated_at": "DATETIME"
+            }
+            for column, definition in migrations.items():
+                if column not in existing_cols:
+                    conn.exec_driver_sql(f"ALTER TABLE locations ADD COLUMN {column} {definition}")
+            conn.exec_driver_sql("UPDATE locations SET status = CASE WHEN delivered = 1 THEN 'delivered' ELSE 'pending' END WHERE status IS NULL OR status = ''")
+            conn.exec_driver_sql("UPDATE locations SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+            conn.exec_driver_sql("UPDATE locations SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL")
+
+            user_cols = {col[1] for col in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
+            if "role" not in user_cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'operator'")
 
             conn.commit()
         except Exception as e:
             logger.warning("Verificación de migración: %s", e)
 
-    # Ensure at least one default DeliveryRoute exists
+    # Promoción explícita y controlada del administrador inicial.
     db = SessionLocal()
     try:
+        initial_admin = os.getenv("INITIAL_ADMIN_USERNAME", "").strip()
+        if initial_admin:
+            admin_user = db.query(User).filter(User.username == initial_admin).first()
+            if admin_user and admin_user.role != "admin":
+                admin_user.role = "admin"
+                db.commit()
+                logger.info("Rol administrador asignado por INITIAL_ADMIN_USERNAME.")
+            elif not admin_user:
+                logger.warning("INITIAL_ADMIN_USERNAME no coincide con un usuario existente.")
         route_count = db.query(DeliveryRoute).count()
         if route_count == 0:
             default_route = DeliveryRoute(name="Ruta Principal 1", is_active=True)
