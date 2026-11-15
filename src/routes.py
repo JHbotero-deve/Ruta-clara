@@ -333,7 +333,7 @@ def location_status_history(location_id: int, db: Session = Depends(get_db), cur
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
-    if current_user.role != "admin" and location.created_by_id != current_user.id:
+    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes acceso a este pedido.")
     events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc(), LocationStatusHistory.id.desc()).all()
     return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
@@ -1026,7 +1026,7 @@ def toggle_location_delivered(
     if not loc:
         raise HTTPException(status_code=404, detail="Parada no encontrada")
 
-    if current_user.role != "admin" and loc.created_by_id != current_user.id:
+    if current_user.role != "admin" and loc.created_by_id != current_user.id and loc.assigned_to_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
     new_status = "delivered" if payload.delivered else "pending"
     if loc.status != new_status:
@@ -1048,7 +1048,7 @@ def update_location_status(location_id: int, payload: dict, db: Session = Depend
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
-    if current_user.role != "admin" and loc.created_by_id != current_user.id:
+    if current_user.role != "admin" and loc.created_by_id != current_user.id and loc.assigned_to_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
     if loc.status != new_status:
         db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
@@ -1077,7 +1077,7 @@ def delete_location(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    if current_user.role != "admin" and location.created_by_id != current_user.id:
+    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este pedido.")
 
     db.delete(location)
@@ -1146,7 +1146,9 @@ def export_weekly_routes(admin: User = Depends(get_current_admin_user)):
 )
 def read_references(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     query = db.query(Reference).join(Location, Reference.location_id == Location.id)
-    if current_user.role != "admin":
+    if current_user.role == "driver":
+        query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
+    elif current_user.role != "admin":
         query = query.filter(Location.created_by_id == current_user.id)
     return query.all()
 
