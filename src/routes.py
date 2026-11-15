@@ -298,7 +298,7 @@ def location_status_history(location_id: int, db: Session = Depends(get_db), cur
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
     if current_user.role != "admin" and location.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes acceso a este pedido.")
-    events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc()).all()
+    events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc(), LocationStatusHistory.id.desc()).all()
     return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
 
 
