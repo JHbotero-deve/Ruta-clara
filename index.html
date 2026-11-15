@@ -1448,7 +1448,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             let fallbackMapLayer = null;
             const offlineTiles = L.tileLayer('/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: 'Mapa offline Ruta Clara' });
             offlineTiles.on('tileerror', () => {
-                if (navigator.onLine && !fallbackMapLayer) fallbackMapLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap | Ruta Clara' }).addTo(map);
+                if (!fallbackMapLayer) fallbackMapLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap | Ruta Clara' }).addTo(map);
             });
             offlineTiles.addTo(map);
 
