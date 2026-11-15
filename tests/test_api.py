@@ -117,7 +117,10 @@ def test_locations_crud_and_optimal_route():
         "name": "Parque Berrio",
         "latitude": 6.2492,
         "longitude": -75.5684,
-        "address": "Calle 50 # 50-00"
+        "address": "Calle 50 # 50-00",
+        "entrance_name": "Portería principal",
+        "entrance_confirmed": True,
+        "location_source": "manual_porteria"
     }
     loc2 = {
         "name": "Parque Poblado",
@@ -128,6 +131,9 @@ def test_locations_crud_and_optimal_route():
     r1 = client.post("/locations", json=loc1, headers=headers)
     r2 = client.post("/locations", json=loc2, headers=headers)
     assert r1.status_code == 201
+    assert r1.json()["entrance_name"] == "Portería principal"
+    assert r1.json()["entrance_confirmed"] is True
+    assert r1.json()["location_source"] == "manual_porteria"
     assert r2.status_code == 201
 
     loc1_id = r1.json()["id"]
@@ -206,6 +212,28 @@ def test_parser_keeps_only_address_reference_from_mixed_reference_line():
     assert parsed["distrito"] == "Monserrat"
     assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
 
+
+
+def test_parser_ignores_qr_barcode_tracking_and_extracts_unit():
+    headers = admin_headers()
+    label = (
+        "QR Code: https://tracking.example/ZXCV123456\n"
+        "Código de barras: 7701234567890\n"
+        "Tracking: ML-123456789\n"
+        "Dirección: Carrera 43A # 12-34\n"
+        "Municipio: Envigado\n"
+        "Unidad: Torres del Parque 2\n"
+        "Referencia: Torre 3 Apto 402\n"
+        "Destinatario: Nombre Privado\n"
+    )
+    response = client.post("/parse-delivery-label", json={"text": label}, headers=headers)
+    assert response.status_code == 200, response.text
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 43A #12-34"
+    assert parsed["municipio"] == "Envigado"
+    assert parsed["unidad"] == "Torres del Parque 2"
+    assert parsed["referencia"] == "Torre 3 Apto 402"
+    assert not any(value in str(parsed) for value in ("ZXCV123456", "7701234567890", "ML-123456789", "Nombre Privado"))
 
 
 def test_address_number_tokens_match_normalizes_leading_zeroes():
