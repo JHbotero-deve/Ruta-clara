@@ -3,6 +3,9 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -14,8 +17,6 @@ from database import engine, SessionLocal
 from src.models import Base, DeliveryRoute, Location, User
 from src.routes import router
 
-# Load environment variables from .env file
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -116,20 +117,23 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Configure CORS Middleware for production and local development
-raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
-origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+origins = [origin for origin in (value.strip() for value in raw_origins.split(",")) if origin]
+environments = {
+    os.getenv("RAILWAY_ENVIRONMENT_NAME", "").strip().lower(),
+    os.getenv("ENVIRONMENT", "").strip().lower(),
+}
+is_production = bool(environments & {"production", "prod"})
 allow_all_origins = "*" in origins
-
+if is_production and allow_all_origins:
+    raise RuntimeError("ALLOWED_ORIGINS no puede ser '*' en producción; configura dominios explícitos.")
 if allow_all_origins:
-    logger.warning(
-        "CORS configurado con ALLOWED_ORIGINS='*'. "
-        "Configura orígenes específicos en .env para producción."
-    )
+    logger.warning("CORS permite cualquier origen. Usa esta opción solo en desarrollo.")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if allow_all_origins else origins,
-    allow_credentials=not allow_all_origins,
+    allow_credentials=bool(origins) and not allow_all_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
