@@ -67,3 +67,5 @@ jobs:
                   subprocess.run(["node", "--check", str(file)], check=True)
           print(f"Validación JavaScript: {len(parser.scripts)} bloques inline revisados")
           PY
+      - name: External JavaScript syntax
+        run: node --check static/safety.js && node --check static/sw.js
