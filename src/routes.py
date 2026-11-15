@@ -541,13 +541,12 @@ def ocr_delivery_label_endpoint(payload: dict):
     if not recognized_text.strip():
         raise HTTPException(status_code=422, detail="No se detectó texto. Acerca la cámara, mejora la iluminación y captura de nuevo.")
     parsed = parse_delivery_label_endpoint({"text": recognized_text})
-    parsed["texto_reconocido"] = recognized_text.strip()
     return parsed
 
 
 @router.post("/parse-delivery-label", tags=["Geocoding"])
 def parse_delivery_label_endpoint(payload: dict):
-    """Extrae dirección y datos de entrega sin depender de campos opcionales."""
+    """Extrae solo datos de ubicación; nunca devuelve nombres ni códigos de seguimiento."""
     import re
 
     raw_text = payload.get("text", "")
@@ -555,6 +554,9 @@ def parse_delivery_label_endpoint(payload: dict):
         raise HTTPException(status_code=400, detail="Texto vacío")
 
     text = unicodedata.normalize("NFKC", raw_text).replace("\u00a0", " ")
+    text = re.sub(r"\bDlrecci[oó0]n\b", "Dirección", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bCerrera\b", "Carrera", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bapartemento\b", "apartamento", text, flags=re.IGNORECASE)
 
     def extract_field(label_pattern: str) -> str:
         match = re.search(
@@ -565,19 +567,19 @@ def parse_delivery_label_endpoint(payload: dict):
         return match.group(1).strip(" \t-•") if match else ""
 
     destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
-    direccion = extract_field(r"direcci[oó]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
+    direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
     distrito = extract_field(r"distrito|barrio|sector|comuna")
-    municipio = extract_field(r"municipio|ciudad")
+    municipio = extract_field(r"municipio|ciudad|localidad")
+    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
+
     if not municipio:
-        municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa"]
+        municipalities = ["Medellín", "Envigado", "Sabaneta", "Itagüí", "La Estrella", "Caldas", "Bello", "Copacabana", "Girardota", "Barbosa", "CABA", "Buenos Aires"]
         normalized_text = f" {normalize_geocode_value(text)} "
         municipio = next((name for name in municipalities if f" {normalize_geocode_value(name)} " in normalized_text), "")
-    referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|unidad|interior|local")
-    dest_raw = extract_field(r"destinatario|nombre(?:[ \t]+del[ \t]+(?:cliente|destinatario))?|recibe|cliente")
 
     if not direccion:
         address_line = re.search(
-            r"^[ \t]*((?:calle|cl\.?|carrera|cra\.?|carr\.?|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
+            r"^[ \t]*((?:calle|cl\.?|carrera|cra\.?|carr\.?|cerrera|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
             text,
             re.IGNORECASE | re.MULTILINE
         )
@@ -586,27 +588,28 @@ def parse_delivery_label_endpoint(payload: dict):
     if not direccion:
         raise HTTPException(status_code=422, detail="No se encontró una dirección en la guía.")
 
-    tracking_match = re.search(r"\(([^)]+)\)", dest_raw)
-    tracking_id = tracking_match.group(1).strip() if tracking_match else ""
-    destinatario = re.sub(r"\s*\([^)]+\)", "", dest_raw).strip()
+    direccion = re.sub(r"\bCerrera\b", "Carrera", direccion, flags=re.IGNORECASE)
+    unit_match = re.search(r"\b(apartamento|apartemento|apto\.?|apt\.?|piso|oficina|ofc\.?|torre|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+", direccion, re.IGNORECASE)
+    if unit_match and not referencia:
+        referencia = unit_match.group(0).strip()
+    if unit_match:
+        direccion = direccion[:unit_match.start()] + direccion[unit_match.end():]
+    direccion = re.sub(r"\bS?/?N\b", "", direccion, flags=re.IGNORECASE)
+    compact = re.match(r"^(Carrera|Calle)\s*(\d+[a-z]?)\s*(\d{1,3})\s*-\s*(\d{1,3})$", direccion.strip(), re.IGNORECASE)
+    if compact:
+        direccion = f"{compact.group(1).title()} {compact.group(2).upper()} #{compact.group(3)}-{compact.group(4)}"
+    direccion = re.sub(r"\s*#\s*", " # ", direccion)
+    direccion = re.sub(r"\s+", " ", direccion).strip(" ,.-")
 
-    if not referencia:
-        unit_match = re.search(
-            r"\b(?:apartamento|apto\.?|torre|oficina|ofc\.?|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+",
-            direccion,
-            re.IGNORECASE
-        )
-        if unit_match:
-            referencia = unit_match.group(0).strip()
+    referencia = re.sub(r"(?i)\breferencia\s*[:：].*$", "", referencia).strip(" ,;:-")
+    referencia = re.split(r"(?i)\b(?:a nombre de|destinatario|destinaterio|recibe|cliente)\b", referencia)[0].strip(" ,;:-")
 
     return {
         "tipo": destination_type,
         "direccion": direccion,
         "distrito": distrito,
         "municipio": municipio,
-        "referencia": referencia,
-        "destinatario": destinatario,
-        "tracking_id": tracking_id
+        "referencia": referencia
     }
 
 # ============================================================

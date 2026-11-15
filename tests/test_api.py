@@ -153,11 +153,46 @@ def test_parse_delivery_label():
     res = client.post("/parse-delivery-label", json={"text": label_text})
     assert res.status_code == 200
     parsed = res.json()
-    assert parsed["direccion"] == "Carrera 43A # 1-50 Apto 402"
+    assert parsed["direccion"] == "Carrera 43A # 1-50"
     assert parsed["distrito"] == "El Poblado, Medellín"
-    assert parsed["destinatario"] == "Carlos Perez"
-    assert parsed["tracking_id"] == "TRACK123456"
+    assert parsed["referencia"] == "Torre 2 Apto 402"
+    assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
     assert parsed["tipo"] == "Residencial"
+
+
+
+def test_parser_handles_ocr_errors_and_excludes_private_fields():
+    label = (
+        "MEDELLIN\nCOMERCIAL\n"
+        "Dlreccion: Cerrera 36a40-70 apartemento 200 SN.\n"
+        "Medellín\nDistrito: La Candelaria\n"
+        "Destinaterio: Nombre Privado (TRACK-123)\n"
+    )
+    response = client.post("/parse-delivery-label", json={"text": label})
+    assert response.status_code == 200
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 36A #40-70"
+    assert parsed["referencia"].casefold() == "apartamento 200"
+    assert parsed["municipio"] == "Medellín"
+    assert parsed["distrito"] == "La Candelaria"
+    assert parsed["tipo"] == "Comercial"
+    assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
+
+
+def test_parser_keeps_only_address_reference_from_mixed_reference_line():
+    label = (
+        "CABA\nMONSERRAT\nRESIDENCIAL\n"
+        "Direccion: Calle Venezuela 50\n"
+        "Referencia: Piso 11 dto 3 Rio Referencia: A nombre de Persona Privada\n"
+        "Destinatario: Persona Privada (PABLO_123)\n"
+    )
+    parsed = client.post("/parse-delivery-label", json={"text": label}).json()
+    assert parsed["direccion"] == "Calle Venezuela 50"
+    assert parsed["referencia"] == "Piso 11 dto 3 Rio"
+    assert parsed["municipio"] == "CABA"
+    assert parsed["distrito"] == "MONSERRAT"
+    assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
+
 
 
 def test_address_number_tokens_match_normalizes_leading_zeroes():
@@ -235,8 +270,7 @@ def test_ocr_delivery_label_scanner_with_eight_addresses():
         assert parsed["direccion"].casefold().startswith(("calle", "carrera"))
         assert parsed["municipio"].casefold() == municipality.casefold()
         assert parsed["distrito"]
-        assert parsed["destinatario"]
-        assert parsed["texto_reconocido"]
+        assert not {"destinatario", "tracking_id", "texto_reconocido"} & parsed.keys()
 
 
 def test_ocr_delivery_label_rejects_invalid_image():

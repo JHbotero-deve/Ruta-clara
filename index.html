@@ -1597,7 +1597,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (municipalityField) municipalityField.value = parsed.municipio || '';
             if (districtField) districtField.value = parsed.distrito || '';
             document.getElementById('guideReference').value = parsed.referencia || '';
-            document.getElementById('guideRecipient').value = parsed.destinatario || '';
             selectDestinationType(parsed.tipo || 'Residencial');
             if (!parsed.municipio) throw new Error('La guía no indica el municipio. Completa el campo Municipio antes de registrar la parada.');
             const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
@@ -1607,7 +1606,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (!geoData || !geoData.length) throw new Error('No se encontró una dirección válida en el municipio indicado. Revisa dirección, barrio y municipio.');
             const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
             await saveLocationAutomatically({
-                name: parsed.destinatario || parsed.direccion,
+                name: parsed.direccion,
                 address: parsed.direccion,
                 latitude: lat,
                 longitude: lng,
