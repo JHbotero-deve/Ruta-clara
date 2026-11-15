@@ -583,7 +583,7 @@ def test_parser_selects_recipient_address_instead_of_sender_address():
     response = client.post("/parse-delivery-label", json={"text":label}, headers=headers)
     assert response.status_code == 200, response.text
     parsed = response.json()
-    assert parsed["direccion"] == "Carrera 45A #32 SUR-04"
+    assert parsed["direccion"] == "Carrera 45A #32 Sur-04"
     assert parsed["municipio"] == "Envigado"
     assert parsed["distrito"] == "San Marcos"
     assert parsed["referencia"] == "Torre 2 Apto 402"
