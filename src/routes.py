@@ -728,6 +728,8 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
         raise HTTPException(status_code=422, detail="No se encontró una dirección en la guía.")
 
     direccion = re.sub(r"\bCerrera\b", "Carrera", direccion, flags=re.IGNORECASE)
+    direccion = re.sub(r"\b(?:cra|cr|carrera)\.?\s*(?=\d)", "Carrera ", direccion, flags=re.IGNORECASE)
+    direccion = re.sub(r"\b(?:cll|cl|calle)\.?\s*(?=\d)", "Calle ", direccion, flags=re.IGNORECASE)
     unit_match = re.search(r"\b(apartamento|apartemento|apto\.?|apt\.?|piso|oficina|ofc\.?|torre|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+", direccion, re.IGNORECASE)
     if unit_match and not referencia:
         referencia = unit_match.group(0).strip()
