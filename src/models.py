@@ -37,6 +37,17 @@ class User(Base):
     role = Column(String(20), nullable=False, default="operator", server_default="operator")
 
 
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    user = relationship("User")
+
+
 class DeliveryRoute(Base):
     """Agrupador de paradas en una ruta específica (ej. Mañana, Tarde, Envigado)."""
     __tablename__ = "delivery_routes"
