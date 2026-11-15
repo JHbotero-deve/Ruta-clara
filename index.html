@@ -2424,7 +2424,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(!target)return;
             const saved=await toggleDelivered(target.id,true);
             if(!saved)return;
-            await loadRouteData();
+            if(navigator.onLine)await loadRouteData();
             activeNavIndex=0;
             if(currentLocations.length){
                 updateNavHUD();
