@@ -3,6 +3,8 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -13,9 +15,6 @@ from sqlalchemy import inspect
 from database import engine, SessionLocal
 from src.models import Base, DeliveryRoute, Location, User
 from src.routes import router
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -121,15 +120,20 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Configure CORS Middleware for production and local development
-raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
-origins = [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
+def resolve_allowed_origins(raw_origins: str, production: bool) -> list[str]:
+    origins = [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
+    if "*" in origins and production:
+        raise RuntimeError("ALLOWED_ORIGINS no puede ser * en producción; configura los dominios autorizados.")
+    return ["*"] if "*" in origins else origins
+
+
 environments = {os.getenv("RAILWAY_ENVIRONMENT_NAME", "").strip().lower(), os.getenv("ENVIRONMENT", "").strip().lower()}
 is_production = bool(environments & {"production", "prod"})
-allow_all_origins = "*" in origins
-if allow_all_origins and is_production:
-    raise RuntimeError("ALLOWED_ORIGINS no puede ser * en producción; configura los dominios autorizados.")
+origins = resolve_allowed_origins(os.getenv("ALLOWED_ORIGINS", ""), is_production)
+allow_all_origins = origins == ["*"]
 if allow_all_origins:
     logger.warning("CORS permite cualquier origen. Limita ALLOWED_ORIGINS fuera de producción.")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if allow_all_origins else origins,
