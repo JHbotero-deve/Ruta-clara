@@ -34,8 +34,17 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
+  const sameOrigin = requestUrl.origin === self.location.origin;
+  const isMapTile = requestUrl.hostname.endsWith('tile.openstreetmap.org');
+  const isOfflineTile = sameOrigin && requestUrl.pathname.startsWith('/tiles/');
+  const isStaticAsset = sameOrigin && requestUrl.pathname.startsWith('/static/');
+  // No almacenar respuestas autenticadas ni datos de pedidos/usuarios en Cache Storage.
+  if (sameOrigin && !isOfflineTile && !isStaticAsset && requestUrl.pathname !== '/map' && requestUrl.pathname !== '/sw.js') return;
+  if (!sameOrigin && !isMapTile) return;
   // Navegación (HTML /map): Network-First para que el usuario reciba siempre el código más reciente
-  if (event.request.mode === 'navigate' || event.request.url.endsWith('/map')) {
+  if (event.request.mode === 'navigate' || (sameOrigin && requestUrl.pathname === '/map')) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
@@ -59,7 +68,7 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
       return fetch(event.request).then((networkResponse) => {
-        if (event.request.method === 'GET' && (event.request.url.startsWith(self.location.origin) || event.request.url.includes('tile.openstreetmap.org'))) {
+        if (event.request.method === 'GET' && (sameOrigin || isMapTile)) {
           const copy = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
