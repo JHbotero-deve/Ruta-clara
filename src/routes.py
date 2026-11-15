@@ -356,10 +356,12 @@ def location_status_history(location_id: int, db: Session = Depends(get_db), cur
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
-    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
+    if current_user.role == "driver" and location.assigned_to_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo puedes consultar el historial de pedidos asignados a ti.")
+    if current_user.role == "operator" and location.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes acceso a este pedido.")
     events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc(), LocationStatusHistory.id.desc()).all()
-    return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
+    return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "notes": event.notes, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
 
 
 # ============================================================
@@ -821,7 +823,12 @@ def get_or_create_default_route(db: Session) -> DeliveryRoute:
 )
 def list_delivery_routes(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """Lista todas las rutas de entrega con la cantidad de paradas asignadas."""
-    routes = db.query(DeliveryRoute).order_by(DeliveryRoute.created_at.desc()).all()
+    route_query = db.query(DeliveryRoute)
+    if current_user.role == "driver":
+        route_query = route_query.filter(DeliveryRoute.id.in_(db.query(Location.route_id).filter(Location.assigned_to_id == current_user.id)))
+    elif current_user.role == "operator":
+        route_query = route_query.filter(DeliveryRoute.id.in_(db.query(Location.route_id).filter(Location.created_by_id == current_user.id)))
+    routes = route_query.order_by(DeliveryRoute.created_at.desc()).all()
     result = []
     for r in routes:
         stops_count = db.query(Location).filter(Location.route_id == r.id).count()
@@ -903,19 +910,18 @@ def delete_delivery_route(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin_user)
 ):
-    """Elimina una ruta completa y todas sus paradas asociadas."""
+    """Elimina la ruta sin borrar las entregas que contiene."""
     route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
     if not route:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
-
+    replacement = db.query(DeliveryRoute).filter(DeliveryRoute.id != route_id, DeliveryRoute.is_active == True).first()
+    if not replacement:
+        replacement = DeliveryRoute(name="Ruta Principal", is_active=True)
+        db.add(replacement)
+        db.flush()
+    db.query(Location).filter(Location.route_id == route_id).update({Location.route_id: replacement.id}, synchronize_session=False)
     db.delete(route)
     db.commit()
-
-    # Si no quedan rutas, crear una por defecto
-    remaining = db.query(DeliveryRoute).count()
-    if remaining == 0:
-        get_or_create_default_route(db)
-
     return None
 
 
@@ -927,18 +933,23 @@ def delete_delivery_route(
 def assign_location(location_id: int, payload: dict, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location: raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if location.status in {"delivered", "cancelled"}:
+        raise HTTPException(status_code=409, detail="No puedes reasignar una entrega finalizada o cancelada.")
     assigned_to_id = payload.get("assigned_to_id")
     assignee = None
     if assigned_to_id is not None:
-        if not isinstance(assigned_to_id, int): raise HTTPException(status_code=422, detail="El domiciliario seleccionado no es válido.")
+        if type(assigned_to_id) is not int: raise HTTPException(status_code=422, detail="El domiciliario seleccionado no es válido.")
         assignee = db.query(User).filter(User.id == assigned_to_id, User.role == "driver", User.disabled == False).first()
         if not assignee: raise HTTPException(status_code=422, detail="Selecciona un domiciliario activo.")
     old_status = location.status
+    old_assignee_id = location.assigned_to_id
     location.assigned_to_id = assignee.id if assignee else None
     new_status = "assigned" if assignee else "pending"
-    if location.status != new_status:
-        db.add(LocationStatusHistory(location_id=location.id, old_status=old_status, new_status=new_status, changed_by_id=admin.id))
+    if old_status != new_status or old_assignee_id != location.assigned_to_id:
+        assignment_note = f"Asignado a {assignee.username}" if assignee else "Se retiró la asignación."
+        db.add(LocationStatusHistory(location_id=location.id, old_status=old_status, new_status=new_status, notes=assignment_note, changed_by_id=admin.id))
         location.status = new_status
+        location.issue_note = None
         location.delivered = False
         location.status_updated_by_id = admin.id
     db.commit(); db.refresh(location)
@@ -956,7 +967,7 @@ def read_locations(
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
+    if current_user.role == "driver": query = query.filter(Location.assigned_to_id == current_user.id)
     elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
     if status_filter: query = query.filter(Location.status == status_filter)
@@ -973,6 +984,10 @@ def create_location(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    if current_user.role == "driver":
+        raise HTTPException(status_code=403, detail="El repartidor solo puede gestionar pedidos asignados por el administrador.")
+    if location.delivered:
+        raise HTTPException(status_code=422, detail="Una entrega nueva debe registrarse como pendiente.")
     if not location.entrance_confirmed or not (location.entrance_name or "").strip():
         raise HTTPException(status_code=422, detail="La portería debe estar indicada y confirmada en el mapa.")
     if location.client_id:
@@ -1012,8 +1027,8 @@ def create_location(
         location_source=location.location_source,
         client_id=location.client_id,
         route_id=target_route_id,
-        delivered=location.delivered or False,
-        status="delivered" if location.delivered else "pending",
+        delivered=False,
+        status="pending",
         created_by_id=current_user.id,
         assigned_to_id=current_user.id if current_user.role == "driver" else None,
         status_updated_by_id=current_user.id,
@@ -1040,8 +1055,8 @@ def update_location_details(location_id: int, payload: dict, db: Session = Depen
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail="Parada no encontrada.")
-    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta parada.")
+    if current_user.role == "driver" or (current_user.role == "operator" and location.created_by_id != current_user.id):
+        raise HTTPException(status_code=403, detail="Solo el administrador o el operador que registró el pedido puede editar sus datos.")
     address = payload.get("address")
     name = payload.get("name")
     reference = payload.get("unit_number")
@@ -1068,19 +1083,32 @@ def toggle_location_delivered(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Marca una parada como entregada o pendiente."""
+    """Confirma una entrega; solo el administrador puede reabrir una finalizada."""
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Parada no encontrada")
-
-    if current_user.role != "admin" and loc.created_by_id != current_user.id and loc.assigned_to_id != current_user.id:
+    if current_user.role == "driver" and loc.assigned_to_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo puedes confirmar pedidos asignados a ti.")
+    if current_user.role == "operator" and loc.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
-    new_status = "delivered" if payload.delivered else "pending"
-    if loc.status != new_status:
-        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
-        loc.status = new_status
+    if not payload.delivered and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo el administrador puede reabrir una entrega confirmada.")
+    if loc.status == "cancelled":
+        raise HTTPException(status_code=409, detail="Un pedido cancelado no puede marcarse como entregado.")
+    if current_user.role == "driver" and loc.status not in {"assigned", "in_transit", "delivered"}:
+        raise HTTPException(status_code=409, detail="El pedido debe estar asignado o en camino antes de confirmarlo.")
+    if payload.delivered and loc.status != "delivered":
+        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status="delivered", changed_by_id=current_user.id))
+        loc.status = "delivered"
+        loc.delivered = True
+        loc.issue_note = None
         loc.status_updated_by_id = current_user.id
-    loc.delivered = payload.delivered
+    elif not payload.delivered and loc.status == "delivered":
+        reopened_status = "assigned" if loc.assigned_to_id else "pending"
+        db.add(LocationStatusHistory(location_id=loc.id, old_status="delivered", new_status=reopened_status, notes="Entrega reabierta por administrador.", changed_by_id=current_user.id))
+        loc.status = reopened_status
+        loc.delivered = False
+        loc.status_updated_by_id = current_user.id
     db.commit()
     db.refresh(loc)
     return loc
@@ -1090,17 +1118,37 @@ def toggle_location_delivered(
 def update_location_status(location_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     allowed = {"pending", "assigned", "in_transit", "delivered", "issue", "cancelled"}
     new_status = payload.get("status")
+    notes = str(payload.get("notes") or payload.get("issue_note") or "").strip()
     if new_status not in allowed:
         raise HTTPException(status_code=422, detail="Estado no válido.")
+    if len(notes) > 1000:
+        raise HTTPException(status_code=422, detail="La novedad no puede superar 1000 caracteres.")
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
-    if current_user.role != "admin" and loc.created_by_id != current_user.id and loc.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
-    if loc.status != new_status:
-        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
+    if current_user.role == "driver" and loc.assigned_to_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo puedes actualizar pedidos asignados a ti.")
+    if current_user.role == "operator" and loc.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo puedes gestionar pedidos que registraste.")
+    if current_user.role == "driver" and new_status not in {"in_transit", "delivered", "issue"}:
+        raise HTTPException(status_code=403, detail="El repartidor solo puede marcar En camino, Entregado o Novedad.")
+    if current_user.role != "admin" and new_status == "assigned":
+        raise HTTPException(status_code=403, detail="La asignación de pedidos corresponde al administrador.")
+    if new_status == "assigned" and not loc.assigned_to_id:
+        raise HTTPException(status_code=422, detail="Asigna el pedido a un domiciliario antes de marcarlo como asignado.")
+    if loc.status == "delivered" and new_status != "delivered" and current_user.role != "admin":
+        raise HTTPException(status_code=409, detail="Una entrega confirmada solo puede reabrirla el administrador.")
+    if loc.status == "cancelled" and new_status != "cancelled" and current_user.role != "admin":
+        raise HTTPException(status_code=409, detail="Un pedido cancelado solo puede reactivarlo el administrador.")
+    if new_status == "issue" and len(notes) < 5:
+        raise HTTPException(status_code=422, detail="Describe la novedad con al menos 5 caracteres.")
+    if new_status == "delivered" and loc.status == "cancelled":
+        raise HTTPException(status_code=409, detail="Un pedido cancelado no puede marcarse como entregado.")
+    if loc.status != new_status or (new_status == "issue" and notes != loc.issue_note):
+        db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, notes=notes or None, changed_by_id=current_user.id))
         loc.status = new_status
         loc.delivered = new_status == "delivered"
+        loc.issue_note = notes if new_status == "issue" else None
         loc.status_updated_by_id = current_user.id
         db.commit()
         db.refresh(loc)
@@ -1124,12 +1172,17 @@ def delete_location(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    if current_user.role != "admin" and location.created_by_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este pedido.")
-
-    db.delete(location)
-    db.commit()
-
+    if current_user.role == "driver" or (current_user.role == "operator" and location.created_by_id != current_user.id):
+        raise HTTPException(status_code=403, detail="Solo el administrador o el operador que registró el pedido puede cancelarlo.")
+    if location.status == "delivered":
+        raise HTTPException(status_code=409, detail="No se puede eliminar una entrega completada; conserva su historial.")
+    if location.status != "cancelled":
+        db.add(LocationStatusHistory(location_id=location.id, old_status=location.status, new_status="cancelled", notes="Pedido cancelado desde la gestión de paradas.", changed_by_id=current_user.id))
+        location.status = "cancelled"
+        location.delivered = False
+        location.issue_note = None
+        location.status_updated_by_id = current_user.id
+        db.commit()
     return None
 
 
@@ -1138,16 +1191,19 @@ def delete_location(
     status_code=status.HTTP_204_NO_CONTENT
 )
 def clear_all_locations(
-    route_id: Optional[int] = Query(None, description="Borrar paradas solo de esta ruta"),
+    route_id: Optional[int] = Query(None, description="Cancelar paradas activas solo de esta ruta"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    admin: User = Depends(get_current_admin_user)
 ):
-    query = db.query(Location)
-    if current_user.role != "admin":
-        query = query.filter(Location.created_by_id == current_user.id)
+    query = db.query(Location).filter(Location.status.notin_(["delivered", "cancelled"]))
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
-    query.delete(synchronize_session=False)
+    for location in query.all():
+        db.add(LocationStatusHistory(location_id=location.id, old_status=location.status, new_status="cancelled", notes="Pedido cancelado al vaciar la ruta.", changed_by_id=admin.id))
+        location.status = "cancelled"
+        location.delivered = False
+        location.issue_note = None
+        location.status_updated_by_id = admin.id
     db.commit()
     return None
 
