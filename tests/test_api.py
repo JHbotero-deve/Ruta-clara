@@ -564,3 +564,35 @@ def test_driver_cannot_mark_cancelled_order_as_delivered():
     assert client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin).status_code == 200
     assert client.patch(f"/locations/{location_id}/status", json={"status":"cancelled"}, headers=admin).status_code == 200
     assert client.patch(f"/locations/{location_id}/delivered", json={"delivered":True}, headers=headers).status_code == 409
+
+
+def test_parser_selects_recipient_address_instead_of_sender_address():
+    headers = admin_headers()
+    label = (
+        "REMITENTE\n"
+        "Nombre: Empresa de origen\n"
+        "Dirección: Calle 10 #20-30\n"
+        "Municipio: Bello\n"
+        "DESTINATARIO\n"
+        "Nombre: Persona privada\n"
+        "Dirección: Carrera 45A #32 Sur-04\n"
+        "Municipio: Envigado\n"
+        "Barrio: San Marcos\n"
+        "Referencia: Torre 2 Apto 402\n"
+    )
+    response = client.post("/parse-delivery-label", json={"text":label}, headers=headers)
+    assert response.status_code == 200, response.text
+    parsed = response.json()
+    assert parsed["direccion"] == "Carrera 45A #32 SUR-04"
+    assert parsed["municipio"] == "Envigado"
+    assert parsed["distrito"] == "San Marcos"
+    assert parsed["referencia"] == "Torre 2 Apto 402"
+    assert "Bello" not in str(parsed)
+    assert "Persona privada" not in str(parsed)
+
+
+def test_parser_does_not_use_sender_address_when_recipient_is_missing():
+    headers = admin_headers()
+    label = "REMITENTE\nNombre: Empresa\nDirección: Calle 10 #20-30\nMunicipio: Bello"
+    response = client.post("/parse-delivery-label", json={"text":label}, headers=headers)
+    assert response.status_code == 422
