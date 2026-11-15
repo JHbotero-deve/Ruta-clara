@@ -977,7 +977,7 @@
                 <!-- Botones de Acción Inmediata -->
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     <button type="button" class="btn btn-pro-scanner" onclick="startProScanner()">
-                        📷 Iniciar Cámara Continua (Escanear Guías y QR)
+                        📷 Iniciar Cámara (solo lectura de direcciones)
                     </button>
                     <button type="button" class="btn-magic-paste" onclick="togglePasteCard()">
                         📋 Pegar Texto de Guía Completa (Autocompletar Todo)
@@ -1043,12 +1043,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         <!-- Nombre del Cliente -->
                         <div class="form-group">
                             <label for="guideRecipient" style="display:flex; justify-content:space-between; align-items:center;">
-                                <span>👤 Nombre del Cliente *</span>
+                                <span>👤 Nombre de la unidad / conjunto *</span>
                                 <button type="button" onclick="startVoiceDictation('guideRecipient')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:3px;">
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideRecipient" placeholder="Ej. Lucrecia Inés Vasquez garcés" required enterkeyhint="send">
+                            <input type="text" id="guideRecipient" placeholder="Ej. Unidad Vizcaya Real 2 o Casa" required enterkeyhint="send">
                         </div>
 
                         <button type="submit" class="btn btn-success">➕ Guardar Parada en esta Ruta</button>
@@ -1169,7 +1169,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 <div class="scanner-corner sc-br"></div>
                 <div class="scanner-laser"></div>
                 <span id="scannerHint" style="font-size:11px; color:rgba(255,255,255,0.85); background:rgba(0,0,0,0.65); padding:4px 10px; border-radius:6px; position:absolute; bottom:12px; text-align:center;">
-                    Apunta a la guía / código QR o presiona capturar
+                    Enfoca la dirección de la guía y captura
                 </span>
             </div>
         </div>
@@ -2529,6 +2529,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         window.onload = bootRutaClara;
     </script>
+    <script src="/static/safety.js?v=1"></script>
 </body>
 
 </html>
