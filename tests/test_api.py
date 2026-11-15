@@ -493,5 +493,6 @@ def test_map_taps_cannot_create_delivery_stops():
     assert "map.on('click'" not in map_initialization
     assert "map.on(\"click\"" not in map_initialization
     assert "saveLocationAutomatically" not in map_initialization
+    assert "captureContinuousStop" not in html
 
 
