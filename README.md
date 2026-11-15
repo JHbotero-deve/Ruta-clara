@@ -240,11 +240,14 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - No borrar pedidos entregados: conservarlos en el historial y permitir consultarlos por fecha.
 - Si un pedido no pudo entregarse, registrar una novedad; no marcarlo como entregado.
 - Sin conexión, conservar la confirmación localmente y sincronizarla al recuperar conectividad, evitando duplicados.
+- Las nuevas paradas creadas sin conexión se guardan en el dispositivo con un identificador idempotente y se envían al servidor al recuperar conexión; después se sincronizan las confirmaciones de entrega usando el ID persistido.
+- Si el servidor rechaza una parada por validación o permisos, la interfaz informa el error y no la presenta como guardada offline.
+- El alcance offline sigue siendo parcial: el almacenamiento local y el mapa MBTiles no sustituyen la validación de sesión, geocodificación ni todos los servicios de la API.
 
 ### Asignación y trazabilidad
 
 - Cada pedido puede tener un domiciliario responsable (assigned_to_id) distinto del usuario que lo registró (created_by_id).
-- Los repartidores solo consultan pedidos propios sin asignación o pedidos asignados a ellos; el administrador puede supervisar todos los usuarios y pedidos.
+- Los repartidores solo consultan pedidos con asignación vigente a su usuario; perder la asignación revoca el acceso inmediatamente. El administrador puede supervisar todos los usuarios y pedidos.
 - Mantener una única fuente de verdad en SQLite/API y un historial de cambios por pedido.
 
 ### Requisitos de operación y calidad
@@ -281,6 +284,9 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - **No desplegado en producción.**
 - **Sesión persistente integrada en main** mediante el PR #6, commit: c28cc541df1d5b3326120d645a228afbbc87297b.
 - **CI del PR #6 aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
+- **Seguridad y permisos integrados en main** mediante PR #11 y PR #12; se limitaron los pedidos visibles al repartidor asignado, se protegieron las entregas finalizadas y se cerró CORS abierto en producción. Commit: 1f5253a8f1e1ce5fd8ed5e030d16bc8f3288da72.
+- **CI de PR #11 y PR #12 aprobado**, incluidas pruebas de backend y sintaxis JavaScript.
+- La sincronización automática de nuevas paradas offline está en revisión en el PR #14; no se considera integrada hasta que su CI pase y se fusione.
 - Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
 
 ## 🎨 Identidad visual y experiencia de usuario
