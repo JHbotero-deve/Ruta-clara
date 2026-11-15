@@ -697,6 +697,18 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     text = re.sub(r"\bDlrecci[oó0]n\b", "Dirección", text, flags=re.IGNORECASE)
     text = re.sub(r"\bCerrera\b", "Carrera", text, flags=re.IGNORECASE)
     text = re.sub(r"\bapartemento\b", "apartamento", text, flags=re.IGNORECASE)
+    lines = text.splitlines()
+    destination_marker = re.compile(r"^\s*(?:datos\s+de\s+)?(?:destinatario|destinaterio|destino|direcci[oó]n\s+(?:de\s+)?(?:entrega|env[ií]o)|ship\s*to|receiver)\b", re.IGNORECASE)
+    sender_marker = re.compile(r"^\s*(?:datos\s+de\s+)?(?:remitente|remitente|origen|direcci[oó]n\s+(?:del\s+)?remitente|devoluci[oó]n|return\s*to|shipper|sender)\b", re.IGNORECASE)
+    destination_index = next((index for index, line in enumerate(lines) if destination_marker.search(line)), None)
+    sender_indices = [index for index, line in enumerate(lines) if sender_marker.search(line)]
+    if destination_index is not None:
+        next_sender = next((index for index in sender_indices if index > destination_index), len(lines))
+        text = "\n".join(lines[destination_index:next_sender])
+    elif sender_indices:
+        text = "\n".join(lines[:sender_indices[0]])
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="No se encontró una dirección del destinatario en la guía.")
 
     def extract_field(label_pattern: str) -> str:
         match = re.search(
