@@ -54,3 +54,25 @@ def test_calculate_optimal_route_large_set_2opt():
     route = calculate_optimal_route(locations)
     assert len(route) == 12
     assert len(set(loc.name for loc in route)) == 12
+
+
+
+def test_calculate_optimal_route_starts_from_nearest_gps_origin():
+    locations = [
+        SimpleLocation("Far", 6.30, -75.60),
+        SimpleLocation("Near", 6.20, -75.50),
+        SimpleLocation("Middle", 6.24, -75.54),
+    ]
+    route = calculate_optimal_route(locations, start=(6.201, -75.501))
+    assert route[0].name == "Near"
+    assert {loc.name for loc in route} == {"Far", "Near", "Middle"}
+
+
+def test_calculate_optimal_route_keeps_gps_start_for_large_sets():
+    locations = [
+        SimpleLocation(f"Loc_{i}", 6.20 + (i * 0.01), -75.50 - (i * 0.01))
+        for i in range(12)
+    ]
+    route = calculate_optimal_route(locations, start=(6.311, -75.611))
+    assert route[0].name == "Loc_11"
+    assert len({loc.name for loc in route}) == 12
