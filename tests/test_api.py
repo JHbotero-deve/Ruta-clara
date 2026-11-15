@@ -416,11 +416,14 @@ def test_persistent_session_survives_requests_and_logout_revokes_it():
     registration = client.post("/register", json={"email": "jorgebotero190@gmail.com", "password": "Password123!"})
     assert registration.status_code == 201
     login = client.post("/token", data={"username": "jorgebotero190@gmail.com", "password": "Password123!"})
-    assert login.status_code == 200
-    token = login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    second_login = client.post("/token", data={"username": "jorgebotero190@gmail.com", "password": "Password123!"})
+    assert login.status_code == second_login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    second_headers = {"Authorization": f"Bearer {second_login.json()['access_token']}"}
     assert client.get("/users/me", headers=headers).status_code == 200
     assert client.get("/users/me", headers=headers).status_code == 200
+    assert client.get("/users/me", headers=second_headers).status_code == 200
     logout = client.post("/logout", headers=headers)
     assert logout.status_code == 204
     assert client.get("/users/me", headers=headers).status_code == 401
+    assert client.get("/users/me", headers=second_headers).status_code == 200
