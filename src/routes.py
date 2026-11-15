@@ -937,6 +937,8 @@ def delete_delivery_route(
 def assign_location(location_id: int, payload: dict, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location: raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if location.status in {"delivered", "cancelled"} or location.delivered:
+        raise HTTPException(status_code=409, detail="No se puede asignar un pedido finalizado.")
     assigned_to_id = payload.get("assigned_to_id")
     assignee = None
     if assigned_to_id is not None:
@@ -987,6 +989,8 @@ def create_location(
 ):
     if not location.entrance_confirmed or not (location.entrance_name or "").strip():
         raise HTTPException(status_code=422, detail="La portería debe estar indicada y confirmada en el mapa.")
+    if location.delivered:
+        raise HTTPException(status_code=422, detail="Registra el pedido como pendiente y confirma la entrega desde su recorrido.")
     if location.client_id:
         existing = db.query(Location).filter(Location.client_id == location.client_id).first()
         if existing:
@@ -1025,8 +1029,8 @@ def create_location(
         location_source=location.location_source,
         client_id=location.client_id,
         route_id=target_route_id,
-        delivered=location.delivered or False,
-        status="delivered" if location.delivered else "pending",
+        delivered=False,
+        status="pending",
         created_by_id=current_user.id,
         assigned_to_id=current_user.id if current_user.role == "driver" else None,
         status_updated_by_id=current_user.id,
