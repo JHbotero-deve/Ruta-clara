@@ -153,6 +153,7 @@ def test_locations_crud_and_optimal_route():
 
 
 def test_parse_delivery_label():
+    headers = admin_headers()
     label_text = (
         "Dirección: Carrera 43A # 1-50 Apto 402\n"
         "Distrito: El Poblado, Medellín\n"
@@ -160,7 +161,7 @@ def test_parse_delivery_label():
         "Destinatario: Carlos Perez (TRACK123456)\n"
         "RESIDENCIAL"
     )
-    res = client.post("/parse-delivery-label", json={"text": label_text})
+    res = client.post("/parse-delivery-label", json={"text": label_text}, headers=headers)
     assert res.status_code == 200
     parsed = res.json()
     assert parsed["direccion"] == "Carrera 43A #1-50"
@@ -172,13 +173,14 @@ def test_parse_delivery_label():
 
 
 def test_parser_handles_ocr_errors_and_excludes_private_fields():
+    headers = admin_headers()
     label = (
         "MEDELLIN\nCOMERCIAL\n"
         "Dlreccion: Cerrera 36a40-70 apartemento 200 SN.\n"
         "Medellín\nDistrito: La Candelaria\n"
         "Destinaterio: Nombre Privado (TRACK-123)\n"
     )
-    response = client.post("/parse-delivery-label", json={"text": label})
+    response = client.post("/parse-delivery-label", json={"text": label}, headers=headers)
     assert response.status_code == 200
     parsed = response.json()
     assert parsed["direccion"] == "Carrera 36A #40-70"
@@ -190,13 +192,14 @@ def test_parser_handles_ocr_errors_and_excludes_private_fields():
 
 
 def test_parser_keeps_only_address_reference_from_mixed_reference_line():
+    headers = admin_headers()
     label = (
         "CABA\nMONSERRAT\nRESIDENCIAL\n"
         "Direccion: Calle Venezuela 50\n"
         "Referencia: Piso 11 dto 3 Rio Referencia: A nombre de Persona Privada\n"
         "Destinatario: Persona Privada (PABLO_123)\n"
     )
-    parsed = client.post("/parse-delivery-label", json={"text": label}).json()
+    parsed = client.post("/parse-delivery-label", json={"text": label}, headers=headers).json()
     assert parsed["direccion"] == "Calle Venezuela 50"
     assert parsed["referencia"] == "Piso 11 dto 3 Rio"
     assert parsed["municipio"] == "CABA"
@@ -243,6 +246,7 @@ def test_geocode_five_distinct_addresses(monkeypatch):
 
 
 def test_ocr_delivery_label_scanner_with_eight_addresses():
+    headers = admin_headers()
     from PIL import ImageDraw, ImageFont
 
     labels = [
@@ -273,7 +277,7 @@ def test_ocr_delivery_label_scanner_with_eight_addresses():
         image_buffer = io.BytesIO()
         image.save(image_buffer, format="PNG")
         encoded_image = base64.b64encode(image_buffer.getvalue()).decode("ascii")
-        response = client.post("/ocr-delivery-label", json={"image": encoded_image})
+        response = client.post("/ocr-delivery-label", json={"image": encoded_image}, headers=headers)
 
         assert response.status_code == 200, response.text
         parsed = response.json()
@@ -317,5 +321,6 @@ def test_public_registration_is_closed_after_first_account():
 
 
 def test_ocr_delivery_label_rejects_invalid_image():
-    response = client.post("/ocr-delivery-label", json={"image": "not-base64"})
+    headers = admin_headers()
+    response = client.post("/ocr-delivery-label", json={"image": "not-base64"}, headers=headers)
     assert response.status_code == 400
