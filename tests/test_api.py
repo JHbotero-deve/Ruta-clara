@@ -427,3 +427,64 @@ def test_persistent_session_survives_requests_and_logout_revokes_it():
     assert logout.status_code == 204
     assert client.get("/users/me", headers=headers).status_code == 401
     assert client.get("/users/me", headers=second_headers).status_code == 200
+
+
+def test_delivery_route_pdf_export_and_driver_permissions():
+    admin = admin_headers()
+    driver_response = client.post("/admin/users", json={
+        "username": "domiciliario_pdf",
+        "email": "domiciliario_pdf@example.com",
+        "password": "Password123!",
+        "role": "driver"
+    }, headers=admin)
+    assert driver_response.status_code == 201, driver_response.text
+    driver_id = driver_response.json()["id"]
+
+    route_response = client.post("/delivery-routes", json={"name": "Ruta PDF Envigado"}, headers=admin)
+    assert route_response.status_code == 201, route_response.text
+    route_id = route_response.json()["id"]
+
+    location_response = client.post("/locations", json={
+        "name": "Unidad de prueba",
+        "address": "Carrera 43A # 12-34",
+        "municipality": "Envigado",
+        "neighborhood": "El Dorado",
+        "unit_number": "Torre 2 Apto 301",
+        "entrance_name": "Portería principal",
+        "entrance_confirmed": True,
+        "latitude": 6.1700,
+        "longitude": -75.5800,
+        "route_id": route_id
+    }, headers=admin)
+    assert location_response.status_code == 201, location_response.text
+    location_id = location_response.json()["id"]
+    assigned = client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id": driver_id}, headers=admin)
+    assert assigned.status_code == 200, assigned.text
+
+    admin_report = client.get(f"/export/delivery-route.pdf?route_id={route_id}&driver_id={driver_id}", headers=admin)
+    assert admin_report.status_code == 200
+    assert admin_report.headers["content-type"].startswith("application/pdf")
+    assert admin_report.content.startswith(b"%PDF")
+
+    login = client.post("/token", data={"username": "domiciliario_pdf@example.com", "password": "Password123!"})
+    assert login.status_code == 200
+    driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    driver_report = client.get(f"/export/delivery-route.pdf?route_id={route_id}", headers=driver_headers)
+    assert driver_report.status_code == 200
+    assert driver_report.content.startswith(b"%PDF")
+
+    forbidden = client.get(f"/export/delivery-route.pdf?route_id={route_id}&driver_id={driver_id + 100}", headers=driver_headers)
+    assert forbidden.status_code == 403
+
+
+def test_map_taps_cannot_create_delivery_stops():
+    from pathlib import Path
+    html = Path("index.html").read_text(encoding="utf-8")
+    map_start = html.index("function initMap()")
+    map_end = html.index("function loadDeliveryRoutes()", map_start)
+    map_initialization = html[map_start:map_end]
+    assert "map.on('click'" not in map_initialization
+    assert "map.on(\"click\"" not in map_initialization
+    assert "saveLocationAutomatically" not in map_initialization
+
+
