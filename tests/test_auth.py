@@ -38,6 +38,9 @@ def test_production_requires_unique_secret_key(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", _DEFAULT_SECRET)
     with pytest.raises(RuntimeError, match="SECRET_KEY"):
         _resolve_secret_key()
+    monkeypatch.setenv("SECRET_KEY", "change-this-to-a-secure-secret-key-in-production")
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        _resolve_secret_key()
     monkeypatch.setenv("SECRET_KEY", "a" * 64)
     assert _resolve_secret_key() == "a" * 64
 
