@@ -894,6 +894,14 @@ def create_location(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    if not location.entrance_confirmed or not (location.entrance_name or "").strip():
+        raise HTTPException(status_code=422, detail="La portería debe estar indicada y confirmada en el mapa.")
+    if location.client_id:
+        existing = db.query(Location).filter(Location.client_id == location.client_id).first()
+        if existing:
+            if existing.created_by_id != current_user.id:
+                raise HTTPException(status_code=409, detail="La clave de sincronización ya pertenece a otro usuario.")
+            return existing
     if not (-90 <= location.latitude <= 90):
         raise HTTPException(status_code=400, detail="Latitud inválida")
 
@@ -923,6 +931,7 @@ def create_location(
         entrance_name=location.entrance_name,
         entrance_confirmed=location.entrance_confirmed,
         location_source=location.location_source,
+        client_id=location.client_id,
         route_id=target_route_id,
         delivered=location.delivered or False,
         status="delivered" if location.delivered else "pending",
