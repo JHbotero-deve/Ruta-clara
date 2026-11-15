@@ -2645,17 +2645,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         async function syncPendingDeliveryUpdates(){
             if(!navigator.onLine||!rutaUser)return;
             const queue=JSON.parse(localStorage.getItem("rc_pending_delivery_updates")||"[]"),remaining=[];
-            const synced=[];
+            const resolved=[];
             for(const item of queue){
                 try{
                     const response=await fetch(`/locations/${item.location_id}/delivered`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({delivered:item.delivered})});
-                    if(response.ok)synced.push(String(item.location_id));
+                    if(response.ok)resolved.push(String(item.location_id));
                     else if(![403,404,409].includes(response.status))remaining.push(item);
-                    else showToast("Una actualización offline no se aplicó porque el pedido cambió o ya no está asignado.","⚠️");
+                    else{resolved.push(String(item.location_id));showToast("Una actualización offline no se aplicó porque el pedido cambió o ya no está asignado.","⚠️");}
                 }catch(error){remaining.push(item);}
             }
             localStorage.setItem("rc_pending_delivery_updates",JSON.stringify(remaining));
-            if(synced.length){const done=JSON.parse(localStorage.getItem("rc_offline_delivered")||"[]");localStorage.setItem("rc_offline_delivered",JSON.stringify(done.filter(item=>!synced.includes(String(item.id)))));}
+            if(resolved.length){const done=JSON.parse(localStorage.getItem("rc_offline_delivered")||"[]");localStorage.setItem("rc_offline_delivered",JSON.stringify(done.filter(item=>!resolved.includes(String(item.id)))));}
             if(queue.length&&!remaining.length&&rutaUser)await loadRouteData();
         }
 
