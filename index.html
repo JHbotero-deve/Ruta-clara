@@ -1867,6 +1867,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 longitude: data.longitude,
                 neighborhood: data.neighborhood || null,
                 unit_number: data.unit_number || null,
+                entrance_name: data.entrance_name || null,
+                entrance_confirmed: data.entrance_confirmed === true,
+                location_source: data.location_source || null,
                 municipality: data.municipality || null,
                 route_id: data.route_id ?? activeRouteId,
                 delivered: false
