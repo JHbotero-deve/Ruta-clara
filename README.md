@@ -263,4 +263,7 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 
 ### Estado de esta actualización
 
-Los cambios de administración por domiciliario, asignación de pedidos y ruta dinámica se preparan en la rama feat/admin-driver-activity-dynamic-route. No se consideran integrados en main ni listos para producción hasta que la revisión del diff y las pruebas de CI finalicen correctamente.
+- **Integrado en main** mediante el PR #5, commit de merge: db0fc92069664c556716ec1fb781b3dafbe8a5bf.
+- **CI del PR aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
+- **No desplegado en producción.**
+- Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
