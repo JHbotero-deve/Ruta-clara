@@ -34,6 +34,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
     disabled = Column(Boolean, default=False)
+    role = Column(String(20), nullable=False, default="operator", server_default="operator")
 
 
 class DeliveryRoute(Base):
@@ -80,17 +81,30 @@ class Location(Base):
     neighborhood = Column(String(150), nullable=True)
     unit_number = Column(String(150), nullable=True)
 
-    # Estado de entrega
+    # Estado de entrega y trazabilidad
     delivered = Column(Boolean, default=False)
+    status = Column(String(30), nullable=False, default="pending", server_default="pending")
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    status_updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Coordenadas internas para mapas y rutas
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
 
-    route = relationship(
-        "DeliveryRoute",
-        back_populates="locations"
-    )
+    route = relationship("DeliveryRoute", back_populates="locations")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    status_updated_by = relationship("User", foreign_keys=[status_updated_by_id])
+    status_history = relationship("LocationStatusHistory", back_populates="location", cascade="all, delete-orphan", order_by="LocationStatusHistory.changed_at")
+
+    @property
+    def created_by_username(self):
+        return self.created_by.username if self.created_by else None
+
+    @property
+    def status_updated_by_username(self):
+        return self.status_updated_by.username if self.status_updated_by else None
 
     references = relationship(
         "Reference",
@@ -100,6 +114,21 @@ class Location(Base):
 
     def __repr__(self):
         return f"<Location(id={self.id}, name='{self.name}', route_id={self.route_id})>"
+
+
+class LocationStatusHistory(Base):
+    __tablename__ = "location_status_history"
+    id = Column(Integer, primary_key=True, index=True)
+    location_id = Column(Integer, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
+    old_status = Column(String(30), nullable=True)
+    new_status = Column(String(30), nullable=False)
+    changed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    changed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    location = relationship("Location", back_populates="status_history")
+    changed_by = relationship("User")
+    @property
+    def changed_by_username(self):
+        return self.changed_by.username if self.changed_by else "Sistema"
 
 
 class Reference(Base):
@@ -137,6 +166,7 @@ class UserCreate(UserBase):
 
 class UserResponse(UserBase):
     id: int
+    role: str = "operator"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -264,6 +294,13 @@ class LocationResponse(LocationBase):
     id: int
     route_id: Optional[int] = None
     delivered: bool = False
+    status: str = "pending"
+    created_by_id: Optional[int] = None
+    created_by_username: Optional[str] = None
+    status_updated_by_id: Optional[int] = None
+    status_updated_by_username: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     references: List[ReferenceResponse] = Field(
         default_factory=list
