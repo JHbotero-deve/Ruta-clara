@@ -990,6 +990,7 @@ def create_location(
     if location.client_id:
         existing = db.query(Location).filter(Location.client_id == location.client_id).first()
         if existing:
+            ensure_location_access(existing, current_user)
             if existing.created_by_id != current_user.id:
                 raise HTTPException(status_code=409, detail="La clave de sincronización ya pertenece a otro usuario.")
             return existing
