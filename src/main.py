@@ -44,6 +44,7 @@ def init_db_and_migrate():
                 "delivered": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
                 "created_by_id": "INTEGER",
+                "assigned_to_id": "INTEGER REFERENCES users(id)",
                 "status_updated_by_id": "INTEGER",
                 "created_at": "TIMESTAMP",
                 "updated_at": "TIMESTAMP"
