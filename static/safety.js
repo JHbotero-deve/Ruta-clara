@@ -49,7 +49,7 @@ if(!check.checked){alert('Confirma que el punto corresponde a la portería.');re
 const point=reviewMarker.getLatLng();
 confirm.disabled=true;confirm.textContent='Guardando...';
 try{
-await saveLocationAutomatically({name:unit,address:parsed.direccion,latitude:point.lat,longitude:point.lng,neighborhood:parsed.distrito,unit_number:'Portería: '+gate+(parsed.referencia?' · '+parsed.referencia:''),municipality:parsed.municipio,route_id:activeRouteId});
+await saveLocationAutomatically({name:unit,address:parsed.direccion,latitude:point.lat,longitude:point.lng,neighborhood:parsed.distrito,unit_number:parsed.referencia||null,entrance_name:gate,entrance_confirmed:true,location_source:'manual_porteria',municipality:parsed.municipio,route_id:activeRouteId});
 close();resolve(true);
 }catch(error){confirm.disabled=false;confirm.textContent='Confirmar y guardar';alert(error.message||'No se pudo guardar la parada.');}
 };
