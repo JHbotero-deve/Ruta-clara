@@ -466,6 +466,44 @@ def search_address(query: str = Query(..., min_length=3)):
     return results
 
 
+@router.get("/reverse-geocode", tags=["Geocoding"])
+def reverse_geocode(latitude: float = Query(..., ge=-90, le=90), longitude: float = Query(..., ge=-180, le=180)):
+    """Convierte el punto seleccionado en el mapa a una dirección legible."""
+    global GEOCODE_LAST_REQUEST
+    try:
+        elapsed = time.monotonic() - GEOCODE_LAST_REQUEST
+        if elapsed < 1.0:
+            time.sleep(1.0 - elapsed)
+        params = urllib.parse.urlencode({
+            "lat": latitude,
+            "lon": longitude,
+            "format": "jsonv2",
+            "addressdetails": 1,
+            "zoom": 18,
+            "accept-language": "es"
+        })
+        request = urllib.request.Request(
+            f"https://nominatim.openstreetmap.org/reverse?{params}",
+            headers={"User-Agent": "RutaClaraDeliveryApp/5.0"}
+        )
+        GEOCODE_LAST_REQUEST = time.monotonic()
+        with urllib.request.urlopen(request, timeout=6) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        if not data.get("display_name"):
+            raise ValueError("El proveedor no devolvió una dirección")
+        details = data.get("address", {})
+        municipality = details.get("city") or details.get("town") or details.get("municipality") or details.get("county") or ""
+        neighborhood = details.get("neighbourhood") or details.get("suburb") or details.get("quarter") or ""
+        return {
+            "display_name": data["display_name"],
+            "municipality": municipality,
+            "neighborhood": neighborhood
+        }
+    except Exception as error:
+        logger.warning("Error de geocodificación inversa: %s", error)
+        raise HTTPException(status_code=502, detail="No fue posible obtener la dirección del punto seleccionado.")
+
+
 @router.post("/ocr-delivery-label", tags=["Geocoding"])
 def ocr_delivery_label_endpoint(payload: dict):
     """Recibe una foto de cámara, aplica OCR en español y analiza la etiqueta."""
