@@ -1676,7 +1676,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             try{
                 const params=new URLSearchParams({route_id:activeRouteId});
                 try{
-                    const gps=currentUserLatLng?{latitude:currentUserLatLng[0],longitude:currentUserLatLng[1],accuracy:0}:await getCurrentGpsPosition();
+                    const gps=await getCurrentGpsPosition();
                     if(gps.accuracy<=50){currentUserLatLng=[gps.latitude,gps.longitude];params.set("start_lat",gps.latitude);params.set("start_lon",gps.longitude);}
                 }catch(error){}
                 const response=await fetch(`/optimal_route?${params.toString()}`);
