@@ -291,3 +291,11 @@ La interfaz de Ruta Clara debe mantener una apariencia de software empresarial d
 - **Iconografía:** priorizar iconos SVG consistentes frente a emojis en controles y navegación.
 - **Responsive:** conservar una experiencia usable en pantallas pequeñas, sin ocultar acciones esenciales ni afectar el escáner, el mapa o la operación de entregas.
 - **Alcance:** los cambios visuales no deben alterar autenticación, persistencia de sesión, asignaciones, estados de entrega, cálculo de recorridos ni funcionamiento offline.
+
+### Reportes y seguridad del mapa
+
+- El informe operativo para compartir o imprimir es un PDF A4 compacto, con identidad de Ruta Clara en el pie de página, responsable, periodo, conteos, direcciones, referencias, estado y fecha de actualización.
+- El administrador puede descargar el informe de un domiciliario para los últimos siete días o una ruta específica. El domiciliario solo puede exportar sus propios recorridos.
+- El CSV semanal se conserva para análisis de datos en Excel; no es el documento operativo de presentación.
+- El mapa es exclusivamente de consulta y navegación: tocar, pulsar o arrastrar el mapa nunca crea una parada. Las altas se realizan por formulario escrito, dictado por voz o escáner OCR.
+- La descarga de reportes no expone destinatarios ni códigos de seguimiento.
