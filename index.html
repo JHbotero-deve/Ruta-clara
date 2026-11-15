@@ -2385,8 +2385,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
 
-        function downloadWeeklyHistory() {
-            window.location.href = '/export/weekly_routes';
+        async function downloadWeeklyHistory() {
+            try {
+                const response = await fetch('/export/weekly_routes');
+                if (!response.ok) throw new Error('No fue posible descargar el historial.');
+                const url = URL.createObjectURL(await response.blob());
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'rutas_semana_registros.csv';
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) { alert(error.message); }
         }
 
         function switchTab(tabName) {
