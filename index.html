@@ -1883,6 +1883,25 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 return;
             }
 
+            for (const loc of locations) {
+                const legacyCoordinates = /^Coordenadas:/i.test(loc.address || '') || /^Parada Mapa\s*\(/i.test(loc.name || '');
+                if (!legacyCoordinates) continue;
+                loc.name = 'Punto en mapa';
+                try {
+                    const response = await fetch(`/reverse-geocode?latitude=${loc.latitude}&longitude=${loc.longitude}`);
+                    if (response.ok) {
+                        const place = await response.json();
+                        loc.address = place.display_name || 'Dirección no disponible';
+                        loc.municipality = place.municipality || loc.municipality || '';
+                        loc.neighborhood = place.neighborhood || loc.neighborhood || '';
+                    } else {
+                        loc.address = 'Dirección no disponible';
+                    }
+                } catch (error) {
+                    loc.address = 'Dirección no disponible';
+                }
+            }
+
             let totalDist = 0;
             let roadRoute = null;
             if (locations.length > 1 && activeRouteId) {
@@ -1948,7 +1967,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                                 ${isDelivered ? '<span class="badge-tag-res">✔ Entregado</span>' : '<span style="background:#ffedd5; color:#c2410c; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px;">Pendiente</span>'}
                             </div>
                             <div style="font-size:12px; color:#1e293b; font-weight:600;">
-                                📍 <b>Dirección:</b> ${escapeHtml(loc.address || 'Dirección no disponible')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''}
+                                📍 <b>Dirección:</b> ${escapeHtml(loc.address || 'Dirección no disponible')} ${loc.neighborhood ? `• ${escapeHtml(loc.neighborhood)}` : ''} ${loc.municipality ? `• ${escapeHtml(loc.municipality)}` : ''}
                             </div>
                             <!-- CUADRO DE REFERENCIA DESTACADO -->
                             ${loc.unit_number ? `
