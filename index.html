@@ -1672,23 +1672,23 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // ========================================================
         async function loadRouteData() {
             if(!activeRouteId)return;
+            const routeKey=`rc_route_cache_${rutaUser?.id}_${activeRouteId}`,completedKey=`rc_completed_cache_${rutaUser?.id}_${activeRouteId}`;
             try{
                 const response=await fetch(`/optimal_route?route_id=${activeRouteId}`);
                 if(!response.ok)throw new Error("Error al cargar paradas pendientes.");
                 currentLocations=await response.json();
                 const deliveredResponse=await fetch(`/locations?route_id=${activeRouteId}&status=delivered`);
                 completedLocations=deliveredResponse.ok?await deliveredResponse.json():[];
-                renderCompletedStops(completedLocations);
-                renderNavigationGuide(currentLocations);
-                updateStopsCountInSelector();
+                localStorage.setItem(routeKey,JSON.stringify(currentLocations));
+                localStorage.setItem(completedKey,JSON.stringify(completedLocations));
             }catch(error){
-                const offline=JSON.parse(localStorage.getItem("rc_offline_locations")||"[]");
-                currentLocations=offline.filter(item=>(item.route_id===activeRouteId||!item.route_id)&&!item.delivered&&item.status!=="delivered");
-                completedLocations=JSON.parse(localStorage.getItem("rc_offline_delivered")||"[]");
-                renderCompletedStops(completedLocations);
-                renderNavigationGuide(currentLocations);
-                updateStopsCountInSelector();
+                const cached=JSON.parse(localStorage.getItem(routeKey)||"[]"),offline=JSON.parse(localStorage.getItem("rc_offline_locations")||"[]");
+                currentLocations=[...cached,...offline.filter(item=>(item.route_id===activeRouteId||!item.route_id)&&!item.delivered&&item.status!=="delivered")].filter((item,index,all)=>all.findIndex(candidate=>String(candidate.id)===String(item.id))===index);
+                completedLocations=JSON.parse(localStorage.getItem(completedKey)||localStorage.getItem("rc_offline_delivered")||"[]");
             }
+            renderCompletedStops(completedLocations);
+            renderNavigationGuide(currentLocations);
+            updateStopsCountInSelector();
         }
         function renderCompletedStops(locations){
             const list=document.getElementById("completedStopsList"),count=document.getElementById("completedStopsCount");
@@ -2470,6 +2470,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(newState){
                 currentLocations=currentLocations.filter(item=>String(item.id)!==String(locationId));
                 completedLocations=[...completedLocations.filter(item=>String(item.id)!==String(locationId)),loc];
+                localStorage.setItem(`rc_route_cache_${rutaUser?.id}_${activeRouteId}`,JSON.stringify(currentLocations));
+                localStorage.setItem(`rc_completed_cache_${rutaUser?.id}_${activeRouteId}`,JSON.stringify(completedLocations));
                 renderCompletedStops(completedLocations);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
