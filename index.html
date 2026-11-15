@@ -2582,7 +2582,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(!loc)return false;
             const newState=forceDeliveredState!==null?forceDeliveredState:!loc.delivered;
             let response=null;
-            try{response=await fetch(`/locations/${locationId}/delivered`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({delivered:newState})});}catch(error){}
+            if(!String(locationId).startsWith("offline-")){
+                try{response=await fetch(`/locations/${locationId}/delivered`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({delivered:newState})});}catch(error){}
+            }
             if(response&&!response.ok){alert("El servidor no confirmó la entrega.");return false;}
             if(!response){
                 const queue=JSON.parse(localStorage.getItem("rc_pending_delivery_updates")||"[]");
