@@ -886,6 +886,35 @@
         @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
         
+        .map-safety-note{margin:5px 0 0;color:var(--text-muted);font-size:10px;line-height:1.45;max-width:680px}
+        .route-export-actions{display:flex;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+        .route-export-actions button{flex:1;min-width:150px}
+        .btn-report-small{border:1px solid var(--border);background:var(--bg-hover);color:var(--primary-dark);border-radius:7px;padding:7px 9px;font-size:10px;font-weight:750;white-space:nowrap}
+        .admin-export-only{display:block}
+        @media(max-width:700px){.route-export-actions{display:grid;grid-template-columns:1fr}.route-export-actions button{width:100%}.map-safety-note{font-size:9px}.btn-report-small{padding:8px}}
+
+        /* ACABADO DE PANELES Y CONTROLES */
+        #adminOverview .dashboard-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+        #adminOverview .card,#driverDashboard .card,#viewUsers .card{background:var(--bg-card);border:1px solid var(--border);box-shadow:0 2px 9px #17232f08}
+        .dashboard-stat{overflow:hidden;position:relative}
+        .dashboard-stat::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--primary)}
+        .dashboard-stat strong{font-variant-numeric:tabular-nums}
+        .dashboard-table tbody tr:hover{background:var(--bg-hover)}
+        .dashboard-table details{margin-top:5px;color:var(--text-muted);font-size:10px}
+        .dashboard-table details summary{color:var(--primary);font-weight:700;cursor:pointer}
+        .dashboard-table td{vertical-align:middle}
+        #adminOverview .view-heading,#driverDashboard .view-heading{align-items:center}
+        #viewScanner .card-header{align-items:center;gap:10px}
+        #viewScanner label{font-size:11px;font-weight:700;color:var(--text-muted)}
+        #viewScanner input:not([type="file"]),#viewScanner textarea{min-height:42px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-main)}
+        #viewScanner textarea{min-height:88px}
+        #viewScanner button,#viewMap button{touch-action:manipulation}
+        #viewMap .map-header button{min-height:40px;border-radius:8px;font-weight:700}
+        #viewMap .map-card-wrapper{overflow:hidden}
+        #map{touch-action:pan-x pan-y pinch-zoom}
+        .route-export-actions{padding-top:2px}
+        .btn-report-small:hover,.route-export-actions button:hover{filter:brightness(.97)}.btn-report-small+.btn-report-small{margin-left:4px}
+        @media(max-width:700px){#adminOverview .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminOverview .card,#driverDashboard .card,#viewUsers .card{padding:13px}#viewMap .map-header button{min-height:44px}}
         /* IDENTIDAD VISUAL EMPRESARIAL */
         :root{--primary:#176b63;--primary-dark:#11564f;--success:#188568;--warning:#b7791f;--danger:#c24141;--bg-main:#f3f5f7;--bg-card:#fff;--text-main:#17232f;--text-muted:#687887;--border:#dfe5e9;--input-bg:#fff;--input-border:#cbd5dc;--bg-hover:#edf3f2}
         [data-theme="dark"]{--primary:#42a99b;--primary-dark:#318d82;--success:#35a987;--warning:#d4a34d;--danger:#ef7777;--bg-main:#101820;--bg-card:#17232d;--text-main:#edf3f5;--text-muted:#9eafb9;--border:#2a3a45;--input-bg:#1c2a35;--input-border:#3a4c58;--bg-hover:#22343e}
@@ -1019,7 +1048,7 @@
                     <div class="dashboard-stat"><span>En recorrido</span><strong id="adminStatOnRoute">0</strong></div>
                     <div class="dashboard-stat"><span>Entregas de hoy</span><strong id="adminStatToday">0</strong></div>
                 </div>
-                <div class="card"><div class="view-heading"><h2>Actividad de domiciliarios</h2><button class="btn-route-action" onclick="loadDashboard()">Actualizar</button></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Domiciliario</th><th>Estado</th><th>Entregados</th><th>Pendientes</th><th>Entregas hoy</th><th>Últimos 7 días</th></tr></thead><tbody id="adminActivityList"></tbody></table></div></div>
+                <div class="card"><div class="view-heading"><h2>Actividad de domiciliarios</h2><button class="btn-route-action" onclick="loadDashboard()">Actualizar</button></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Domiciliario</th><th>Estado</th><th>Entregados</th><th>Pendientes</th><th>Entregas hoy</th><th>Últimos 7 días</th><th>Informe</th></tr></thead><tbody id="adminActivityList"></tbody></table></div></div>
                 <div class="card"><div class="view-heading"><h2>Asignar pedidos</h2></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Pedido</th><th>Dirección</th><th>Estado</th><th>Domiciliario</th></tr></thead><tbody id="adminAssignmentList"></tbody></table></div></div>
             </div>
             <div id="driverDashboard">
@@ -1044,7 +1073,7 @@
             <!-- TARJETA DEL ESCÁNER Y CAPTURA DE GUÍAS -->
             <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
                 <div class="card-header">
-                    <h2>⚡ Captura de Guías de Entrega</h2>
+                    <h2>Captura de guías de entrega</h2>
                     <span id="currentRouteBadge" style="background:#2563eb; color:white; font-size:11px; padding:3px 8px; border-radius:10px; font-weight:700;">
                         Ruta 1
                     </span>
@@ -1136,7 +1165,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             <div class="card" style="display: flex; flex-direction: column;">
                 <div class="card-header" style="margin-bottom: 6px;">
                     <h2>
-                        📋 Paradas de la Ruta
+                        Paradas de la ruta
                         <span id="stopsCountBadge" style="background:#ea580c; color:white; font-size:11px; padding:2px 8px; border-radius:12px; margin-left:6px; font-weight:700;">0</span>
                     </h2>
                     <div style="display:flex; gap:8px;">
@@ -1145,10 +1174,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     </div>
                 </div>
 
-                <div style="display:flex; gap:8px; margin-bottom: 8px;">
-                    <button onclick="downloadWeeklyHistory()" class="btn" style="background:#0284c7; color:white; font-size:11px; padding:6px 10px; width:100%; border-radius:6px; font-weight:600; min-height:36px;">
-                        📥 Descargar Historial CSV
-                    </button>
+                <div class="route-export-actions">
+                    <button onclick="downloadCurrentRouteReport()" class="btn-route-action">Reporte PDF</button>
+                    <button onclick="downloadCurrentRouteSpreadsheet()" class="btn-route-action btn-route-secondary">Excel editable</button>
+                    <button onclick="downloadWeeklyHistory()" class="btn-route-action btn-route-secondary admin-export-only">Historial CSV</button>
                 </div>
 
                 <div class="nav-container" id="navStepsList">
@@ -1169,13 +1198,13 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         <div id="viewMap" class="tab-content">
             <div class="map-card-wrapper">
                 <div class="map-header">
-                    <h2>🗺️ Mapa de Entrega y GPS Interno</h2>
+                    <div><h2>Mapa de entregas</h2><p class="map-safety-note">Mapa de consulta: tocar o mover el mapa nunca agrega paradas. Registra direcciones desde el formulario, dictado o escáner.</p></div>
                     <div style="display:flex; gap:6px;">
                         <button id="btnToggleNav" onclick="toggleRouteNavigation()" style="background:#10b981; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer;">
-                            🚀 Arrancar Navegación
+                            Iniciar navegación
                         </button>
                         <button onclick="switchTab('scanner')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:11px; font-weight:600; cursor:pointer;">
-                            ⬅️ Escáner
+                            Volver al escáner
                         </button>
                     </div>
                 </div>
@@ -1255,9 +1284,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         <div class="pro-scanner-bottom">
             <button class="btn-capture-big" onclick="captureAndReadGuide()">
                 📷 Leer guía con cámara (OCR)
-            </button>
-            <button onclick="captureContinuousStop()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
-                📍 Registrar solo ubicación GPS
             </button>
             <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
                 🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
@@ -1456,7 +1482,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     document.getElementById("adminStatDrivers").textContent=activity.total_drivers||0;
                     document.getElementById("adminStatOnRoute").textContent=activity.drivers_on_route||0;
                     document.getElementById("adminStatToday").textContent=activity.deliveries_today||0;
-                    document.getElementById("adminActivityList").innerHTML=drivers.length?drivers.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.status)+'</td><td>'+user.delivered+'</td><td>'+user.pending+'<details><summary>Ver domicilios</summary>'+((user.pending_orders||[]).map(order=>'<div>#'+order.id+' · '+escapeHtml(order.address)+'</div>').join("")||'Sin pendientes')+'</details></td><td>'+user.delivered_today+'</td><td>'+Object.entries(user.deliveries_by_day).map(([day,count])=>day.slice(5)+": "+count).join(" · ")+'</td></tr>').join(""):'<tr><td colspan="6">Todavía no hay domiciliarios registrados.</td></tr>';
+                    document.getElementById("adminActivityList").innerHTML=drivers.length?drivers.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.status)+'</td><td>'+user.delivered+'</td><td>'+user.pending+'<details><summary>Ver domicilios</summary>'+((user.pending_orders||[]).map(order=>'<div>#'+order.id+' · '+escapeHtml(order.address)+'</div>').join("")||'Sin pendientes')+'</details></td><td>'+user.delivered_today+'</td><td>'+Object.entries(user.deliveries_by_day).map(([day,count])=>day.slice(5)+": "+count).join(" · ")+'</td><td><button class="btn-report-small" onclick="downloadDriverRouteReport('+user.id+')">PDF 7 días</button><button class="btn-report-small" onclick="downloadDriverRouteSpreadsheet('+user.id+')">Excel 7 días</button></td></tr>').join(""):'<tr><td colspan="7">Todavía no hay domiciliarios registrados.</td></tr>';
                     const activeDrivers=drivers.filter(user=>!user.disabled);
                     document.getElementById("adminAssignmentList").innerHTML=orders.filter(order=>!["delivered","cancelled"].includes(order.status)).map(order=>'<tr><td>#'+order.id+'</td><td>'+escapeHtml(order.address||"Sin dirección")+'</td><td>'+escapeHtml(order.status)+'</td><td><select onchange="assignOrder('+order.id+',this.value)"><option value="">Sin asignar</option>'+activeDrivers.map(user=>'<option value="'+user.id+'" '+(order.assigned_to_id===user.id?"selected":"")+'>'+escapeHtml(user.username)+'</option>').join("")+'</select></td></tr>').join("")||'<tr><td colspan="4">No hay pedidos por asignar.</td></tr>';
                     return;
@@ -1515,7 +1541,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let isGpsRouteReady = false;
         let userMarker = null;
         let navGuidanceLine = null;
-        let tempMarker = null;
 
         let activeRouteId = null;
         let activeRouteName = "Ruta Principal";
@@ -1591,7 +1616,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // INICIALIZACIÓN DEL MAPA
         // ========================================================
         function initMap() {
-            map = L.map('map', { zoomControl: false }).setView([6.2442, -75.5812], 12);
+            map = L.map('map', { zoomControl: false, doubleClickZoom: false, boxZoom: false, touchZoom: true, dragging: true }).setView([6.2442, -75.5812], 12);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
             let fallbackMapLayer = null;
@@ -1604,42 +1629,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             markersGroup.addTo(map);
             polylineGroup.addTo(map);
 
-            map.on('click', async function(e) {
-                const lat = e.latlng.lat;
-                const lng = e.latlng.lng;
-                let place = null;
-                try {
-                    const response = await fetch(`/reverse-geocode?latitude=${lat}&longitude=${lng}`);
-                    if (response.ok) place = await response.json();
-                } catch (error) {
-                    console.warn('No se pudo resolver la dirección del punto:', error);
-                }
-                const address = place?.display_name || prompt('No se pudo reconocer la dirección del punto. Escribe la dirección para guardar esta parada:');
-                if (!address || !address.trim()) {
-                    showToast('No se guardó el punto porque falta la dirección.', '⚠️');
-                    return;
-                }
-                const name = 'Punto en mapa';
-
-                const pinIcon = L.divIcon({
-                    className: 'custom-icon',
-                    html: '<div style="background:#2563eb; color:white; border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:12px; border:2px solid white; box-shadow:0 3px 6px rgba(0,0,0,0.35);">📍</div>',
-                    iconSize: [26, 26],
-                    iconAnchor: [13, 13]
-                });
-                if (tempMarker) map.removeLayer(tempMarker);
-                tempMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(map).bindPopup('Punto seleccionado').openPopup();
-
-                await saveLocationAutomatically({
-                    name,
-                    address,
-                    latitude: lat,
-                    longitude: lng,
-                    municipality: place?.municipality || null,
-                    neighborhood: place?.neighborhood || null,
-                    unit_number: 'Punto fijado en mapa'
-                });
-            });
+            // El mapa es exclusivamente de consulta y navegación.
+            // Ningún toque, clic o gesto del mapa puede registrar o crear paradas.
 
             barcodeDetector = null;
 
@@ -2173,47 +2164,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
 
-        async function captureContinuousStop() {
-            if (!navigator.geolocation) {
-                alert('Geolocalización no disponible');
-                return;
-            }
-
-            const hint = document.getElementById('scannerHint');
-            hint.innerText = "⏳ Obteniendo coordenadas GPS precisas...";
-
-            navigator.geolocation.getCurrentPosition(async pos => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                hint.innerText = "Apunta a la guía / código QR o presiona capturar";
-
-                let name = `Parada #${currentLocations.length + 1}`;
-                let address = `Ubicación GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-
-                try {
-                    const res = await fetch(`/geocode?query=${lat},${lng}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data && data.length > 0) {
-                            address = data[0].display_name;
-                            name = data[0].display_name.split(',')[0];
-                        }
-                    }
-                } catch (e) {}
-
-                await saveLocationAutomatically({
-                    name,
-                    address,
-                    latitude: lat,
-                    longitude: lng,
-                    unit_number: 'Marcado en campo'
-                });
-            }, () => {
-                hint.innerText = "Apunta a la guía / código QR o presiona capturar";
-                alert('No se pudo obtener el GPS.');
-            }, { enableHighAccuracy: true });
-        }
-
         function goToMapFromScanner() {
             stopProScanner();
             switchTab('map');
@@ -2659,6 +2609,31 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             } catch (e) {
                 alert('Error al vaciar ruta');
             }
+        }
+
+
+        async function downloadReportFile(url){
+            try{
+                const response=await fetch(url);
+                if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.detail||"No se pudo generar el reporte.");}
+                const blob=await response.blob(),objectUrl=URL.createObjectURL(blob),link=document.createElement("a");
+                link.href=objectUrl;link.download=(response.headers.get("Content-Disposition")||"").match(/filename="?([^";]+)"?/i)?.[1]||"ruta-clara-reporte.pdf";
+                document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+            }catch(error){alert(error.message||"No se pudo descargar el reporte.");}
+        }
+        function downloadCurrentRouteReport(){
+            if(!activeRouteId){alert("Selecciona una ruta antes de descargar el informe.");return;}
+            downloadReportFile("/export/delivery-route.pdf?route_id="+encodeURIComponent(activeRouteId));
+        }
+        function downloadDriverRouteReport(driverId){
+            downloadReportFile("/export/delivery-route.pdf?driver_id="+encodeURIComponent(driverId));
+        }
+        function downloadCurrentRouteSpreadsheet(){
+            if(!activeRouteId){alert("Selecciona una ruta antes de descargar el Excel.");return;}
+            downloadReportFile("/export/delivery-route.xlsx?route_id="+encodeURIComponent(activeRouteId));
+        }
+        function downloadDriverRouteSpreadsheet(driverId){
+            downloadReportFile("/export/delivery-route.xlsx?driver_id="+encodeURIComponent(driverId));
         }
 
         async function downloadWeeklyHistory() {
