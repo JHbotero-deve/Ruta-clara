@@ -913,7 +913,7 @@
         #viewMap .map-card-wrapper{overflow:hidden}
         #map{touch-action:pan-x pan-y pinch-zoom}
         .route-export-actions{padding-top:2px}
-        .btn-report-small:hover,.route-export-actions button:hover{filter:brightness(.97)}
+        .btn-report-small:hover,.route-export-actions button:hover{filter:brightness(.97)}.btn-report-small+.btn-report-small{margin-left:4px}
         @media(max-width:700px){#adminOverview .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminOverview .card,#driverDashboard .card,#viewUsers .card{padding:13px}#viewMap .map-header button{min-height:44px}}
         /* IDENTIDAD VISUAL EMPRESARIAL */
         :root{--primary:#176b63;--primary-dark:#11564f;--success:#188568;--warning:#b7791f;--danger:#c24141;--bg-main:#f3f5f7;--bg-card:#fff;--text-main:#17232f;--text-muted:#687887;--border:#dfe5e9;--input-bg:#fff;--input-border:#cbd5dc;--bg-hover:#edf3f2}
@@ -1485,7 +1485,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     document.getElementById("adminStatDrivers").textContent=activity.total_drivers||0;
                     document.getElementById("adminStatOnRoute").textContent=activity.drivers_on_route||0;
                     document.getElementById("adminStatToday").textContent=activity.deliveries_today||0;
-                    document.getElementById("adminActivityList").innerHTML=drivers.length?drivers.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.status)+'</td><td>'+user.delivered+'</td><td>'+user.pending+'<details><summary>Ver domicilios</summary>'+((user.pending_orders||[]).map(order=>'<div>#'+order.id+' · '+escapeHtml(order.address)+'</div>').join("")||'Sin pendientes')+'</details></td><td>'+user.delivered_today+'</td><td>'+Object.entries(user.deliveries_by_day).map(([day,count])=>day.slice(5)+": "+count).join(" · ")+'</td><td><button class="btn-report-small" onclick="downloadDriverRouteReport('+user.id+')">PDF</button><button class="btn-report-small" onclick="downloadDriverRouteSpreadsheet('+user.id+')">Excel</button></td></tr>').join(""):'<tr><td colspan="7">Todavía no hay domiciliarios registrados.</td></tr>';
+                    document.getElementById("adminActivityList").innerHTML=drivers.length?drivers.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.status)+'</td><td>'+user.delivered+'</td><td>'+user.pending+'<details><summary>Ver domicilios</summary>'+((user.pending_orders||[]).map(order=>'<div>#'+order.id+' · '+escapeHtml(order.address)+'</div>').join("")||'Sin pendientes')+'</details></td><td>'+user.delivered_today+'</td><td>'+Object.entries(user.deliveries_by_day).map(([day,count])=>day.slice(5)+": "+count).join(" · ")+'</td><td><button class="btn-report-small" onclick="downloadDriverRouteReport('+user.id+')">PDF 7 días</button><button class="btn-report-small" onclick="downloadDriverRouteSpreadsheet('+user.id+')">Excel 7 días</button></td></tr>').join(""):'<tr><td colspan="7">Todavía no hay domiciliarios registrados.</td></tr>';
                     const activeDrivers=drivers.filter(user=>!user.disabled);
                     document.getElementById("adminAssignmentList").innerHTML=orders.filter(order=>!["delivered","cancelled"].includes(order.status)).map(order=>'<tr><td>#'+order.id+'</td><td>'+escapeHtml(order.address||"Sin dirección")+'</td><td>'+escapeHtml(order.status)+'</td><td><select onchange="assignOrder('+order.id+',this.value)"><option value="">Sin asignar</option>'+activeDrivers.map(user=>'<option value="'+user.id+'" '+(order.assigned_to_id===user.id?"selected":"")+'>'+escapeHtml(user.username)+'</option>').join("")+'</select></td></tr>').join("")||'<tr><td colspan="4">No hay pedidos por asignar.</td></tr>';
                     return;
@@ -2656,7 +2656,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
 
-        async function downloadPdfReport(url){
+        async function downloadReportFile(url){
             try{
                 const response=await fetch(url);
                 if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.detail||"No se pudo generar el reporte.");}
@@ -2667,17 +2667,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
         function downloadCurrentRouteReport(){
             if(!activeRouteId){alert("Selecciona una ruta antes de descargar el informe.");return;}
-            downloadPdfReport("/export/delivery-route.pdf?route_id="+encodeURIComponent(activeRouteId));
+            downloadReportFile("/export/delivery-route.pdf?route_id="+encodeURIComponent(activeRouteId));
         }
         function downloadDriverRouteReport(driverId){
-            downloadPdfReport("/export/delivery-route.pdf?driver_id="+encodeURIComponent(driverId));
+            downloadReportFile("/export/delivery-route.pdf?driver_id="+encodeURIComponent(driverId));
         }
         function downloadCurrentRouteSpreadsheet(){
             if(!activeRouteId){alert("Selecciona una ruta antes de descargar el Excel.");return;}
-            downloadPdfReport("/export/delivery-route.xlsx?route_id="+encodeURIComponent(activeRouteId));
+            downloadReportFile("/export/delivery-route.xlsx?route_id="+encodeURIComponent(activeRouteId));
         }
         function downloadDriverRouteSpreadsheet(driverId){
-            downloadPdfReport("/export/delivery-route.xlsx?driver_id="+encodeURIComponent(driverId));
+            downloadReportFile("/export/delivery-route.xlsx?driver_id="+encodeURIComponent(driverId));
         }
 
         async function downloadWeeklyHistory() {
