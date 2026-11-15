@@ -1145,11 +1145,11 @@ def export_delivery_route_pdf(
     from zoneinfo import ZoneInfo
     from xml.sax.saxutils import escape
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
     if current_user.role not in {"admin", "driver"}:
         raise HTTPException(status_code=403, detail="No tienes permiso para exportar recorridos.")
@@ -1254,12 +1254,8 @@ def export_delivery_route_pdf(
         fontSize=7, leading=9, textColor=colors.white
     ))
     styles.add(ParagraphStyle(
-        name="SummaryNumber", parent=styles["Normal"], fontName="Helvetica-Bold",
-        fontSize=15, leading=17, alignment=TA_CENTER, textColor=colors.HexColor("#14232d")
-    ))
-    styles.add(ParagraphStyle(
-        name="SummaryLabel", parent=styles["Normal"], fontName="Helvetica",
-        fontSize=6.5, leading=8, alignment=TA_CENTER, textColor=colors.HexColor("#687887")
+        name="SummaryCell", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=7, leading=17, alignment=1, textColor=colors.HexColor("#14232d")
     ))
 
     story = [
@@ -1279,10 +1275,10 @@ def export_delivery_route_pdf(
         (pending_count, "PENDIENTES"),
         (issue_count, "NOVEDADES")
     ]:
-        summary.append([
-            Paragraph(str(number), styles["SummaryNumber"]),
-            Paragraph(label, styles["SummaryLabel"])
-        ])
+        summary.append(Paragraph(
+            f"<font size='15'><b>{number}</b></font><br/><font size='6.5' color='#687887'>{label}</font>",
+            styles["SummaryCell"]
+        ))
     summary_table = Table([summary], colWidths=[(A4[0] - 28 * mm) / 4] * 4)
     summary_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f2f6f7")),
