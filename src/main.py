@@ -138,6 +138,11 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.include_router(router)
 
 
+@app.get("/sw.js", include_in_schema=False)
+def serve_service_worker():
+    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
 @app.get("/", tags=["Root"])
 def read_root():
     return RedirectResponse(url="/map")
