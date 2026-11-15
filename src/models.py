@@ -99,6 +99,7 @@ class Location(Base):
     # Estado de entrega y trazabilidad
     delivered = Column(Boolean, default=False)
     status = Column(String(30), nullable=False, default="pending", server_default="pending")
+    issue_note = Column(String(1000), nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     status_updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -143,6 +144,7 @@ class LocationStatusHistory(Base):
     location_id = Column(Integer, ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
     old_status = Column(String(30), nullable=True)
     new_status = Column(String(30), nullable=False)
+    notes = Column(String(1000), nullable=True)
     changed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     changed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     location = relationship("Location", back_populates="status_history")
@@ -327,6 +329,7 @@ class LocationResponse(LocationBase):
     route_id: Optional[int] = None
     delivered: bool = False
     status: str = "pending"
+    issue_note: Optional[str] = None
     created_by_id: Optional[int] = None
     created_by_username: Optional[str] = None
     status_updated_by_id: Optional[int] = None
