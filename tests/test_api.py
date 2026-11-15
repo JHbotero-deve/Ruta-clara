@@ -370,6 +370,9 @@ def test_admin_assignment_driver_scope_and_dynamic_pending_route():
     assert driver.status_code == 201, driver.text
     login = client.post("/token", data={"username":"repartidor@example.com","password":"Password123!"})
     driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    other_driver = client.post("/admin/users", json={"email":"otro@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    other_login = client.post("/token", data={"username":"otro@example.com","password":"Password123!"})
+    other_headers = {"Authorization": f"Bearer {other_login.json()['access_token']}"}
     payload = {"name":"Pedido asignado","latitude":6.2,"longitude":-75.5,"address":"Calle 10 #20-30","entrance_name":"Portería","entrance_confirmed":True}
     created = client.post("/locations", json=payload, headers=admin)
     assert created.status_code == 201, created.text
@@ -377,6 +380,8 @@ def test_admin_assignment_driver_scope_and_dynamic_pending_route():
     assert assigned.status_code == 200
     assert assigned.json()["assigned_to_id"] == driver.json()["id"]
     assert len(client.get("/optimal_route", headers=driver_headers).json()) == 1
+    assert client.get("/locations", headers=other_headers).json() == []
+    assert client.get("/optimal_route", headers=other_headers).json() == []
     delivered = client.patch(f"/locations/{created.json()['id']}/delivered", json={"delivered":True}, headers=driver_headers)
     assert delivered.status_code == 200
     assert client.get("/optimal_route", headers=driver_headers).json() == []
