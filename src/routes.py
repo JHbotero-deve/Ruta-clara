@@ -1169,15 +1169,15 @@ def get_road_route(
                     optimization = "road_duration"
         except Exception as trip_error:
             logger.warning("OSRM trip no disponible; se usa orden aproximado: %s", trip_error)
-    if route is None:
-        url = f"{base_url}/route/v1/driving/{';'.join(coordinates)}?overview=full&geometries=geojson&steps=false"
-        request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
-        with urllib.request.urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        if payload.get("code") != "Ok" or not payload.get("routes"):
-            raise HTTPException(status_code=502, detail=payload.get("message") or "OSRM no encontró un recorrido")
-        route = payload["routes"][0]
     try:
+        if route is None:
+            url = f"{base_url}/route/v1/driving/{';'.join(coordinates)}?overview=full&geometries=geojson&steps=false"
+            request = urllib.request.Request(url, headers={"User-Agent": "RutaClara/1.0"})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if payload.get("code") != "Ok" or not payload.get("routes"):
+                raise ValueError(payload.get("message") or "OSRM no encontró un recorrido")
+            route = payload["routes"][0]
         geometry = route.get("geometry", {}).get("coordinates", [])
         legs = route.get("legs", [])
         expected_legs = len(locations) if start is not None else len(locations) - 1
