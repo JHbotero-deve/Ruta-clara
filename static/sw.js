@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ruta-clara-v5';
+const CACHE_NAME = 'ruta-clara-v6';
 const ASSETS = [
   '/map',
   '/static/leaflet.css',
@@ -59,7 +59,7 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
       return fetch(event.request).then((networkResponse) => {
-        if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
+        if (event.request.method === 'GET' && (event.request.url.startsWith(self.location.origin) || event.request.url.includes('tile.openstreetmap.org'))) {
           const copy = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
