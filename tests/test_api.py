@@ -44,6 +44,14 @@ def setup_db():
 client = TestClient(app)
 
 
+def admin_headers():
+    response = client.post("/register", json={"username": "admin_test", "email": "admin@example.com", "password": "Password123!"})
+    assert response.status_code == 201, response.text
+    token = client.post("/token", data={"username": "admin_test", "password": "Password123!"})
+    assert token.status_code == 200, token.text
+    return {"Authorization": f"Bearer {token.json()['access_token']}"}
+
+
 def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
@@ -81,27 +89,29 @@ def test_user_registration_and_login():
 
 
 def test_delivery_routes_crud():
+    headers = admin_headers()
     # Create route
-    res_create = client.post("/delivery-routes", json={"name": "Ruta Envigado"})
+    res_create = client.post("/delivery-routes", json={"name": "Ruta Envigado"}, headers=headers)
     assert res_create.status_code == 201
     route_id = res_create.json()["id"]
 
     # List routes
-    res_list = client.get("/delivery-routes")
+    res_list = client.get("/delivery-routes", headers=headers)
     assert res_list.status_code == 200
     assert len(res_list.json()) >= 1
 
     # Update route
-    res_up = client.put(f"/delivery-routes/{route_id}", json={"name": "Ruta Envigado Tarde"})
+    res_up = client.put(f"/delivery-routes/{route_id}", json={"name": "Ruta Envigado Tarde"}, headers=headers)
     assert res_up.status_code == 200
     assert res_up.json()["name"] == "Ruta Envigado Tarde"
 
     # Delete route
-    res_del = client.delete(f"/delivery-routes/{route_id}")
+    res_del = client.delete(f"/delivery-routes/{route_id}", headers=headers)
     assert res_del.status_code == 204
 
 
 def test_locations_crud_and_optimal_route():
+    headers = admin_headers()
     # Create locations
     loc1 = {
         "name": "Parque Berrio",
@@ -115,30 +125,30 @@ def test_locations_crud_and_optimal_route():
         "longitude": -75.5678,
         "address": "Carrera 43A # 9-00"
     }
-    r1 = client.post("/locations", json=loc1)
-    r2 = client.post("/locations", json=loc2)
+    r1 = client.post("/locations", json=loc1, headers=headers)
+    r2 = client.post("/locations", json=loc2, headers=headers)
     assert r1.status_code == 201
     assert r2.status_code == 201
 
     loc1_id = r1.json()["id"]
 
     # Toggle delivered
-    r_deliv = client.patch(f"/locations/{loc1_id}/delivered", json={"delivered": True})
+    r_deliv = client.patch(f"/locations/{loc1_id}/delivered", json={"delivered": True}, headers=headers)
     assert r_deliv.status_code == 200
     assert r_deliv.json()["delivered"] is True
 
     # Get locations
-    r_get = client.get("/locations")
+    r_get = client.get("/locations", headers=headers)
     assert r_get.status_code == 200
     assert len(r_get.json()) == 2
 
     # Get optimal route
-    r_opt = client.get("/optimal_route")
+    r_opt = client.get("/optimal_route", headers=headers)
     assert r_opt.status_code == 200
     assert len(r_opt.json()) == 2
 
     # Delete location
-    r_del = client.delete(f"/locations/{loc1_id}")
+    r_del = client.delete(f"/locations/{loc1_id}", headers=headers)
     assert r_del.status_code == 204
 
 
