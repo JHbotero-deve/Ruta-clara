@@ -1033,6 +1033,28 @@ def create_location(
     return db_location
 
 
+@router.patch("/locations/{location_id}", response_model=LocationResponse, tags=["Locations"])
+def update_location_details(location_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Parada no encontrada.")
+    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta parada.")
+    address = payload.get("address")
+    name = payload.get("name")
+    reference = payload.get("unit_number")
+    if not isinstance(address, str) or not address.strip():
+        raise HTTPException(status_code=422, detail="La dirección es obligatoria.")
+    if not isinstance(name, str) or not name.strip():
+        raise HTTPException(status_code=422, detail="El nombre del usuario es obligatorio.")
+    location.address = address.strip()
+    location.name = name.strip()
+    location.unit_number = reference.strip() if isinstance(reference, str) and reference.strip() else None
+    db.commit()
+    db.refresh(location)
+    return location
+
+
 @router.patch(
     "/locations/{location_id}/delivered",
     response_model=LocationResponse,
