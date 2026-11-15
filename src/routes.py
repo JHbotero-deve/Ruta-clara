@@ -1077,7 +1077,7 @@ def delete_location(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
+    if current_user.role != "admin" and location.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este pedido.")
 
     db.delete(location)
@@ -1171,7 +1171,7 @@ def create_reference(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    if current_user.role != "admin" and location.created_by_id != current_user.id:
+    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permiso para este pedido.")
 
     db_reference = Reference(
