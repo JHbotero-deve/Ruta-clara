@@ -46,6 +46,17 @@ logger = logging.getLogger("ruta_clara.routes")
 
 router = APIRouter()
 
+
+def ensure_location_access(location: Location, user: User) -> None:
+    if user.role == "admin":
+        return
+    if user.role == "driver" and location.assigned_to_id == user.id:
+        return
+    if user.role == "operator" and location.created_by_id == user.id:
+        return
+    raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este pedido.")
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 MAP_FILE = STATIC_DIR / "offline" / "valle_aburra.mbtiles"
@@ -356,8 +367,7 @@ def location_status_history(location_id: int, db: Session = Depends(get_db), cur
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
-    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes acceso a este pedido.")
+    ensure_location_access(location, current_user)
     events = db.query(LocationStatusHistory).filter(LocationStatusHistory.location_id == location_id).order_by(LocationStatusHistory.changed_at.desc(), LocationStatusHistory.id.desc()).all()
     return [{"id": event.id, "old_status": event.old_status, "new_status": event.new_status, "changed_by": event.changed_by_username, "changed_at": event.changed_at} for event in events]
 
@@ -927,6 +937,8 @@ def delete_delivery_route(
 def assign_location(location_id: int, payload: dict, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location: raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    if location.status in {"delivered", "cancelled"} or location.delivered:
+        raise HTTPException(status_code=409, detail="No se puede asignar un pedido finalizado.")
     assigned_to_id = payload.get("assigned_to_id")
     assignee = None
     if assigned_to_id is not None:
@@ -956,8 +968,10 @@ def read_locations(
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
-    elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
+    if current_user.role == "driver":
+        query = query.filter(Location.assigned_to_id == current_user.id)
+    elif current_user.role == "operator":
+        query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
     if status_filter: query = query.filter(Location.status == status_filter)
     return query.order_by(Location.created_at.desc()).all()
@@ -975,9 +989,12 @@ def create_location(
 ):
     if not location.entrance_confirmed or not (location.entrance_name or "").strip():
         raise HTTPException(status_code=422, detail="La portería debe estar indicada y confirmada en el mapa.")
+    if location.delivered:
+        raise HTTPException(status_code=422, detail="Registra el pedido como pendiente y confirma la entrega desde su recorrido.")
     if location.client_id:
         existing = db.query(Location).filter(Location.client_id == location.client_id).first()
         if existing:
+            ensure_location_access(existing, current_user)
             if existing.created_by_id != current_user.id:
                 raise HTTPException(status_code=409, detail="La clave de sincronización ya pertenece a otro usuario.")
             return existing
@@ -1012,8 +1029,8 @@ def create_location(
         location_source=location.location_source,
         client_id=location.client_id,
         route_id=target_route_id,
-        delivered=location.delivered or False,
-        status="delivered" if location.delivered else "pending",
+        delivered=False,
+        status="pending",
         created_by_id=current_user.id,
         assigned_to_id=current_user.id if current_user.role == "driver" else None,
         status_updated_by_id=current_user.id,
@@ -1040,8 +1057,7 @@ def update_location_details(location_id: int, payload: dict, db: Session = Depen
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail="Parada no encontrada.")
-    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta parada.")
+    ensure_location_access(location, current_user)
     address = payload.get("address")
     name = payload.get("name")
     reference = payload.get("unit_number")
@@ -1073,8 +1089,9 @@ def toggle_location_delivered(
     if not loc:
         raise HTTPException(status_code=404, detail="Parada no encontrada")
 
-    if current_user.role != "admin" and loc.created_by_id != current_user.id and loc.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
+    ensure_location_access(loc, current_user)
+    if current_user.role == "driver" and not payload.delivered:
+        raise HTTPException(status_code=403, detail="Un repartidor no puede reabrir una entrega finalizada.")
     new_status = "delivered" if payload.delivered else "pending"
     if loc.status != new_status:
         db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
@@ -1095,8 +1112,12 @@ def update_location_status(location_id: int, payload: dict, db: Session = Depend
     loc = db.query(Location).filter(Location.id == location_id).first()
     if not loc:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
-    if current_user.role != "admin" and loc.created_by_id != current_user.id and loc.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este pedido.")
+    ensure_location_access(loc, current_user)
+    if current_user.role == "driver":
+        if new_status not in {"in_transit", "delivered", "issue"}:
+            raise HTTPException(status_code=403, detail="El repartidor solo puede iniciar el recorrido, confirmar la entrega o reportar una novedad.")
+        if loc.status in {"delivered", "cancelled"} and new_status != loc.status:
+            raise HTTPException(status_code=409, detail="Un pedido finalizado no puede cambiarse desde el módulo del repartidor.")
     if loc.status != new_status:
         db.add(LocationStatusHistory(location_id=loc.id, old_status=loc.status, new_status=new_status, changed_by_id=current_user.id))
         loc.status = new_status
@@ -1124,8 +1145,8 @@ def delete_location(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    if current_user.role != "admin" and location.created_by_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este pedido.")
+    if current_user.role != "admin" and (current_user.role != "operator" or location.created_by_id != current_user.id):
+        raise HTTPException(status_code=403, detail="Solo el administrador o el operador que registró el pedido pueden eliminarlo.")
 
     db.delete(location)
     db.commit()
@@ -1142,8 +1163,10 @@ def clear_all_locations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    if current_user.role == "driver":
+        raise HTTPException(status_code=403, detail="El repartidor no puede eliminar pedidos en bloque.")
     query = db.query(Location)
-    if current_user.role != "admin":
+    if current_user.role == "operator":
         query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
@@ -1194,10 +1217,7 @@ def export_delivery_route_pdf(
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     if target_driver:
-        query = query.filter(or_(
-            Location.assigned_to_id == target_driver.id,
-            and_(Location.assigned_to_id.is_(None), Location.created_by_id == target_driver.id)
-        ))
+        query = query.filter(Location.assigned_to_id == target_driver.id)
     if route_id is None:
         query = query.filter(Location.updated_at >= datetime.now(timezone.utc) - timedelta(days=7))
 
@@ -1437,10 +1457,7 @@ def export_delivery_route_xlsx(
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
     if target_driver:
-        query = query.filter(or_(
-            Location.assigned_to_id == target_driver.id,
-            and_(Location.assigned_to_id.is_(None), Location.created_by_id == target_driver.id)
-        ))
+        query = query.filter(Location.assigned_to_id == target_driver.id)
     if route_id is None:
         query = query.filter(Location.updated_at >= datetime.now(timezone.utc) - timedelta(days=7))
     locations = query.order_by(Location.route_id.asc(), Location.created_at.asc(), Location.id.asc()).all()
@@ -1627,8 +1644,8 @@ def export_weekly_routes(admin: User = Depends(get_current_admin_user)):
 def read_references(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     query = db.query(Reference).join(Location, Reference.location_id == Location.id)
     if current_user.role == "driver":
-        query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
-    elif current_user.role != "admin":
+        query = query.filter(Location.assigned_to_id == current_user.id)
+    elif current_user.role == "operator":
         query = query.filter(Location.created_by_id == current_user.id)
     return query.all()
 
@@ -1651,8 +1668,7 @@ def create_reference(
 
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    if current_user.role != "admin" and location.created_by_id != current_user.id and location.assigned_to_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permiso para este pedido.")
+    ensure_location_access(location, current_user)
 
     db_reference = Reference(
         description=reference.description,
@@ -1682,8 +1698,10 @@ def get_road_route(
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
-    elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
+    if current_user.role == "driver":
+        query = query.filter(Location.assigned_to_id == current_user.id)
+    elif current_user.role == "operator":
+        query = query.filter(Location.created_by_id == current_user.id)
     query = query.filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
     start = (start_lat, start_lon) if start_lat is not None else None
@@ -1757,8 +1775,10 @@ def get_optimal_route(
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
     query = db.query(Location)
-    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == current_user.id)))
-    elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
+    if current_user.role == "driver":
+        query = query.filter(Location.assigned_to_id == current_user.id)
+    elif current_user.role == "operator":
+        query = query.filter(Location.created_by_id == current_user.id)
     query = query.filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
     if route_id is not None: query = query.filter(Location.route_id == route_id)
     locations = query.all()

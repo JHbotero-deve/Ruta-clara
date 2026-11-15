@@ -513,3 +513,41 @@ def test_colombian_street_abbreviations_are_normalized():
     assert clean_address_for_geocoding("Carrera 45 # 20-15").startswith("Carrera 45")
     assert clean_address_for_geocoding("CL 30 # 10-25").startswith("Calle 30")
     assert clean_address_for_geocoding("Calle 30 # 10-25").startswith("Calle 30")
+
+
+def test_driver_loses_access_after_reassignment_and_cannot_delete_or_cancel():
+    admin = admin_headers()
+    first = client.post("/admin/users", json={"email":"first-driver@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    second = client.post("/admin/users", json={"email":"second-driver@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    first_login = client.post("/token", data={"username":"first-driver@example.com","password":"Password123!"})
+    first_headers = {"Authorization": f"Bearer {first_login.json()['access_token']}"}
+    payload = {"name":"Pedido de prueba","latitude":6.2,"longitude":-75.5,"address":"Calle 10 #20-30","entrance_name":"Portería","entrance_confirmed":True,"client_id":"driver-sync-reassigned"}
+    created = client.post("/locations", json=payload, headers=first_headers)
+    assert created.status_code == 201, created.text
+    location_id = created.json()["id"]
+    reassigned = client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":second.json()["id"]}, headers=admin)
+    assert reassigned.status_code == 200
+    assert client.get("/locations", headers=first_headers).json() == []
+    assert client.post("/locations", json=payload, headers=first_headers).status_code == 403
+    assert client.get(f"/locations/{location_id}/history", headers=first_headers).status_code == 403
+    assert client.patch(f"/locations/{location_id}", json={"name":"Cambio indebido","address":"Otra dirección"}, headers=first_headers).status_code == 403
+    assert client.patch(f"/locations/{location_id}/status", json={"status":"cancelled"}, headers=first_headers).status_code == 403
+    assert client.delete(f"/locations/{location_id}", headers=first_headers).status_code == 403
+    assert client.delete("/locations", headers=first_headers).status_code == 403
+
+
+def test_driver_cannot_reopen_or_change_final_delivery():
+    admin = admin_headers()
+    driver = client.post("/admin/users", json={"email":"delivery-driver@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    login = client.post("/token", data={"username":"delivery-driver@example.com","password":"Password123!"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    payload = {"name":"Entrega finalizada","latitude":6.2,"longitude":-75.5,"address":"Carrera 40 #10-20","entrance_name":"Acceso","entrance_confirmed":True}
+    assert client.post("/locations", json={**payload,"delivered":True}, headers=admin).status_code == 422
+    created = client.post("/locations", json=payload, headers=admin)
+    assigned = client.patch(f"/locations/{created.json()['id']}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin)
+    location_id = assigned.json()["id"]
+    delivered = client.patch(f"/locations/{location_id}/delivered", json={"delivered":True}, headers=headers)
+    assert delivered.status_code == 200
+    assert client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin).status_code == 409
+    assert client.patch(f"/locations/{location_id}/delivered", json={"delivered":False}, headers=headers).status_code == 403
+    assert client.patch(f"/locations/{location_id}/status", json={"status":"issue"}, headers=headers).status_code == 409
