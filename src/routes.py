@@ -285,9 +285,11 @@ def admin_list_users(db: Session = Depends(get_db), admin: User = Depends(get_cu
 
 @router.get("/admin/users/activity", tags=["Administration"])
 def admin_users_activity(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
-    from datetime import date, timedelta
-    today = date.today()
-    week_start = datetime.combine(today - timedelta(days=6), datetime.min.time())
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    local_tz = ZoneInfo("America/Bogota")
+    today = datetime.now(local_tz).date()
+    week_start = datetime.combine(today - timedelta(days=6), datetime.min.time(), tzinfo=local_tz).astimezone(timezone.utc).replace(tzinfo=None)
     drivers = db.query(User).filter(User.role == "driver").order_by(User.username.asc()).all()
     activity = []
     for user in drivers:
@@ -298,7 +300,10 @@ def admin_users_activity(db: Session = Depends(get_db), admin: User = Depends(ge
         events = db.query(LocationStatusHistory).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered", LocationStatusHistory.changed_at >= week_start).order_by(LocationStatusHistory.changed_at.desc()).all()
         daily = { (today - timedelta(days=6-offset)).isoformat(): 0 for offset in range(7) }
         for event in events:
-            key = event.changed_at.date().isoformat()
+            changed_at = event.changed_at
+            if changed_at.tzinfo is None:
+                changed_at = changed_at.replace(tzinfo=timezone.utc)
+            key = changed_at.astimezone(local_tz).date().isoformat()
             if key in daily: daily[key] += 1
         activity.append({"id":user.id,"username":user.username,"email":user.email,"disabled":user.disabled,"status":"Inactivo" if user.disabled else ("En recorrido" if in_transit else ("Con pedidos asignados" if pending else "Disponible")),"delivered":delivered,"pending":pending,"pending_orders":[{"id":order.id,"address":order.address or order.name,"status":order.status} for order in orders if order.status in {"pending","assigned","in_transit"} and not order.delivered],"in_transit":in_transit,"delivered_today":daily.get(today.isoformat(),0),"deliveries_by_day":daily})
     return {"users":activity,"total_drivers":len(drivers),"drivers_on_route":sum(1 for user in activity if user["in_transit"]>0),"deliveries_today":sum(user["delivered_today"] for user in activity)}
@@ -831,7 +836,12 @@ def list_delivery_routes(db: Session = Depends(get_db), current_user: User = Dep
     routes = route_query.order_by(DeliveryRoute.created_at.desc()).all()
     result = []
     for r in routes:
-        stops_count = db.query(Location).filter(Location.route_id == r.id).count()
+        stops_query = db.query(Location).filter(Location.route_id == r.id)
+        if current_user.role == "driver":
+            stops_query = stops_query.filter(Location.assigned_to_id == current_user.id)
+        elif current_user.role == "operator":
+            stops_query = stops_query.filter(Location.created_by_id == current_user.id)
+        stops_count = stops_query.count()
         result.append(DeliveryRouteResponse(
             id=r.id,
             name=r.name,
