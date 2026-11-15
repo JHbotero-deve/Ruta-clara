@@ -2328,6 +2328,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                             <div style="color:var(--text-muted); font-size:11px; margin-top:2px;">${distText}</div>
                         </div>
                         <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+                            <button onclick="editLocation(${loc.id})" style="background:#dbeafe; color:#1d4ed8; border:none; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer;" title="Editar dirección, referencia y usuario">✏️ Editar</button>
                             <button onclick="deleteLocation(${loc.id})" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer;" title="Eliminar parada">🗑️</button>
                             <button onclick="toggleDelivered(${loc.id})" class="btn-delivered-toggle ${isDelivered ? 'is-delivered' : ''}">
                                 ${isDelivered ? '✔ Hecho' : 'Marcar'}
@@ -2348,6 +2349,34 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.getElementById('routeStatus').innerText = roadRoute ? `GPS confirmado · Primera parada desde tu ubicación · ${(roadRoute.duration_s / 60).toFixed(0)} min estimados` : (gpsError || 'Activa la ubicación del celular para calcular una ruta segura. No se ha optimizado el recorrido.');
             } else {
                 totalSummary.style.display = 'none';
+            }
+        }
+
+        async function editLocation(locationId) {
+            const location = currentLocations.find(item => String(item.id) === String(locationId));
+            if (!location) return;
+            const address = prompt('Dirección:', location.address || '');
+            if (address === null) return;
+            const reference = prompt('Referencia:', location.unit_number || '');
+            if (reference === null) return;
+            const recipient = prompt('Nombre del usuario:', location.name || '');
+            if (recipient === null) return;
+            if (!address.trim() || !recipient.trim()) {
+                alert('La dirección y el nombre del usuario son obligatorios.');
+                return;
+            }
+            try {
+                const response = await fetch(`/locations/${locationId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: address.trim(), unit_number: reference.trim(), name: recipient.trim() })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.detail || 'No se pudo actualizar la parada.');
+                showToast('Parada actualizada correctamente.', '✅');
+                await loadRouteData();
+            } catch (error) {
+                alert(error.message || 'Error al actualizar la parada.');
             }
         }
 
