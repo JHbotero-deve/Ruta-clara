@@ -1321,8 +1321,29 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 if(typeof initMap==="function")initMap();await syncPendingDeliveryUpdates();await loadDashboard();showSection("dashboard");
             } catch(error) {localStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("No fue posible validar la sesión. Inicia sesión de nuevo.");}
         }
+        async function syncPendingLogoutRevocations(){
+            const pending=JSON.parse(localStorage.getItem("rc_pending_logout_tokens")||"[]"),remaining=[];
+            for(const token of pending){
+                try{
+                    const response=await rutaFetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}});
+                    if(!response.ok&&response.status!==401)remaining.push(token);
+                }catch(error){remaining.push(token);}
+            }
+            localStorage.setItem("rc_pending_logout_tokens",JSON.stringify(remaining));
+        }
         async function logoutRutaClara(){
-            try{if(localStorage.getItem("ruta_clara_token"))await fetch("/logout",{method:"POST"});}catch(error){}
+            const token=localStorage.getItem("ruta_clara_token");
+            if(token){
+                try{
+                    if(!navigator.onLine)throw new Error("offline");
+                    const response=await rutaFetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}});
+                    if(!response.ok&&response.status!==401)throw new Error("logout failed");
+                }catch(error){
+                    const pending=JSON.parse(localStorage.getItem("rc_pending_logout_tokens")||"[]");
+                    if(!pending.includes(token))pending.push(token);
+                    localStorage.setItem("rc_pending_logout_tokens",JSON.stringify(pending));
+                }
+            }
             localStorage.removeItem("ruta_clara_token");
             location.reload();
         }
@@ -2615,6 +2636,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('online', syncPendingDeliveryUpdates);
+        window.addEventListener('online', syncPendingLogoutRevocations);
         window.addEventListener('offline', updateConnectionStatus);
 
         let deferredPrompt;
@@ -2638,7 +2660,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (map) setTimeout(() => map.invalidateSize(), 200);
         });
 
-        window.onload = bootRutaClara;
+        window.onload = async () => { await syncPendingLogoutRevocations(); await bootRutaClara(); };
     </script>
     <script src="/static/safety.js?v=1"></script>
 </body>
