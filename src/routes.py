@@ -277,7 +277,7 @@ def admin_users_activity(db: Session = Depends(get_db), admin: User = Depends(ge
         for event in events:
             key = event.changed_at.date().isoformat()
             if key in daily: daily[key] += 1
-        activity.append({"id":user.id,"username":user.username,"email":user.email,"disabled":user.disabled,"status":"Inactivo" if user.disabled else ("En recorrido" if in_transit else ("Con pedidos asignados" if pending else "Disponible")),"delivered":delivered,"pending":pending,"in_transit":in_transit,"delivered_today":daily.get(today.isoformat(),0),"deliveries_by_day":daily})
+        activity.append({"id":user.id,"username":user.username,"email":user.email,"disabled":user.disabled,"status":"Inactivo" if user.disabled else ("En recorrido" if in_transit else ("Con pedidos asignados" if pending else "Disponible")),"delivered":delivered,"pending":pending,"pending_orders":[{"id":order.id,"address":order.address or order.name,"status":order.status} for order in orders if order.status in {"pending","assigned","in_transit"} and not order.delivered],"in_transit":in_transit,"delivered_today":daily.get(today.isoformat(),0),"deliveries_by_day":daily})
     return {"users":activity,"total_drivers":len(drivers),"drivers_on_route":sum(1 for user in activity if user["in_transit"]>0),"deliveries_today":sum(user["delivered_today"] for user in activity)}
 
 
