@@ -155,7 +155,7 @@ username=operador_ruta&password=PasswordSeguro123!
 - Respuestas: `200 application/pdf`; `403` sin permisos; `404` si no hay paradas; `422` si falta seleccionar ruta o domiciliario.
 
 ### Exportación de datos
-El CSV semanal existente se conserva como formato tabular para análisis en Excel. El PDF es el formato recomendado para imprimir, compartir y archivar un recorrido.
+El PDF es el formato recomendado para imprimir, compartir y archivar un recorrido. El XLSX editable incluye la misma información en columnas, filtros, formato de impresión y marca Ruta Clara al pie; el CSV semanal se conserva para análisis de datos.
 
 ## 5. Seguridad del mapa
 Los eventos de toque/clic del mapa no crean, guardan ni geocodifican paradas. El mapa solo permite consultar puntos ya registrados y navegar. Las nuevas paradas se ingresan mediante formulario, dictado por voz o escáner OCR, y requieren la acción explícita del usuario.
