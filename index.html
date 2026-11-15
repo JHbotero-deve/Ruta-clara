@@ -1429,7 +1429,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
                 if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
                 if(typeof initMap==="function")initMap();
-                try{await syncPendingDeliveryUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
+                try{await syncPendingDeliveryUpdates();await syncPendingStatusUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
                 showSection("dashboard");
             }catch(error){showLoginError("La sesión está activa, pero no se pudo cargar el panel. Intenta actualizar la aplicación.");}
         }
@@ -1504,18 +1504,31 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             await loadDashboard();
         }
         function statusOptions(selected){
-            const values=[["pending","Pendiente"],["assigned","Asignado"],["in_transit","En camino"],["delivered","Entregado"],["issue","Novedad"],["cancelled","Cancelado"]];
+            const labels={pending:"Pendiente",assigned:"Asignado",in_transit:"En camino",delivered:"Entregado",issue:"Novedad",cancelled:"Cancelado"};
+            const values=rutaUser?.role==="driver"?[["in_transit","En camino"],["delivered","Entregado"],["issue","Novedad"]]:[["pending","Pendiente"],["in_transit","En camino"],["delivered","Entregado"],["issue","Novedad"],["cancelled","Cancelado"]];
+            if(selected&&!values.some(([value])=>value===selected))values.unshift([selected,labels[selected]||selected]);
             return values.map(([value,label])=>'<option value="'+value+'" '+(selected===value?"selected":"")+'>'+label+'</option>').join("");
         }
         async function changeOrderStatus(id,status){
-            const response=await fetch("/locations/"+id+"/status",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
-            if(!response.ok){alert((await response.json()).detail||"No se pudo actualizar el estado.");await loadDashboard();return;}
+            const payload={status};
+            if(status==="issue"){
+                const notes=prompt("Describe la novedad (mínimo 5 caracteres):");
+                if(!notes||notes.trim().length<5){await loadDashboard();return;}
+                payload.notes=notes.trim();
+            }
+            try{
+                const response=await fetch("/locations/"+id+"/status",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+                if(!response.ok){alert((await response.json()).detail||"No se pudo actualizar el estado.");await loadDashboard();return;}
+            }catch(error){
+                if(!navigator.onLine){const queue=JSON.parse(localStorage.getItem("rc_pending_status_updates")||"[]");queue.push({location_id:id,...payload});localStorage.setItem("rc_pending_status_updates",JSON.stringify(queue));showToast("Cambio guardado; se sincronizará al recuperar conexión.","");}
+                else{alert("No se pudo conectar con el servidor.");await loadDashboard();return;}
+            }
             await loadDashboard();if(typeof loadRouteData==="function")await loadRouteData();
         }
         async function showOrderHistory(id){
             const response=await fetch("/locations/"+id+"/history");if(!response.ok){alert("No se pudo consultar el historial.");return;}
             const events=await response.json(),labels={pending:"Pendiente",assigned:"Asignado",in_transit:"En camino",delivered:"Entregado",issue:"Novedad",cancelled:"Cancelado"};
-            alert(events.map(event=>new Date(event.changed_at).toLocaleString()+" · "+(labels[event.new_status]||event.new_status)+" · "+(event.changed_by||"Sistema")).join("\\n")||"Sin cambios registrados.");
+            alert(events.map(event=>new Date(event.changed_at).toLocaleString()+" · "+(labels[event.new_status]||event.new_status)+" · "+(event.changed_by||"Sistema")+(event.notes?" · "+event.notes:"")).join("\\n")||"Sin cambios registrados.");
         }
         async function loadAdminUsers(){
             const response=await fetch("/admin/users");if(!response.ok)return;const users=await response.json();
@@ -2614,10 +2627,25 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(queue.length&&!remaining.length&&rutaUser)await loadRouteData();
         }
 
+        async function syncPendingStatusUpdates(){
+            if(!navigator.onLine)return;
+            const queue=JSON.parse(localStorage.getItem("rc_pending_status_updates")||"[]"),remaining=[];
+            for(const item of queue){
+                try{
+                    const response=await fetch(`/locations/${item.location_id}/status`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:item.status,notes:item.notes})});
+                    if(!response.ok)remaining.push(item);
+                }catch(error){remaining.push(item);}
+            }
+            localStorage.setItem("rc_pending_status_updates",JSON.stringify(remaining));
+            if(queue.length&&!remaining.length&&rutaUser){await loadDashboard();await loadRouteData();}
+        }
+        window.addEventListener("online",()=>{syncPendingDeliveryUpdates();syncPendingStatusUpdates();});
+
         async function deleteLocation(id) {
             if (!confirm('¿Eliminar esta parada de la ruta?')) return;
             try {
-                await fetch(`/locations/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/locations/${id}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error((await response.json()).detail || "No se pudo cancelar el pedido.");
                 currentLocations = currentLocations.filter(l => l.id !== id);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
@@ -2630,7 +2658,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         async function clearCurrentRouteLocations() {
             if (!confirm(`¿Vaciar todas las paradas de "${activeRouteName}"?`)) return;
             try {
-                await fetch(`/locations?route_id=${activeRouteId}`, { method: 'DELETE' });
+                const response = await fetch(`/locations?route_id=${activeRouteId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error((await response.json()).detail || "No se pudo vaciar la ruta.");
                 currentLocations = [];
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
