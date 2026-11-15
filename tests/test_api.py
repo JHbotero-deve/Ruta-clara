@@ -410,3 +410,17 @@ def test_ocr_delivery_label_rejects_invalid_image():
     headers = admin_headers()
     response = client.post("/ocr-delivery-label", json={"image": "not-base64"}, headers=headers)
     assert response.status_code == 400
+
+
+def test_persistent_session_survives_requests_and_logout_revokes_it():
+    registration = client.post("/register", json={"email": "session@example.com", "password": "Password123!"})
+    assert registration.status_code == 201
+    login = client.post("/token", data={"username": "session@example.com", "password": "Password123!"})
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.get("/users/me", headers=headers).status_code == 200
+    assert client.get("/users/me", headers=headers).status_code == 200
+    logout = client.post("/logout", headers=headers)
+    assert logout.status_code == 204
+    assert client.get("/users/me", headers=headers).status_code == 401
