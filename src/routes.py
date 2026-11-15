@@ -698,7 +698,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     text = re.sub(r"\bCerrera\b", "Carrera", text, flags=re.IGNORECASE)
     text = re.sub(r"\bapartemento\b", "apartamento", text, flags=re.IGNORECASE)
     lines = text.splitlines()
-    destination_marker = re.compile(r"^\s*(?:datos\s+de\s+)?(?:destinatario|destinaterio|destino|direcci[oó]n\s+(?:de\s+)?(?:entrega|env[ií]o)|ship\s*to|receiver)\b", re.IGNORECASE)
+    destination_marker = re.compile(r"^\s*(?:datos\s+de\s+)?(?:destinatario|destinaterio|destino|direcci[oó]n\s+(?:de\s+)?(?:entrega|env[ií]o|destinatario)|ship\s*to|receiver)\b", re.IGNORECASE)
     sender_marker = re.compile(r"^\s*(?:datos\s+de\s+)?(?:remitente|remitente|origen|direcci[oó]n\s+(?:del\s+)?remitente|devoluci[oó]n|return\s*to|shipper|sender)\b", re.IGNORECASE)
     destination_index = next((index for index, line in enumerate(lines) if destination_marker.search(line)), None)
     sender_indices = [index for index, line in enumerate(lines) if sender_marker.search(line)]
@@ -719,7 +719,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
         return match.group(1).strip(" \t-•") if match else ""
 
     destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
-    direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o))?|domicilio|address")
+    direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o|(?:del[ \t]+)?destinatario|destino))?|domicilio|address")
     distrito = extract_field(r"distrito|barrio|sector|comuna")
     municipio = extract_field(r"municipio|ciudad|localidad")
     unidad = extract_field(r"unidad|conjunto|edificio|urbanizaci[oó]n|condominio|establecimiento")
