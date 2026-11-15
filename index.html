@@ -2468,13 +2468,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             loc.delivered=newState;
             loc.status=newState?"delivered":"pending";
             if(newState){
+                const activeStopId=currentLocations[activeNavIndex]?.id;
                 currentLocations=currentLocations.filter(item=>String(item.id)!==String(locationId));
+                const nextIndex=currentLocations.findIndex(item=>String(item.id)===String(activeStopId));
+                activeNavIndex=nextIndex>=0?nextIndex:0;
                 completedLocations=[...completedLocations.filter(item=>String(item.id)!==String(locationId)),loc];
                 localStorage.setItem(`rc_route_cache_${rutaUser?.id}_${activeRouteId}`,JSON.stringify(currentLocations));
                 localStorage.setItem(`rc_completed_cache_${rutaUser?.id}_${activeRouteId}`,JSON.stringify(completedLocations));
                 renderCompletedStops(completedLocations);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
+                if(isNavigating&&currentLocations.length)updateNavHUD();
             }else await loadRouteData();
             playSuccessChime();
             return true;
