@@ -37,6 +37,9 @@ def init_db_and_migrate():
             existing_cols = {column["name"] for column in inspector.get_columns("locations")}
             migrations = {
                 "route_id": "INTEGER REFERENCES delivery_routes(id)",
+                "entrance_name": "VARCHAR(150)",
+                "entrance_confirmed": "BOOLEAN NOT NULL DEFAULT FALSE",
+                "location_source": "VARCHAR(30)",
                 "delivered": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "status": "VARCHAR(30) NOT NULL DEFAULT 'pending'",
                 "created_by_id": "INTEGER",
