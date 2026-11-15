@@ -157,7 +157,8 @@ def test_locations_crud_and_optimal_route():
     # Get optimal route
     r_opt = client.get("/optimal_route", headers=headers)
     assert r_opt.status_code == 200
-    assert len(r_opt.json()) == 2
+    assert len(r_opt.json()) == 1
+    assert r_opt.json()[0]["name"] == "Parque Poblado"
 
     # Delete location
     r_del = client.delete(f"/locations/{loc1_id}", headers=headers)
