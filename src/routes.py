@@ -46,7 +46,9 @@ router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 MAP_FILE = STATIC_DIR / "offline" / "valle_aburra.mbtiles"
-LOG_FILE = BASE_DIR / "weekly_routes_log.csv"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR)))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = DATA_DIR / "weekly_routes_log.csv"
 
 GEOCODE_CACHE_MAX = 500
 GEOCODE_CACHE: OrderedDict = OrderedDict()
@@ -556,7 +558,7 @@ def reverse_geocode(latitude: float = Query(..., ge=-90, le=90), longitude: floa
 
 
 @router.post("/ocr-delivery-label", tags=["Geocoding"])
-def ocr_delivery_label_endpoint(payload: dict):
+def ocr_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_current_active_user)):
     """Recibe una foto de cámara, aplica OCR en español y analiza la etiqueta."""
     import base64
     import binascii
@@ -596,7 +598,7 @@ def ocr_delivery_label_endpoint(payload: dict):
 
 
 @router.post("/parse-delivery-label", tags=["Geocoding"])
-def parse_delivery_label_endpoint(payload: dict):
+def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_current_active_user)):
     """Extrae solo datos de ubicación; nunca devuelve nombres ni códigos de seguimiento."""
     import re
 
