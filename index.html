@@ -1309,7 +1309,23 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(!token){document.getElementById("loginGate").style.display="flex";return;}
             let response;
             try{response=await rutaFetch("/users/me",{headers:{"Authorization":"Bearer "+token}});}
-            catch(error){showLoginError("No hay conexión con el servidor. Tu sesión sigue guardada; se comprobará al recuperar conexión.");return;}
+            catch(error){
+                const cached=localStorage.getItem("ruta_clara_user");
+                if(cached){
+                    try{
+                        rutaUser=JSON.parse(cached);document.getElementById("loginGate").style.display="none";
+                        document.getElementById("accountLabel").textContent=rutaUser.username+" · "+({admin:"Administrador",operator:"Operador",driver:"Repartidor"}[rutaUser.role]||"Usuario");
+                        document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Supervisión del equipo":"Tus pedidos registrados";
+                        document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
+                        document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
+                        document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
+                        if(typeof initMap==="function")initMap();showSection("dashboard");
+                        showLoginError("Modo sin conexión. Tu sesión está guardada; los datos se actualizarán al recuperar conexión.");return;
+                    }catch(cacheError){localStorage.removeItem("ruta_clara_user");}
+                }
+                document.getElementById("loginGate").style.display="flex";
+                showLoginError("No hay conexión con el servidor. Tu sesión sigue guardada; se comprobará al recuperar conexión.");return;
+            }
             if(response.status===401||response.status===403){
                 localStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("La sesión ya no es válida. Inicia sesión de nuevo.");return;
             }
@@ -2644,7 +2660,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('online', syncPendingDeliveryUpdates);
         window.addEventListener('online', syncPendingLogoutRevocations);
-        window.addEventListener('online', () => { if(localStorage.getItem("ruta_clara_token")&&!rutaUser)bootRutaClara(); });
+        window.addEventListener('online', () => { if(localStorage.getItem("ruta_clara_token"))bootRutaClara(); });
         window.addEventListener('offline', updateConnectionStatus);
 
         let deferredPrompt;
