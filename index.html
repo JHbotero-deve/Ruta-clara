@@ -1866,6 +1866,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 entrance_name: data.entrance_name || null,
                 entrance_confirmed: data.entrance_confirmed === true,
                 location_source: data.location_source || null,
+                client_id: data.client_id || (window.crypto?.randomUUID ? crypto.randomUUID() : `rc-${Date.now()}-${Math.random().toString(36).slice(2)}`),
                 municipality: data.municipality || null,
                 route_id: data.route_id ?? activeRouteId,
                 delivered: false
