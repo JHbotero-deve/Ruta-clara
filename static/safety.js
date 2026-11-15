@@ -84,7 +84,7 @@ try{await window.processParsedGuide(parsed);document.getElementById('deliveryGui
 const originalSaveLocation=window.saveLocationAutomatically;
 if(typeof originalSaveLocation==='function'){
 window.saveLocationAutomatically=async function(data){
-if(!data||data.entrance_confirmed!==true||!String(data.entrance_name||'').trim())throw new Error('No se puede guardar: debes confirmar el nombre de la portería y el punto exacto en el mapa.');
+if(!data||data.entrance_confirmed!==true||!String(data.entrance_name||'').trim()){showToast('Falta confirmar la portería y el punto exacto en el mapa.','⚠️');return false;}
 return originalSaveLocation(data);
 };
 }
