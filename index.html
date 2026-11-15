@@ -892,6 +892,29 @@
         .btn-report-small{border:1px solid var(--border);background:var(--bg-hover);color:var(--primary-dark);border-radius:7px;padding:7px 9px;font-size:10px;font-weight:750;white-space:nowrap}
         .admin-export-only{display:block}
         @media(max-width:700px){.route-export-actions{display:grid;grid-template-columns:1fr}.route-export-actions button{width:100%}.map-safety-note{font-size:9px}.btn-report-small{padding:8px}}
+
+        /* ACABADO DE PANELES Y CONTROLES */
+        #adminOverview .dashboard-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+        #adminOverview .card,#driverDashboard .card,#viewUsers .card{background:var(--bg-card);border:1px solid var(--border);box-shadow:0 2px 9px #17232f08}
+        .dashboard-stat{overflow:hidden;position:relative}
+        .dashboard-stat::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--primary)}
+        .dashboard-stat strong{font-variant-numeric:tabular-nums}
+        .dashboard-table tbody tr:hover{background:var(--bg-hover)}
+        .dashboard-table details{margin-top:5px;color:var(--text-muted);font-size:10px}
+        .dashboard-table details summary{color:var(--primary);font-weight:700;cursor:pointer}
+        .dashboard-table td{vertical-align:middle}
+        #adminOverview .view-heading,#driverDashboard .view-heading{align-items:center}
+        #viewScanner .card-header{align-items:center;gap:10px}
+        #viewScanner label{font-size:11px;font-weight:700;color:var(--text-muted)}
+        #viewScanner input:not([type="file"]),#viewScanner textarea{min-height:42px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-main)}
+        #viewScanner textarea{min-height:88px}
+        #viewScanner button,#viewMap button{touch-action:manipulation}
+        #viewMap .map-header button{min-height:40px;border-radius:8px;font-weight:700}
+        #viewMap .map-card-wrapper{overflow:hidden}
+        #map{touch-action:pan-x pan-y}
+        .route-export-actions{padding-top:2px}
+        .btn-report-small:hover,.route-export-actions button:hover{filter:brightness(.97)}
+        @media(max-width:700px){#adminOverview .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminOverview .card,#driverDashboard .card,#viewUsers .card{padding:13px}#viewMap .map-header button{min-height:44px}}
         /* IDENTIDAD VISUAL EMPRESARIAL */
         :root{--primary:#176b63;--primary-dark:#11564f;--success:#188568;--warning:#b7791f;--danger:#c24141;--bg-main:#f3f5f7;--bg-card:#fff;--text-main:#17232f;--text-muted:#687887;--border:#dfe5e9;--input-bg:#fff;--input-border:#cbd5dc;--bg-hover:#edf3f2}
         [data-theme="dark"]{--primary:#42a99b;--primary-dark:#318d82;--success:#35a987;--warning:#d4a34d;--danger:#ef7777;--bg-main:#101820;--bg-card:#17232d;--text-main:#edf3f5;--text-muted:#9eafb9;--border:#2a3a45;--input-bg:#1c2a35;--input-border:#3a4c58;--bg-hover:#22343e}
@@ -1050,7 +1073,7 @@
             <!-- TARJETA DEL ESCÁNER Y CAPTURA DE GUÍAS -->
             <div class="card" style="background: #eff6ff; border-color: #bfdbfe;">
                 <div class="card-header">
-                    <h2>⚡ Captura de Guías de Entrega</h2>
+                    <h2>Captura de guías de entrega</h2>
                     <span id="currentRouteBadge" style="background:#2563eb; color:white; font-size:11px; padding:3px 8px; border-radius:10px; font-weight:700;">
                         Ruta 1
                     </span>
@@ -1142,7 +1165,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             <div class="card" style="display: flex; flex-direction: column;">
                 <div class="card-header" style="margin-bottom: 6px;">
                     <h2>
-                        📋 Paradas de la Ruta
+                        Paradas de la ruta
                         <span id="stopsCountBadge" style="background:#ea580c; color:white; font-size:11px; padding:2px 8px; border-radius:12px; margin-left:6px; font-weight:700;">0</span>
                     </h2>
                     <div style="display:flex; gap:8px;">
@@ -1177,10 +1200,10 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     <div><h2>Mapa de entregas</h2><p class="map-safety-note">Mapa de consulta: tocar o mover el mapa nunca agrega paradas. Registra direcciones desde el formulario, dictado o escáner.</p></div>
                     <div style="display:flex; gap:6px;">
                         <button id="btnToggleNav" onclick="toggleRouteNavigation()" style="background:#10b981; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer;">
-                            🚀 Arrancar Navegación
+                            Iniciar navegación
                         </button>
                         <button onclick="switchTab('scanner')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:11px; font-weight:600; cursor:pointer;">
-                            ⬅️ Escáner
+                            Volver al escáner
                         </button>
                     </div>
                 </div>
