@@ -277,5 +277,6 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - **Integrado en main** mediante el PR #5, commit de merge: db0fc92069664c556716ec1fb781b3dafbe8a5bf.
 - **CI del PR aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
 - **No desplegado en producción.**
-- La sesión persistente se prepara en la rama `fix/persistent-login-session`; pendiente de CI y revisión antes de integrar.
+- **Sesión persistente integrada en main** mediante el PR #6, commit: c28cc541df1d5b3326120d645a228afbbc87297b.
+- **CI del PR #6 aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
 - Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
