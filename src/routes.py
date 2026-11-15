@@ -17,6 +17,7 @@ from typing import List, Optional
 from fastapi import (
     APIRouter, Depends, HTTPException, Query, status
 )
+from sqlalchemy import and_, or_
 from fastapi.responses import Response, FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -257,6 +258,27 @@ def read_users_me(
 @router.get("/admin/users", response_model=List[UserResponse], tags=["Administration"])
 def admin_list_users(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
     return db.query(User).order_by(User.username.asc()).all()
+
+
+@router.get("/admin/users/activity", tags=["Administration"])
+def admin_users_activity(db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    from datetime import date, timedelta
+    today = date.today()
+    week_start = datetime.combine(today - timedelta(days=6), datetime.min.time())
+    drivers = db.query(User).filter(User.role == "driver").order_by(User.username.asc()).all()
+    activity = []
+    for user in drivers:
+        orders = db.query(Location).filter(or_(Location.assigned_to_id == user.id, and_(Location.assigned_to_id.is_(None), Location.created_by_id == user.id))).all()
+        delivered = sum(1 for order in orders if order.status == "delivered" or order.delivered)
+        pending = sum(1 for order in orders if order.status in {"pending", "assigned", "in_transit"} and not order.delivered)
+        in_transit = sum(1 for order in orders if order.status == "in_transit")
+        events = db.query(LocationStatusHistory).filter(LocationStatusHistory.changed_by_id == user.id, LocationStatusHistory.new_status == "delivered", LocationStatusHistory.changed_at >= week_start).order_by(LocationStatusHistory.changed_at.desc()).all()
+        daily = { (today - timedelta(days=6-offset)).isoformat(): 0 for offset in range(7) }
+        for event in events:
+            key = event.changed_at.date().isoformat()
+            if key in daily: daily[key] += 1
+        activity.append({"id":user.id,"username":user.username,"email":user.email,"disabled":user.disabled,"status":"Inactivo" if user.disabled else ("En recorrido" if in_transit else "Disponible"),"delivered":delivered,"pending":pending,"in_transit":in_transit,"delivered_today":daily.get(today.isoformat(),0),"deliveries_by_day":daily})
+    return {"users":activity,"total_drivers":len(drivers),"drivers_on_route":sum(1 for user in activity if user["in_transit"]>0),"deliveries_today":sum(user["delivered_today"] for user in activity)}
 
 
 @router.post("/admin/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Administration"])
@@ -876,20 +898,43 @@ def delete_delivery_route(
 # LOCATIONS
 # ============================================================
 
+@router.patch("/locations/{location_id}/assign", response_model=LocationResponse, tags=["Administration"])
+def assign_location(location_id: int, payload: dict, db: Session = Depends(get_db), admin: User = Depends(get_current_admin_user)):
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location: raise HTTPException(status_code=404, detail="Pedido no encontrado.")
+    assigned_to_id = payload.get("assigned_to_id")
+    assignee = None
+    if assigned_to_id is not None:
+        if not isinstance(assigned_to_id, int): raise HTTPException(status_code=422, detail="El domiciliario seleccionado no es válido.")
+        assignee = db.query(User).filter(User.id == assigned_to_id, User.role == "driver", User.disabled == False).first()
+        if not assignee: raise HTTPException(status_code=422, detail="Selecciona un domiciliario activo.")
+    old_status = location.status
+    location.assigned_to_id = assignee.id if assignee else None
+    new_status = "assigned" if assignee else "pending"
+    if location.status != new_status:
+        db.add(LocationStatusHistory(location_id=location.id, old_status=old_status, new_status=new_status, changed_by_id=admin.id))
+        location.status = new_status
+        location.delivered = False
+        location.status_updated_by_id = admin.id
+    db.commit(); db.refresh(location)
+    return location
+
+
 @router.get(
     "/locations",
     response_model=List[LocationResponse]
 )
 def read_locations(
     route_id: Optional[int] = Query(None, description="Filtrar por ID de ruta"),
+    status_filter: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
-    if current_user.role != "admin":
-        query = query.filter(Location.created_by_id == current_user.id)
-    if route_id is not None:
-        query = query.filter(Location.route_id == route_id)
+    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, Location.created_by_id == current_user.id))
+    elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
+    if route_id is not None: query = query.filter(Location.route_id == route_id)
+    if status_filter: query = query.filter(Location.status == status_filter)
     return query.order_by(Location.created_at.desc()).all()
 
 
@@ -945,6 +990,7 @@ def create_location(
         delivered=location.delivered or False,
         status="delivered" if location.delivered else "pending",
         created_by_id=current_user.id,
+        assigned_to_id=current_user.id if current_user.role == "driver" else None,
         status_updated_by_id=current_user.id,
     )
 
@@ -1154,10 +1200,10 @@ def get_road_route(
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
     query = db.query(Location)
-    if current_user.role != "admin":
-        query = query.filter(Location.created_by_id == current_user.id)
-    if route_id is not None:
-        query = query.filter(Location.route_id == route_id)
+    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, Location.created_by_id == current_user.id))
+    elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
+    query = query.filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
+    if route_id is not None: query = query.filter(Location.route_id == route_id)
     start = (start_lat, start_lon) if start_lat is not None else None
     locations = calculate_optimal_route(query.all(), start=start)
     if not locations:
@@ -1225,11 +1271,10 @@ def get_optimal_route(
     current_user: User = Depends(get_current_active_user)
 ):
     query = db.query(Location)
-    if current_user.role != "admin":
-        query = query.filter(Location.created_by_id == current_user.id)
-    if route_id is not None:
-        query = query.filter(Location.route_id == route_id)
-
+    if current_user.role == "driver": query = query.filter(or_(Location.assigned_to_id == current_user.id, Location.created_by_id == current_user.id))
+    elif current_user.role != "admin": query = query.filter(Location.created_by_id == current_user.id)
+    query = query.filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
+    if route_id is not None: query = query.filter(Location.route_id == route_id)
     locations = query.all()
 
     if not locations:
