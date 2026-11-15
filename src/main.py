@@ -51,6 +51,7 @@ def init_db_and_migrate():
             for column, definition in migrations.items():
                 if column not in existing_cols:
                     conn.exec_driver_sql(f"ALTER TABLE locations ADD COLUMN {column} {definition}")
+            conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_locations_client_id ON locations(client_id)")
             conn.exec_driver_sql("UPDATE locations SET status = CASE WHEN delivered = TRUE THEN 'delivered' ELSE 'pending' END WHERE status IS NULL OR status = '' OR (status = 'pending' AND delivered = TRUE)")
             conn.exec_driver_sql("UPDATE locations SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
             conn.exec_driver_sql("UPDATE locations SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL")
