@@ -280,3 +280,14 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 - **Sesión persistente integrada en main** mediante el PR #6, commit: c28cc541df1d5b3326120d645a228afbbc87297b.
 - **CI del PR #6 aprobado:** sintaxis Python, pruebas del backend, sintaxis JavaScript inline y scripts externos.
 - Antes de producción todavía se debe validar la migración sobre una copia de una base SQLite existente y probar en un dispositivo real la asignación, navegación, entrega, pérdida de conexión y sincronización offline.
+
+## 🎨 Identidad visual y experiencia de usuario
+
+La interfaz de Ruta Clara debe mantener una apariencia de software empresarial de logística, clara y consistente en escritorio y dispositivos móviles.
+
+- **Identidad:** paleta sobria basada en azul petróleo/grafito, verde azulado como acento funcional, fondos neutros y contraste accesible. Evitar degradados decorativos y exceso de colores.
+- **Navegación:** menú lateral en escritorio y menú desplegable en móvil, con iconografía SVG uniforme y etiquetas claras.
+- **Componentes:** tarjetas, tablas, formularios, botones, estados y campos deben compartir radios, bordes, espaciado, tipografía y jerarquía visual.
+- **Iconografía:** priorizar iconos SVG consistentes frente a emojis en controles y navegación.
+- **Responsive:** conservar una experiencia usable en pantallas pequeñas, sin ocultar acciones esenciales ni afectar el escáner, el mapa o la operación de entregas.
+- **Alcance:** los cambios visuales no deben alterar autenticación, persistencia de sesión, asignaciones, estados de entrega, cálculo de recorridos ni funcionamiento offline.
