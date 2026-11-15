@@ -949,13 +949,24 @@
     <div class="app-container">
         <div id="viewDashboard" class="tab-content active">
             <div class="view-heading"><h2>Resumen de entregas</h2><span id="dashboardRole" style="font-size:11px;color:var(--text-muted)"></span></div>
-            <div class="dashboard-grid">
-                <div class="dashboard-stat"><span>Total de pedidos</span><strong id="statTotal">0</strong></div>
-                <div class="dashboard-stat"><span>Pendientes</span><strong id="statPending">0</strong></div>
-                <div class="dashboard-stat"><span>En camino</span><strong id="statTransit">0</strong></div>
-                <div class="dashboard-stat"><span>Entregados</span><strong id="statDelivered">0</strong></div>
+            <div id="adminOverview" style="display:none;">
+                <div class="dashboard-grid">
+                    <div class="dashboard-stat"><span>Domiciliarios</span><strong id="adminStatDrivers">0</strong></div>
+                    <div class="dashboard-stat"><span>En recorrido</span><strong id="adminStatOnRoute">0</strong></div>
+                    <div class="dashboard-stat"><span>Entregas de hoy</span><strong id="adminStatToday">0</strong></div>
+                </div>
+                <div class="card"><div class="view-heading"><h2>Actividad de domiciliarios</h2><button class="btn-route-action" onclick="loadDashboard()">Actualizar</button></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Domiciliario</th><th>Estado</th><th>Entregados</th><th>Pendientes</th><th>Entregas hoy</th><th>Últimos 7 días</th></tr></thead><tbody id="adminActivityList"></tbody></table></div></div>
+                <div class="card"><div class="view-heading"><h2>Asignar pedidos</h2></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Pedido</th><th>Dirección</th><th>Estado</th><th>Domiciliario</th></tr></thead><tbody id="adminAssignmentList"></tbody></table></div></div>
             </div>
-            <div class="card"><div class="view-heading"><h2>Pedidos recientes</h2><button class="btn-route-action" onclick="loadDashboard()">Actualizar</button></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Pedido</th><th>Dirección</th><th>Municipio / Barrio</th><th>Estado</th><th>Registrado por</th><th>Última actualización</th><th>Acciones</th></tr></thead><tbody id="dashboardOrders"><tr><td colspan="7">Cargando pedidos...</td></tr></tbody></table></div></div>
+            <div id="driverDashboard">
+                <div class="dashboard-grid">
+                    <div class="dashboard-stat"><span>Total de pedidos</span><strong id="statTotal">0</strong></div>
+                    <div class="dashboard-stat"><span>Pendientes</span><strong id="statPending">0</strong></div>
+                    <div class="dashboard-stat"><span>En camino</span><strong id="statTransit">0</strong></div>
+                    <div class="dashboard-stat"><span>Entregados</span><strong id="statDelivered">0</strong></div>
+                </div>
+                <div class="card"><div class="view-heading"><h2>Mis pedidos</h2><button class="btn-route-action" onclick="loadDashboard()">Actualizar</button></div><div class="dashboard-table-wrap"><table class="dashboard-table"><thead><tr><th>Pedido</th><th>Dirección</th><th>Municipio / Barrio</th><th>Estado</th><th>Registrado por</th><th>Última actualización</th><th>Acciones</th></tr></thead><tbody id="dashboardOrders"><tr><td colspan="7">Cargando pedidos...</td></tr></tbody></table></div></div>
+            </div>
         </div>
         <div id="viewUsers" class="tab-content">
             <div class="view-heading"><h2>Gestión de usuarios</h2></div>
@@ -1076,9 +1087,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 </div>
 
                 <div class="nav-container" id="navStepsList">
-                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 24px;">
-                        No hay paradas en esta ruta. Pega una guía o usa la cámara para agregar paquetes.
-                    </p>
+                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 24px;">No hay paradas pendientes en esta ruta.</p>
+                </div>
+                <div id="completedStopsPanel" style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px;">
+                    <h3 style="font-size:13px;">Pedidos entregados <span id="completedStopsCount">0</span></h3>
+                    <div id="completedStopsList" style="font-size:12px;color:var(--text-muted);">Todavía no hay entregas completadas.</div>
                 </div>
 
                 <button onclick="switchTab('map')" class="btn" style="background:#ea580c; color:white; font-size:13px; font-weight:700; padding:12px; margin-top:10px; width:100%; border-radius:8px;">
@@ -1303,7 +1316,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 if(rutaUser.role!=="admin"){
                     document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
                 }
-                if(typeof initMap==="function")initMap();await loadDashboard();showSection("dashboard");
+                if(typeof initMap==="function")initMap();await syncPendingDeliveryUpdates();await loadDashboard();showSection("dashboard");
             } catch(error) {sessionStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("No fue posible validar la sesión. Inicia sesión de nuevo.");}
         }
         function logoutRutaClara(){sessionStorage.removeItem("ruta_clara_token");location.reload();}
@@ -1317,9 +1330,25 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if(section==="dashboard")loadDashboard();if(section==="users"&&rutaUser?.role==="admin")loadAdminUsers();if(section==="scanner")loadRouteData();
         }
         async function loadDashboard(){
-            const body=document.getElementById("dashboardOrders");if(!body||!rutaUser)return;
+            if(!rutaUser)return;
+            const adminView=rutaUser.role==="admin";
+            document.getElementById("adminOverview").style.display=adminView?"block":"none";
+            document.getElementById("driverDashboard").style.display=adminView?"none":"block";
             try{
-                const response=await fetch("/locations");if(!response.ok)throw new Error("No se pudieron cargar los pedidos.");
+                if(adminView){
+                    const [activityResponse,ordersResponse]=await Promise.all([fetch("/admin/users/activity"),fetch("/locations")]);
+                    if(!activityResponse.ok||!ordersResponse.ok)throw new Error("No se pudo cargar la actividad administrativa.");
+                    const activity=await activityResponse.json(),orders=await ordersResponse.json(),drivers=activity.users||[];
+                    document.getElementById("adminStatDrivers").textContent=activity.total_drivers||0;
+                    document.getElementById("adminStatOnRoute").textContent=activity.drivers_on_route||0;
+                    document.getElementById("adminStatToday").textContent=activity.deliveries_today||0;
+                    document.getElementById("adminActivityList").innerHTML=drivers.length?drivers.map(user=>'<tr><td>'+escapeHtml(user.username)+'</td><td>'+escapeHtml(user.status)+'</td><td>'+user.delivered+'</td><td>'+user.pending+'</td><td>'+user.delivered_today+'</td><td>'+Object.values(user.deliveries_by_day).join(" · ")+'</td></tr>').join(""):'<tr><td colspan="6">Todavía no hay domiciliarios registrados.</td></tr>';
+                    const activeDrivers=drivers.filter(user=>!user.disabled);
+                    document.getElementById("adminAssignmentList").innerHTML=orders.filter(order=>!["delivered","cancelled"].includes(order.status)).map(order=>'<tr><td>#'+order.id+'</td><td>'+escapeHtml(order.address||"Sin dirección")+'</td><td>'+escapeHtml(order.status)+'</td><td><select onchange="assignOrder('+order.id+',this.value)"><option value="">Sin asignar</option>'+activeDrivers.map(user=>'<option value="'+user.id+'" '+(order.assigned_to_id===user.id?"selected":"")+'>'+escapeHtml(user.username)+'</option>').join("")+'</select></td></tr>').join("")||'<tr><td colspan="4">No hay pedidos por asignar.</td></tr>';
+                    return;
+                }
+                const body=document.getElementById("dashboardOrders"),response=await fetch("/locations");
+                if(!response.ok)throw new Error("No se pudieron cargar los pedidos.");
                 const orders=await response.json(),counts={pending:0,assigned:0,in_transit:0,delivered:0,issue:0,cancelled:0};
                 orders.forEach(order=>counts[order.status||(order.delivered?"delivered":"pending")]++);
                 document.getElementById("statTotal").textContent=orders.length;
@@ -1327,7 +1356,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.getElementById("statTransit").textContent=counts.in_transit;
                 document.getElementById("statDelivered").textContent=counts.delivered;
                 body.innerHTML=orders.length?orders.map(order=>'<tr><td>#'+order.id+'</td><td>'+escapeHtml(order.address||"Sin dirección")+'</td><td>'+escapeHtml([order.municipality,order.neighborhood].filter(Boolean).join(" · "))+'</td><td><select onchange="changeOrderStatus('+order.id+',this.value)">'+statusOptions(order.status||"pending")+'</select></td><td>'+escapeHtml(order.created_by_username||"Registro anterior")+'</td><td>'+escapeHtml(order.status_updated_by_username||"Sin cambios")+'<br><small>'+(order.updated_at?new Date(order.updated_at).toLocaleString():"")+'</small></td><td><button onclick="showOrderHistory('+order.id+')" class="btn-route-action">Historial</button></td></tr>').join(""):'<tr><td colspan="7">No hay pedidos registrados.</td></tr>';
-            }catch(error){body.innerHTML='<tr><td colspan="7">'+escapeHtml(error.message)+'</td></tr>';}
+            }catch(error){const body=document.getElementById("dashboardOrders");if(body)body.innerHTML='<tr><td colspan="7">'+escapeHtml(error.message)+'</td></tr>';}
+        }
+        async function assignOrder(id,driverId){
+            const response=await fetch("/locations/"+id+"/assign",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({assigned_to_id:driverId?Number(driverId):null})});
+            if(!response.ok){const data=await response.json();alert(data.detail||"No se pudo asignar el pedido.");}
+            await loadDashboard();
         }
         function statusOptions(selected){
             const values=[["pending","Pendiente"],["assigned","Asignado"],["in_transit","En camino"],["delivered","Entregado"],["issue","Novedad"],["cancelled","Cancelado"]];
@@ -1373,6 +1407,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let activeRouteName = "Ruta Principal";
         let availableRoutes = [];
         let currentLocations = [];
+        let completedLocations = [];
         let currentDestinationType = "Residencial";
 
         // Estado del Escáner Continuo
@@ -1634,20 +1669,29 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // CARGA DE PARADAS
         // ========================================================
         async function loadRouteData() {
-            if (!activeRouteId) return;
-
-            try {
-                const res = await fetch(`/optimal_route?route_id=${activeRouteId}`);
-                if (!res.ok) throw new Error('Error al cargar paradas');
-                currentLocations = await res.json();
+            if(!activeRouteId)return;
+            try{
+                const response=await fetch(`/optimal_route?route_id=${activeRouteId}`);
+                if(!response.ok)throw new Error("Error al cargar paradas pendientes.");
+                currentLocations=await response.json();
+                const deliveredResponse=await fetch(`/locations?route_id=${activeRouteId}&status=delivered`);
+                completedLocations=deliveredResponse.ok?await deliveredResponse.json():[];
+                renderCompletedStops(completedLocations);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
-            } catch (err) {
-                const allOffline = JSON.parse(localStorage.getItem('rc_offline_locations') || '[]');
-                currentLocations = allOffline.filter(l => l.route_id === activeRouteId || !l.route_id);
+            }catch(error){
+                const offline=JSON.parse(localStorage.getItem("rc_offline_locations")||"[]");
+                currentLocations=offline.filter(item=>(item.route_id===activeRouteId||!item.route_id)&&!item.delivered&&item.status!=="delivered");
+                completedLocations=JSON.parse(localStorage.getItem("rc_offline_delivered")||"[]");
+                renderCompletedStops(completedLocations);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
             }
+        }
+        function renderCompletedStops(locations){
+            const list=document.getElementById("completedStopsList"),count=document.getElementById("completedStopsCount");
+            if(count)count.textContent=locations.length;
+            if(list)list.innerHTML=locations.length?locations.map(item=>'<div style="padding:7px 0;border-bottom:1px solid var(--border);">✓ #'+item.id+' · '+escapeHtml(item.address||item.name||"Dirección no disponible")+'</div>').join(""):"Todavía no hay entregas completadas.";
         }
 
         function updateStopsCountInSelector() {
@@ -2376,17 +2420,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
         async function markCurrentStopDelivered() {
-            const target = currentLocations[activeNavIndex];
-            if (!target) return;
-
-            await toggleDelivered(target.id, true);
-
-            if (activeNavIndex < currentLocations.length - 1) {
-                activeNavIndex++;
+            const target=currentLocations[activeNavIndex];
+            if(!target)return;
+            const saved=await toggleDelivered(target.id,true);
+            if(!saved)return;
+            await loadRouteData();
+            activeNavIndex=0;
+            if(currentLocations.length){
                 updateNavHUD();
-                showToast(`¡Parada completada! Siguiente: #${activeNavIndex + 1}`, '🎉');
-            } else {
-                showToast('¡Has completado todas las paradas de la ruta!', '🏆');
+                showToast("Entrega confirmada. Siguiente parada: "+(currentLocations[0].address||currentLocations[0].name),"✓");
+            }else{
+                showToast("Has completado todas las paradas pendientes.","✓");
                 stopRouteNavigation();
             }
         }
@@ -2406,22 +2450,44 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // ESTADO DE ENTREGA Y ELIMINACIÓN
         // ========================================================
         async function toggleDelivered(locationId, forceDeliveredState = null) {
-            const loc = currentLocations.find(l => l.id === locationId);
-            if (!loc) return;
-
-            const newState = forceDeliveredState !== null ? forceDeliveredState : !loc.delivered;
-            loc.delivered = newState;
-
-            try {
-                await fetch(`/locations/${locationId}/delivered`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ delivered: newState })
-                });
-            } catch (e) {}
-
+            const loc=currentLocations.find(item=>String(item.id)===String(locationId));
+            if(!loc)return false;
+            const newState=forceDeliveredState!==null?forceDeliveredState:!loc.delivered;
+            try{
+                const response=await fetch(`/locations/${locationId}/delivered`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({delivered:newState})});
+                if(!response.ok)throw new Error("El servidor no confirmó la entrega.");
+            }catch(error){
+                if(navigator.onLine){alert(error.message||"No se pudo guardar la entrega.");return false;}
+                const queue=JSON.parse(localStorage.getItem("rc_pending_delivery_updates")||"[]");
+                queue.push({location_id:locationId,delivered:newState});
+                localStorage.setItem("rc_pending_delivery_updates",JSON.stringify(queue));
+                const done=JSON.parse(localStorage.getItem("rc_offline_delivered")||"[]");
+                done.push({...loc,delivered:newState,status:newState?"delivered":"pending"});
+                localStorage.setItem("rc_offline_delivered",JSON.stringify(done));
+            }
+            loc.delivered=newState;
+            loc.status=newState?"delivered":"pending";
+            if(newState){
+                currentLocations=currentLocations.filter(item=>String(item.id)!==String(locationId));
+                completedLocations=[...completedLocations.filter(item=>String(item.id)!==String(locationId)),loc];
+                renderCompletedStops(completedLocations);
+                renderNavigationGuide(currentLocations);
+                updateStopsCountInSelector();
+            }else await loadRouteData();
             playSuccessChime();
-            renderNavigationGuide(currentLocations);
+            return true;
+        }
+        async function syncPendingDeliveryUpdates(){
+            if(!navigator.onLine)return;
+            const queue=JSON.parse(localStorage.getItem("rc_pending_delivery_updates")||"[]"),remaining=[];
+            for(const item of queue){
+                try{
+                    const response=await fetch(`/locations/${item.location_id}/delivered`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({delivered:item.delivered})});
+                    if(!response.ok)remaining.push(item);
+                }catch(error){remaining.push(item);}
+            }
+            localStorage.setItem("rc_pending_delivery_updates",JSON.stringify(remaining));
+            if(queue.length&&!remaining.length&&rutaUser)await loadRouteData();
         }
 
         async function deleteLocation(id) {
@@ -2511,6 +2577,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
         window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('online', syncPendingDeliveryUpdates);
         window.addEventListener('offline', updateConnectionStatus);
 
         let deferredPrompt;
