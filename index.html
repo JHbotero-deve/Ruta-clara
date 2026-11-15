@@ -2163,8 +2163,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (locations.length > 1 && activeRouteId) {
                 try {
                     const gps = await getCurrentGpsPosition();
-                    currentUserLatLng = [gps.latitude, gps.longitude];
                     if (gps.accuracy > 50) throw new Error(`GPS impreciso (±${Math.round(gps.accuracy)} m). Espera una precisión de 50 m o menos antes de calcular la ruta.`);
+                    currentUserLatLng = [gps.latitude, gps.longitude];
                     const routeResponse = await fetch(`/road_route?route_id=${activeRouteId}&start_lat=${gps.latitude}&start_lon=${gps.longitude}`);
                     if (!routeResponse.ok) throw new Error("No se pudo calcular el recorrido vial desde tu GPS.");
                     roadRoute = await routeResponse.json();
