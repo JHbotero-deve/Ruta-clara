@@ -551,3 +551,16 @@ def test_driver_cannot_reopen_or_change_final_delivery():
     assert client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin).status_code == 409
     assert client.patch(f"/locations/{location_id}/delivered", json={"delivered":False}, headers=headers).status_code == 403
     assert client.patch(f"/locations/{location_id}/status", json={"status":"issue"}, headers=headers).status_code == 409
+
+
+def test_driver_cannot_mark_cancelled_order_as_delivered():
+    admin = admin_headers()
+    driver = client.post("/admin/users", json={"email":"cancelled-driver@example.com","password":"Password123!","role":"driver"}, headers=admin)
+    login = client.post("/token", data={"username":"cancelled-driver@example.com","password":"Password123!"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    payload = {"name":"Pedido cancelado","latitude":6.2,"longitude":-75.5,"address":"Calle 20 #30-40","entrance_name":"Acceso","entrance_confirmed":True}
+    created = client.post("/locations", json=payload, headers=admin)
+    location_id = created.json()["id"]
+    assert client.patch(f"/locations/{location_id}/assign", json={"assigned_to_id":driver.json()["id"]}, headers=admin).status_code == 200
+    assert client.patch(f"/locations/{location_id}/status", json={"status":"cancelled"}, headers=admin).status_code == 200
+    assert client.patch(f"/locations/{location_id}/delivered", json={"delivered":True}, headers=headers).status_code == 409
