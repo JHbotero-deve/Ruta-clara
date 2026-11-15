@@ -138,3 +138,24 @@ username=operador_ruta&password=PasswordSeguro123!
   }
 ]
 ```
+
+---
+
+## 4. Reporte profesional de recorridos
+
+### Descargar PDF
+- **Ruta**: `GET /export/delivery-route.pdf`
+- **Autenticación**: sesión activa.
+- **Parámetros opcionales**:
+  - `route_id`: exporta todas las paradas de una ruta específica.
+  - `driver_id`: disponible solo para administradores; genera el informe del domiciliario seleccionado de los últimos siete días si no se especifica `route_id`.
+- Los domiciliarios solo pueden exportar sus propios recorridos. Los administradores pueden exportar una ruta completa o seleccionar un domiciliario.
+- El PDF incluye responsable, periodo, conteos de paradas/entregas/pendientes/novedades, direcciones, municipio/barrio, referencias de acceso, estado y última actualización.
+- El documento es compacto, tamaño A4, con pie de página de marca Ruta Clara y numeración. No incluye nombres de destinatarios ni códigos de seguimiento.
+- Respuestas: `200 application/pdf`; `403` sin permisos; `404` si no hay paradas; `422` si falta seleccionar ruta o domiciliario.
+
+### Exportación de datos
+El CSV semanal existente se conserva como formato tabular para análisis en Excel. El PDF es el formato recomendado para imprimir, compartir y archivar un recorrido.
+
+## 5. Seguridad del mapa
+Los eventos de toque/clic del mapa no crean, guardan ni geocodifican paradas. El mapa solo permite consultar puntos ya registrados y navegar. Las nuevas paradas se ingresan mediante formulario, dictado por voz o escáner OCR, y requieren la acción explícita del usuario.
