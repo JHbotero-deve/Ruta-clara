@@ -208,7 +208,7 @@ Esta sección conserva las decisiones funcionales del producto para retomar el t
 
 ### Sesión persistente
 
-- Después de iniciar sesión o registrarse, la sesión permanece guardada en el dispositivo aunque se cierre la pestaña, el navegador, la PWA o se reinicie el celular.
+- Después de iniciar sesión, la sesión permanece guardada en el dispositivo aunque se cierre la pestaña, el navegador, la PWA o se reinicie el celular.
 - La sesión solo se revoca desde la acción explícita **Salir / Cerrar sesión**; al volver a abrir Ruta Clara, se valida la sesión guardada y se abre el módulo correspondiente al rol.
 - El navegador conserva el identificador de sesión en almacenamiento persistente local y el backend almacena únicamente su hash, sin guardar el token en texto plano.
 - El endpoint `POST /logout` revoca la sesión actual en el servidor. Si el dispositivo está sin conexión, se elimina la sesión activa del dispositivo y se encola localmente la revocación del token; al recuperar conexión, Ruta Clara envía automáticamente esa revocación al servidor.
