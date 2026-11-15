@@ -34,10 +34,10 @@ cancel.onclick=function(){close();reject(new Error('Registro cancelado: la ubica
 try{
 let status={installed:false};try{const res=await fetch('/offline-map/status');if(res.ok)status=await res.json();}catch(e){}
 reviewOfflineMap=!!status.installed;
-if(!navigator.onLine&&!reviewOfflineMap){document.getElementById('rcEntranceWarning').textContent='No hay conexión y el mapa offline de Valle de Aburrá no está instalado. No se puede verificar la portería sin mapa. Conéctate o instala el mapa offline antes de guardar.';confirm.disabled=true;confirm.style.opacity='.45';}
+if(!navigator.onLine&&!reviewOfflineMap){document.getElementById('rcEntranceWarning').textContent='Sin conexión: solo podrás confirmar si el mapa de esta zona ya fue cargado y quedó guardado en este dispositivo. Si el mapa no muestra calles y edificios, no guardes la parada.';confirm.disabled=true;confirm.style.opacity='.45';}
 reviewMap=L.map('rcEntranceMap',{zoomControl:true,scrollWheelZoom:true}).setView([6.2442,-75.5812],13);
 if(reviewOfflineMap)L.tileLayer('/tiles/{z}/{x}/{y}.png',{minZoom:9,maxZoom:19,attribution:'Mapa offline Ruta Clara'}).addTo(reviewMap);
-else L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(reviewMap);
+else {const layer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});layer.on('tileload',function(){if(!navigator.onLine){confirm.disabled=false;confirm.style.opacity='1';}});layer.addTo(reviewMap);}
 function setPoint(lat,lng){if(reviewMarker){reviewMarker.setLatLng([lat,lng]);}else{reviewMarker=L.marker([lat,lng],{draggable:true}).addTo(reviewMap);reviewMarker.on('dragend',function(){reviewPointSelected=true;});}reviewPointSelected=true;}
 select.addEventListener('change',function(){const index=select.value;if(index==='')return;const item=candidates[Number(index)];if(!item)return;setPoint(Number(item.latitude),Number(item.longitude));reviewMap.setView([Number(item.latitude),Number(item.longitude)],18);});
 reviewMap.on('click',function(event){setPoint(event.latlng.lat,event.latlng.lng);select.value='';});
