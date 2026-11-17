@@ -1002,6 +1002,10 @@
         <button onclick="showSection('scanner')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M4 12h16M8 9v6M12 9v6M16 9v6"/></svg></span><span>Registrar pedidos</span></button>
         <button onclick="showSection('map')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/></svg></span><span>Mapa y recorridos</span></button>
         <button id="menuUsersButton" onclick="showSection('users')" style="display:none"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM20 8v6M23 11h-6"/></svg></span><span>Gestión de usuarios</span></button>
+        <div class="menu-caption">DOCUMENTOS Y EXPORTACIONES</div>
+        <button onclick="downloadFromMenu('pdf')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 14h8M9 18h5"/></svg></span><span>Reporte de ruta (PDF)</span></button>
+        <button onclick="downloadFromMenu('xlsx')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4zM4 8h16M9 8v13M15 8v13M4 13h16"/></svg></span><span>Excel editable</span></button>
+        <button id="menuWeeklyHistoryButton" class="admin-export-only" onclick="downloadFromMenu('csv')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h5"/></svg></span><span>Historial semanal (CSV)</span></button>
         <div class="menu-footer"><span class="menu-footer-mark"></span><span>Operación logística</span></div>
     </nav>
     <!-- BARRA DE GESTIÓN DE MÚLTIPLES RUTAS -->
@@ -1172,12 +1176,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         <button onclick="loadRouteData()" style="background: none; border: none; color: var(--primary); font-size: 11px; font-weight: 700; cursor: pointer;">🔄 Actualizar</button>
                         <button onclick="clearCurrentRouteLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 700; cursor: pointer;">🗑️ Vaciar Ruta</button>
                     </div>
-                </div>
-
-                <div class="route-export-actions">
-                    <button onclick="downloadCurrentRouteReport()" class="btn-route-action">Reporte PDF</button>
-                    <button onclick="downloadCurrentRouteSpreadsheet()" class="btn-route-action btn-route-secondary">Excel editable</button>
-                    <button onclick="downloadWeeklyHistory()" class="btn-route-action btn-route-secondary admin-export-only">Historial CSV</button>
                 </div>
 
                 <div class="nav-container" id="navStepsList">
@@ -1427,7 +1425,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
                 document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
                 document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
-                if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
+                if(rutaUser.role!=="admin")document.querySelectorAll('#menuWeeklyHistoryButton,button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
                 if(typeof initMap==="function")initMap();
                 try{await syncPendingOfflineLocations();await syncPendingDeliveryUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
                 showSection("dashboard");
@@ -1461,6 +1459,13 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             location.reload();
         }
         function toggleMenu(){document.getElementById("menuDrawer").classList.toggle("open");}
+        function downloadFromMenu(type){
+            document.getElementById("menuDrawer").classList.remove("open");
+            if(type==="pdf")return downloadCurrentRouteReport();
+            if(type==="xlsx")return downloadCurrentRouteSpreadsheet();
+            if(type==="csv"&&rutaUser?.role==="admin")return downloadWeeklyHistory();
+        }
+
         function showSection(section){
             document.getElementById("menuDrawer").classList.remove("open");
             ["viewDashboard","viewScanner","viewMap","viewUsers"].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove("active");});
