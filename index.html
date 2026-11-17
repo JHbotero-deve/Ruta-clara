@@ -1005,7 +1005,7 @@
         <div class="menu-caption">DOCUMENTOS Y EXPORTACIONES</div>
         <button onclick="downloadFromMenu('pdf')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6zM14 2v6h6M9 14h8M9 18h5"/></svg></span><span>Reporte de ruta (PDF)</span></button>
         <button onclick="downloadFromMenu('xlsx')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4zM4 8h16M9 8v13M15 8v13M4 13h16"/></svg></span><span>Excel editable</span></button>
-        <button class="admin-export-only" onclick="downloadFromMenu('csv')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h5"/></svg></span><span>Historial semanal (CSV)</span></button>
+        <button id="menuWeeklyHistoryButton" class="admin-export-only" onclick="downloadFromMenu('csv')"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h5"/></svg></span><span>Historial semanal (CSV)</span></button>
         <div class="menu-footer"><span class="menu-footer-mark"></span><span>Operación logística</span></div>
     </nav>
     <!-- BARRA DE GESTIÓN DE MÚLTIPLES RUTAS -->
@@ -1425,7 +1425,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
                 document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
                 document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
-                if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
+                if(rutaUser.role!=="admin")document.querySelectorAll('#menuWeeklyHistoryButton,button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
                 if(typeof initMap==="function")initMap();
                 try{await syncPendingOfflineLocations();await syncPendingDeliveryUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
                 showSection("dashboard");
