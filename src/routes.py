@@ -962,6 +962,9 @@ def assign_location(location_id: int, payload: dict, db: Session = Depends(get_d
     if not location: raise HTTPException(status_code=404, detail="Pedido no encontrado.")
     if location.status in {"delivered", "cancelled"} or location.delivered:
         raise HTTPException(status_code=409, detail="No se puede asignar un pedido finalizado.")
+    route = db.query(DeliveryRoute).filter(DeliveryRoute.id == location.route_id).first() if location.route_id else None
+    if route and not route.is_active:
+        raise HTTPException(status_code=409, detail="El pedido pertenece a una ruta archivada. Reábrela antes de reasignarlo.")
     assigned_to_id = payload.get("assigned_to_id")
     assignee = None
     if assigned_to_id is not None:
