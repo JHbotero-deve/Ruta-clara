@@ -56,3 +56,23 @@ def test_scanner_requires_complete_colombian_street_number_before_geocoding():
     save = flow.index("saveLocationAutomatically")
     assert completeness < geocode < save
     assert "No se guardó ninguna parada" in flow
+
+def test_continuous_scanner_keeps_camera_open_between_guides():
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    capture_start = index.index("async function captureAndReadGuide()")
+    capture_end = index.index("async function processUploadedGuide(file)", capture_start)
+    capture = index[capture_start:capture_end]
+    assert "scannerCaptureBusy" in capture
+    assert "processParsedGuide(data)" in capture
+    assert "No se guardó" in capture
+    assert "stopProScanner()" not in capture
+    assert "CAPTURAR SIGUIENTE GUÍA" in capture
+
+
+def test_continuous_scanner_requests_continuous_focus_and_camera_recovery():
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    assert "focusMode: 'continuous'" in index
+    assert "async function refocusScannerCamera()" in index
+    assert "async function recoverScannerCamera()" in index
+    assert "video.addEventListener('click', refocusScannerCamera)" in index
+    assert "visibilitychange" in index
