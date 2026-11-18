@@ -28,3 +28,9 @@ def test_private_qr_and_barcode_detection_remains_disabled():
     safety = (ROOT / "static" / "safety.js").read_text(encoding="utf-8")
     assert "window.barcodeDetector=null" in safety
     assert "window.startBarcodeDetectionLoop=function(){}" in safety
+
+
+def test_live_gps_errors_are_visible_to_the_driver():
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    assert "Error actualizando GPS:" in index
+    assert "Permite la ubicación del celular" in index
