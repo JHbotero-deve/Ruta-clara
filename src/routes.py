@@ -999,8 +999,6 @@ def create_location(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if not location.entrance_confirmed or not (location.entrance_name or "").strip():
-        raise HTTPException(status_code=422, detail="La portería debe estar indicada y confirmada en el mapa.")
     if location.delivered:
         raise HTTPException(status_code=422, detail="Registra el pedido como pendiente y confirma la entrega desde su recorrido.")
     if location.client_id:
