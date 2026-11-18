@@ -628,6 +628,31 @@ def test_route_archive_preserves_history_and_new_orders_use_active_route():
     assert client.get(f"/optimal_route?route_id={route_id}", headers=admin).json() == []
 
 
+def test_delete_location_preserves_cancelled_order_and_history():
+    admin = admin_headers()
+    created = client.post("/locations", json={"name":"Pedido para cancelar","address":"Calle 10 #20-30","latitude":6.2,"longitude":-75.5,"entrance_name":"Acceso","entrance_confirmed":True}, headers=admin)
+    assert created.status_code == 201
+    location_id = created.json()["id"]
+    deleted = client.delete(f"/locations/{location_id}", headers=admin)
+    assert deleted.status_code == 204
+    saved = client.get(f"/locations/{location_id}/history", headers=admin)
+    assert saved.status_code == 200
+    assert saved.json()[0]["new_status"] == "cancelled"
+    assert client.get(f"/locations?status=cancelled", headers=admin).json()[0]["id"] == location_id
+
+
+def test_scanner_frontend_requires_saved_location_and_confirmed_geocode():
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+    assert "new BarcodeDetector" in html
+    assert "function selectGeocodeCandidate" in html
+    assert "if (!saved) throw new Error" in html
+    assert "entrance_name:entrance.trim()" in html
+    assert "goToMapFromScanner()" in html
+    assert "archivedRoutesPanel" in html
+    assert "Rutas archivadas" in html
+
+
 def test_route_cannot_archive_with_pending_orders_and_cannot_delete_nonempty_route():
     admin = admin_headers()
     route = client.post("/delivery-routes", json={"name":"Ruta con pendientes"}, headers=admin)
@@ -639,3 +664,5 @@ def test_route_cannot_archive_with_pending_orders_and_cannot_delete_nonempty_rou
     deleted = client.delete(f"/delivery-routes/{route_id}", headers=admin)
     assert deleted.status_code == 409
     assert client.get(f"/locations?route_id={route_id}", headers=admin).json()[0]["id"] == location.json()["id"]
+    rejected = client.post("/locations", json={"name":"No debe entrar","address":"Carrera 45A #32 Sur-04","latitude":6.2,"longitude":-75.5,"entrance_name":"Acceso","entrance_confirmed":True,"route_id":route_id}, headers=admin)
+    assert rejected.status_code == 409
