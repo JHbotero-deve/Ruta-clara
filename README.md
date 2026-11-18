@@ -208,6 +208,14 @@ Este proyecto está distribuido bajo la licencia MIT.
 
 Esta sección conserva las decisiones funcionales del producto para retomar el trabajo sin perder contexto.
 
+### Persistencia en Railway
+
+- La base SQLite en Railway debe estar dentro de un volumen persistente montado en `/app/data`.
+- Configura `DATABASE_URL=sqlite:////app/data/app.db`; si `DATABASE_URL` no está definida, la aplicación usará esa ruta automáticamente cuando Railway informe `RAILWAY_VOLUME_MOUNT_PATH`.
+- La aplicación registra una alerta crítica si detecta SQLite en almacenamiento efímero o fuera del volumen.
+- Antes de adjuntar el volumen en producción, exporta y respalda la base SQLite actual. Un volumen nuevo montado en `/app/data` oculta el contenido de esa ruta dentro de la imagen y no migra automáticamente el archivo existente.
+- Después de adjuntar el volumen, verifica permisos de escritura, reinicio y un nuevo despliegue antes de considerar la persistencia validada.
+
 ### Sesión persistente
 
 - Después de iniciar sesión, la sesión permanece guardada en el dispositivo aunque se cierre la pestaña, el navegador, la PWA o se reinicie el celular.
