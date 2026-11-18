@@ -645,8 +645,25 @@ def ocr_delivery_label_endpoint(payload: dict, current_user: User = Depends(get_
         if image.width * image.height > 20_000_000:
             raise HTTPException(status_code=413, detail="La imagen supera el límite de 20 megapíxeles.")
         image = ImageOps.exif_transpose(image).convert("L")
-        image = ImageEnhance.Contrast(image).enhance(1.7)
-        recognized_text = pytesseract.image_to_string(image, lang="spa+eng", config="--psm 6")
+        image = ImageOps.autocontrast(image)
+        image = ImageEnhance.Contrast(image).enhance(1.9)
+        image = ImageEnhance.Sharpness(image).enhance(2.0)
+        if max(image.size) < 2200:
+            scale = min(2.5, 2200 / max(image.size))
+            image = image.resize((int(image.width * scale), int(image.height * scale)))
+        recognized_text = ""
+        best_score = -1
+        for page_mode in (6, 11):
+            candidate_text = pytesseract.image_to_string(image, lang="spa+eng", config=f"--oem 3 --psm {page_mode}")
+            try:
+                parsed_candidate = parse_delivery_label_endpoint({"text": candidate_text})
+                score = 4 + bool(parsed_candidate["municipio"]) * 2 + bool(parsed_candidate["distrito"]) + bool("#" in parsed_candidate["direccion"])
+                if score > best_score:
+                    best_score = score
+                    recognized_text = candidate_text
+            except HTTPException:
+                if len(candidate_text.strip()) > len(recognized_text.strip()):
+                    recognized_text = candidate_text
     except HTTPException:
         raise
     except pytesseract.TesseractNotFoundError:
@@ -719,7 +736,20 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
         return match.group(1).strip(" \t-•") if match else ""
 
     destination_type = "Comercial" if re.search(r"\bCOMERCIAL\b", text, re.IGNORECASE) else "Residencial"
+    address_text = text
+    if re.search(r"\bFLEX\b", text, re.IGNORECASE):
+        flex_lines = text.splitlines()
+        destination_type_index = next((index for index, line in enumerate(flex_lines) if re.fullmatch(r"\s*(?:RESIDENCIAL|COMERCIAL)\s*", line, re.IGNORECASE)), None)
+        if destination_type_index is not None:
+            address_text = "\n".join(flex_lines[destination_type_index + 1:])
+    direccion_match = re.search(
+        r"^[ \t]*(?:d[i1l]recci[oó0]n\s*[:：-]\s*)?((?:calle|cl\.?|carrera|cra\.?|carr\.?|cerrera|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
+        address_text,
+        re.IGNORECASE | re.MULTILINE
+    )
     direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o|(?:del[ \t]+)?destinatario|destino))?|domicilio|address")
+    if not direccion and direccion_match:
+        direccion = direccion_match.group(1).strip()
     distrito = extract_field(r"distrito|barrio|sector|comuna")
     municipio = extract_field(r"municipio|ciudad|localidad")
     unidad = extract_field(r"unidad|conjunto|edificio|urbanizaci[oó]n|condominio|establecimiento")
@@ -740,8 +770,8 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
 
     if not direccion:
         address_line = re.search(
-            r"^[ \t]*((?:calle|cl\.?|carrera|cra\.?|carr\.?|cerrera|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
-            text,
+            r"(?:^|[\s:])((?:calle|cl\.?|carrera|cra\.?|carr\.?|cerrera|avenida|av\.?|diagonal|diag\.?|transversal|transv\.?|circular)\b[^\r\n]{3,})",
+            address_text,
             re.IGNORECASE | re.MULTILINE
         )
         direccion = address_line.group(1).strip() if address_line else ""
