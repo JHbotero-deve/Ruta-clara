@@ -990,7 +990,7 @@ def read_locations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    query = db.query(Location).outerjoin(DeliveryRoute, Location.route_id == DeliveryRoute.id).filter(or_(Location.route_id.is_(None), DeliveryRoute.is_active == True))
+    query = db.query(Location)
     if current_user.role == "driver":
         query = query.filter(Location.assigned_to_id == current_user.id)
     elif current_user.role == "operator":
@@ -1731,7 +1731,7 @@ def get_road_route(
     """Calcula recorrido vial desde el GPS del repartidor y ordena las paradas."""
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
-    query = db.query(Location)
+    query = db.query(Location).outerjoin(DeliveryRoute, Location.route_id == DeliveryRoute.id).filter(or_(Location.route_id.is_(None), DeliveryRoute.is_active == True))
     if current_user.role == "driver":
         query = query.filter(Location.assigned_to_id == current_user.id)
     elif current_user.role == "operator":
