@@ -385,12 +385,11 @@ def normalize_geocode_value(value: str) -> str:
 
 def address_number_tokens_match(query: str, candidate_address: str) -> bool:
     import re
-    def normalize_number(token: str) -> str:
-        suffix = token[-1] if token[-1].isalpha() else ""
-        number = token[:-1] if suffix else token
-        return f"{int(number)}{suffix}"
-    expected = [normalize_number(token) for token in re.findall(r"\d+[a-z]?", normalize_geocode_value(query))]
-    actual = [normalize_number(token) for token in re.findall(r"\d+[a-z]?", normalize_geocode_value(candidate_address))]
+    def tokens(value: str) -> list:
+        normalized = normalize_geocode_value(value)
+        return [f"{int(number)}{(suffix or '').lower()}" for number, suffix in re.findall(r"(?<![a-z0-9])(\d+)\s*([a-z])?(?![a-z0-9])", normalized)]
+    expected = tokens(query)
+    actual = tokens(candidate_address)
     return bool(expected) and all(token in actual for token in expected)
 
 
