@@ -783,10 +783,15 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     direccion = re.sub(r"\b(?:cra|cr|carrera)\.?\s*(?=\d)", "Carrera ", direccion, flags=re.IGNORECASE)
     direccion = re.sub(r"\b(?:cll|cl|calle)\.?\s*(?=\d)", "Calle ", direccion, flags=re.IGNORECASE)
     unit_match = re.search(r"\b(apartamento|apartemento|apto\.?|apt\.?|piso|oficina|ofc\.?|torre|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+", direccion, re.IGNORECASE)
+    if not referencia:
+        reference_match = re.search(r"\b(apartamento|apartemento|apto\.?|apt\.?|piso|oficina|ofc\.?|torre|interior|int\.?|local|bloque|blq\.?)\s*[\w-]+", text, re.IGNORECASE)
+        referencia = reference_match.group(0).strip() if reference_match else ""
     if unit_match and not referencia:
         referencia = unit_match.group(0).strip()
     if unit_match:
         direccion = direccion[:unit_match.start()] + direccion[unit_match.end():]
+    if municipio:
+        direccion = re.sub(rf",?\s*{re.escape(municipio)}(?:,\s*Antioquia)?$", "", direccion, flags=re.IGNORECASE)
     direccion = re.sub(r"\bS?/?N\b", "", direccion, flags=re.IGNORECASE)
     direccion = direccion.strip(" ,.-")
     compact = re.match(r"^(Carrera|Calle)\s*(\d+)([a-z]?)\s*(?:#\s*)?(\d{1,3})\s*-\s*(\d{1,3})$", direccion, re.IGNORECASE)
