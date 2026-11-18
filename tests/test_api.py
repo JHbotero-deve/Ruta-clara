@@ -109,6 +109,26 @@ def test_delivery_routes_crud():
     assert res_del.status_code == 204
 
 
+def test_location_creation_does_not_require_manual_entrance_data():
+    headers = admin_headers()
+    response = client.post("/locations", json={
+        "name": "Unidad reconocida por OCR",
+        "latitude": 6.2,
+        "longitude": -75.5,
+        "address": "Carrera 43A #12-34",
+        "municipality": "Envigado",
+        "neighborhood": "San Marcos",
+        "unit_number": "Torre 2 Apto 402",
+        "location_source": "ocr_geocoded"
+    }, headers=headers)
+    assert response.status_code == 201, response.text
+    saved = response.json()
+    assert saved["name"] == "Unidad reconocida por OCR"
+    assert saved["unit_number"] == "Torre 2 Apto 402"
+    assert saved["entrance_name"] is None
+    assert saved["entrance_confirmed"] is False
+
+
 def test_locations_crud_and_optimal_route():
     headers = admin_headers()
     # Create locations
