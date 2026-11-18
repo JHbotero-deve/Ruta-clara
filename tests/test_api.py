@@ -628,3 +628,9 @@ def test_real_handwritten_fixture_extracts_unit_and_does_not_guess_city():
     assert parsed["referencia"].casefold() == "apt 608"
     assert parsed["municipio"] == ""
     assert not any(value in str(parsed) for value in ("DATO OMITIDO", "CELULAR", "TOTAL A CANCELAR"))
+
+def test_geocoder_matches_colombian_address_numbers_with_spaced_suffixes():
+    assert address_number_tokens_match("Carrera 51D #58-43", "Carrera 51 D # 58 - 43, Medellín")
+    assert address_number_tokens_match("Calle 34A #80B-20", "Calle 34 A # 80 B - 20, Medellín")
+    assert not address_number_tokens_match("Carrera 51D #58-43", "Carrera 51D #58-44, Medellín")
+    assert not address_number_tokens_match("Calle 34A #80B-20", "Calle 34A #80-20, Medellín")
