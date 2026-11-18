@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from database import get_db
 from src.models import Base
-from src.routes import GEOCODE_CACHE, address_number_tokens_match, clean_address_for_geocoding
+from src.routes import GEOCODE_CACHE, address_number_tokens_match, address_street_tokens_match, clean_address_for_geocoding
 from src.main import app
 
 from sqlalchemy.pool import StaticPool
@@ -246,6 +246,12 @@ def test_parser_ignores_qr_barcode_tracking_and_extracts_unit():
 def test_address_number_tokens_match_normalizes_leading_zeroes():
     assert address_number_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 SUR 4, Envigado")
     assert not address_number_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 SUR 40, Envigado")
+
+
+def test_geocoder_requires_matching_street_type_and_number():
+    assert address_street_tokens_match("Carrera 45A #32 Sur-04", "Carrera 45A 32 Sur 4, Envigado")
+    assert not address_street_tokens_match("Carrera 45A #32 Sur-04", "Calle 45A 32 Sur 4, Envigado")
+    assert not address_street_tokens_match("Calle 30 #10-25", "Calle 31 #10-25, Envigado")
 
 
 def test_geocode_five_distinct_addresses(monkeypatch):
@@ -596,3 +602,40 @@ def test_parser_does_not_use_sender_address_when_recipient_is_missing():
     label = "REMITENTE\nNombre: Empresa\nDirección: Calle 10 #20-30\nMunicipio: Bello"
     response = client.post("/parse-delivery-label", json={"text":label}, headers=headers)
     assert response.status_code == 422
+
+
+def test_route_archive_preserves_history_and_new_orders_use_active_route():
+    admin = admin_headers()
+    route = client.post("/delivery-routes", json={"name":"Ruta terminada"}, headers=admin)
+    assert route.status_code == 201
+    route_id = route.json()["id"]
+    location = client.post("/locations", json={"name":"Entrega completada","address":"Carrera 45A #32 Sur-04","latitude":6.2,"longitude":-75.5,"entrance_name":"Portería principal","entrance_confirmed":True,"route_id":route_id}, headers=admin)
+    assert location.status_code == 201, location.text
+    location_id = location.json()["id"]
+    delivered = client.patch(f"/locations/{location_id}/delivered", json={"delivered":True}, headers=admin)
+    assert delivered.status_code == 200
+    archived = client.put(f"/delivery-routes/{route_id}", json={"is_active":False}, headers=admin)
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["is_active"] is False
+    history = client.get(f"/locations/{location_id}/history", headers=admin)
+    assert history.status_code == 200
+    assert [event["new_status"] for event in history.json()] == ["delivered","pending"]
+    routes = client.get("/delivery-routes", headers=admin).json()
+    assert any(item["id"] == route_id and not item["is_active"] for item in routes)
+    new_location = client.post("/locations", json={"name":"Nuevo pedido","address":"Calle 10 #20-30","latitude":6.21,"longitude":-75.51,"entrance_name":"Acceso","entrance_confirmed":True}, headers=admin)
+    assert new_location.status_code == 201
+    assert new_location.json()["route_id"] != route_id
+    assert client.get(f"/optimal_route?route_id={route_id}", headers=admin).json() == []
+
+
+def test_route_cannot_archive_with_pending_orders_and_cannot_delete_nonempty_route():
+    admin = admin_headers()
+    route = client.post("/delivery-routes", json={"name":"Ruta con pendientes"}, headers=admin)
+    route_id = route.json()["id"]
+    location = client.post("/locations", json={"name":"Pedido pendiente","address":"Calle 10 #20-30","latitude":6.2,"longitude":-75.5,"entrance_name":"Acceso","entrance_confirmed":True,"route_id":route_id}, headers=admin)
+    assert location.status_code == 201
+    archived = client.put(f"/delivery-routes/{route_id}", json={"is_active":False}, headers=admin)
+    assert archived.status_code == 409
+    deleted = client.delete(f"/delivery-routes/{route_id}", headers=admin)
+    assert deleted.status_code == 409
+    assert client.get(f"/locations?route_id={route_id}", headers=admin).json()[0]["id"] == location.json()["id"]
