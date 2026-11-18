@@ -1832,7 +1832,15 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // CARGA DE PARADAS
         // ========================================================
         async function loadRouteData() {
-            if(!activeRouteId)return;
+            if(!activeRouteId){
+                const offline=JSON.parse(localStorage.getItem('rc_offline_locations')||'[]');
+                currentLocations=offline.filter(item=>(!item.offline_user_id||Number(item.offline_user_id)===Number(rutaUser?.id))&&!item.route_id&&!item.delivered&&item.status!=='delivered');
+                completedLocations=JSON.parse(localStorage.getItem('rc_offline_delivered')||'[]');
+                renderCompletedStops(completedLocations);
+                renderNavigationGuide(currentLocations);
+                updateStopsCountInSelector();
+                return;
+            }
             const routeKey=`rc_route_cache_${rutaUser?.id}_${activeRouteId}`,completedKey=`rc_completed_cache_${rutaUser?.id}_${activeRouteId}`;
             try{
                 const params=new URLSearchParams({route_id:activeRouteId});
@@ -2123,6 +2131,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                         showToast(error.detail || "El servidor rechazó el pedido. Revisa los datos e inténtalo de nuevo.", "⚠️");
                         return false;
                     }
+                    const savedLocation = await response.json().catch(() => null);
+                    if (savedLocation?.route_id) payload.route_id = savedLocation.route_id;
                     saved = true;
                     break;
                 } catch (error) {
@@ -2146,7 +2156,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
             playSuccessChime();
             triggerHaptic();
-            await loadRouteData();
+            if (!activeRouteId && payload.route_id) await loadDeliveryRoutes();
+            else await loadRouteData();
             return true;
         }
 
@@ -2197,7 +2208,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         function startBarcodeDetectionLoop(video) {
             if (barcodeScanInterval) clearInterval(barcodeScanInterval);
             barcodeScanInterval = setInterval(async () => {
-                if (!video || video.readyState < 2) return;
+                if (scannerProcessing || !video || video.readyState < 2) return;
                 try {
                     const barcodes = await barcodeDetector.detect(video);
                     if (barcodes && barcodes.length > 0) {
@@ -2214,30 +2225,26 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
         async function onBarcodeDetected(codeText) {
-            playBeep(1200, 0.2);
-            triggerHaptic();
-            if (navigator.vibrate) {
-                navigator.vibrate([150, 60, 150, 60, 200]);
-            }
-
-            const reticle = document.getElementById('scannerReticle');
-            reticle.classList.add('detected');
-            setTimeout(() => reticle.classList.remove('detected'), 800);
-
-            showToast(`Código detectado: ${codeText.substring(0, 25)}...`, '📦');
-
-            // Si contiene texto de guía, parsearlo automáticamente
-            if (codeText.toLowerCase().includes('direccion') || codeText.toLowerCase().includes('destinatario')) {
-                document.getElementById('rawLabelInput').value = codeText;
-                await processPastedLabel();
-            } else {
-                // Es un código de barras / tracking ID: ponerlo como referencia e invitar a ingresar la dirección
-                document.getElementById('guideReference').value = codeText;
-                const details = document.getElementById('manualFormDetails');
-                if (details) details.open = true;
-                document.getElementById('guideAddress').focus();
-                showToast(`Código ${codeText} asignado. Ingresa o dicta la dirección.`, '✍️');
-            }
+            if (scannerProcessing) return;
+            scannerProcessing = true;
+            try {
+                playBeep(1200, 0.2);
+                triggerHaptic();
+                const reticle = document.getElementById('scannerReticle');
+                reticle.classList.add('detected');
+                setTimeout(() => reticle.classList.remove('detected'), 800);
+                const looksLikeAddress = /\b(direcci[oó]n|destinatario|calle|carrera|cra\.?|cl\.?|diagonal|transversal)\b/i.test(codeText);
+                if (looksLikeAddress) {
+                    document.getElementById('rawLabelInput').value = codeText;
+                    await processPastedLabel();
+                } else {
+                    document.getElementById('guideReference').value = codeText;
+                    const details = document.getElementById('manualFormDetails');
+                    if (details) details.open = true;
+                    document.getElementById('guideAddress').focus();
+                    showToast('Código detectado. Completa la dirección; el código no se usa como domicilio.', '✍️');
+                }
+            } finally { scannerProcessing = false; }
         }
 
         function goToMapFromScanner() {
