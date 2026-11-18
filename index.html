@@ -1394,47 +1394,61 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 showLoginError("Administrador creado. Ahora inicia sesión.");
             } catch(error){showLoginError(error.message);}
         }
-        async function bootRutaClara() {
+        function activateRutaClaraSession(user,message=""){
+            rutaUser=user;
+            document.getElementById("loginGate").style.display="none";
+            document.getElementById("accountLabel").textContent=rutaUser.username+" · "+({admin:"Administrador",operator:"Operador",driver:"Repartidor"}[rutaUser.role]||"Usuario");
+            document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Supervisión del equipo":"Tus pedidos registrados";
+            document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
+            document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
+            document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
+            if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
+            if(typeof initMap==="function")initMap();
+            if(message)showLoginError(message);
+            showSection("dashboard");
+        }
+        function restoreCachedRutaClaraSession(message){
+            const cached=localStorage.getItem("ruta_clara_user");
+            if(!cached)return false;
+            try{
+                const user=JSON.parse(cached);
+                if(!user||!user.username||!["admin","operator","driver"].includes(user.role))throw new Error("Perfil local inválido");
+                activateRutaClaraSession(user,message);
+                return true;
+            }catch(error){
+                localStorage.removeItem("ruta_clara_user");
+                return false;
+            }
+        }
+        async function bootRutaClara(){
             const token=localStorage.getItem("ruta_clara_token");
             if(!token){document.getElementById("loginGate").style.display="flex";return;}
             let response;
             try{response=await rutaFetch("/users/me",{headers:{"Authorization":"Bearer "+token}});}
             catch(error){
-                const cached=localStorage.getItem("ruta_clara_user");
-                if(cached){
-                    try{
-                        rutaUser=JSON.parse(cached);document.getElementById("loginGate").style.display="none";
-                        document.getElementById("accountLabel").textContent=rutaUser.username+" · "+({admin:"Administrador",operator:"Operador",driver:"Repartidor"}[rutaUser.role]||"Usuario");
-                        document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Supervisión del equipo":"Tus pedidos registrados";
-                        document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
-                        document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
-                        document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
-                        if(typeof initMap==="function")initMap();showSection("dashboard");
-                        showLoginError("Modo sin conexión. Tu sesión está guardada; los datos se actualizarán al recuperar conexión.");return;
-                    }catch(cacheError){localStorage.removeItem("ruta_clara_user");}
-                }
+                if(restoreCachedRutaClaraSession("Modo sin conexión. Tu sesión está guardada; los datos se actualizarán al recuperar conexión."))return;
                 document.getElementById("loginGate").style.display="flex";
                 showLoginError("No hay conexión con el servidor. Tu sesión sigue guardada; se comprobará al recuperar conexión.");return;
             }
             if(response.status===401||response.status===403){
-                localStorage.removeItem("ruta_clara_token");rutaUser=null;document.getElementById("loginGate").style.display="flex";showLoginError("La sesión ya no es válida. Inicia sesión de nuevo.");return;
+                localStorage.removeItem("ruta_clara_token");localStorage.removeItem("ruta_clara_user");rutaUser=null;
+                document.getElementById("loginGate").style.display="flex";showLoginError("La sesión ya no es válida. Inicia sesión de nuevo.");return;
             }
-            if(!response.ok){showLoginError("No fue posible comprobar la sesión. Se conserva tu acceso; intenta de nuevo.");return;}
+            if(!response.ok){
+                if((response.status>=500||response.status===408||response.status===429)&&restoreCachedRutaClaraSession("Servidor temporalmente no disponible. Se conserva el acceso local hasta recuperar conexión."))return;
+                showLoginError("No fue posible comprobar la sesión. Se conserva tu acceso; intenta de nuevo.");return;
+            }
             try{
-                rutaUser=await response.json();localStorage.setItem("ruta_clara_user",JSON.stringify(rutaUser));document.getElementById("loginGate").style.display="none";
-                document.getElementById("accountLabel").textContent=rutaUser.username+" · "+({admin:"Administrador",operator:"Operador",driver:"Repartidor"}[rutaUser.role]||"Usuario");
-                document.getElementById("dashboardRole").textContent=rutaUser.role==="admin"?"Supervisión del equipo":"Tus pedidos registrados";
-                document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
-                document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
-                document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
-                if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
-                if(typeof initMap==="function")initMap();
+                const user=await response.json();
+                localStorage.setItem("ruta_clara_user",JSON.stringify(user));
+                activateRutaClaraSession(user);
                 try{await syncPendingOfflineLocations();await syncPendingDeliveryUpdates();await loadDashboard();}catch(error){showLoginError("Sesión activa. Algunas funciones requieren conexión y se actualizarán al recuperarla.");}
-                showSection("dashboard");
             }catch(error){showLoginError("La sesión está activa, pero no se pudo cargar el panel. Intenta actualizar la aplicación.");}
         }
         async function syncPendingLogoutRevocations(){
-            const pending=JSON.parse(localStorage.getItem("rc_pending_logout_tokens")||"[]"),remaining=[];
+            let pending=[];
+            try{pending=JSON.parse(localStorage.getItem("rc_pending_logout_tokens")||"[]");}catch(error){}
+            const remaining=[];
             for(const token of pending){
                 try{
                     const response=await rutaFetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}});
@@ -1451,7 +1465,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     const response=await rutaFetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}});
                     if(!response.ok&&response.status!==401)throw new Error("logout failed");
                 }catch(error){
-                    const pending=JSON.parse(localStorage.getItem("rc_pending_logout_tokens")||"[]");
+                    let pending=[];
+                    try{pending=JSON.parse(localStorage.getItem("rc_pending_logout_tokens")||"[]");}catch(parseError){}
                     if(!pending.includes(token))pending.push(token);
                     localStorage.setItem("rc_pending_logout_tokens",JSON.stringify(pending));
                 }
@@ -2772,10 +2787,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 badge.style.background = '#f59e0b';
             }
         }
-        window.addEventListener('online', updateConnectionStatus);
-
-        window.addEventListener('online', syncPendingLogoutRevocations);
-        window.addEventListener('online', () => { if(localStorage.getItem("ruta_clara_token"))bootRutaClara(); });
+        window.addEventListener('online', async () => {
+            updateConnectionStatus();
+            await syncPendingLogoutRevocations();
+            if(localStorage.getItem("ruta_clara_token"))await bootRutaClara();
+        });
         window.addEventListener('offline', updateConnectionStatus);
 
         let deferredPrompt;
