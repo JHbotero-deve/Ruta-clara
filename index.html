@@ -1142,7 +1142,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideReference" placeholder="Ej. Vizcaya real 2. 419 / Apto 200" required enterkeyhint="next">
+                            <input type="text" id="guideReference" placeholder="Se completa desde la guía o puedes agregar una referencia" enterkeyhint="next">
                         </div>
 
                         <!-- Nombre del Cliente -->
@@ -1153,7 +1153,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                                     🎤 Dictar
                                 </button>
                             </label>
-                            <input type="text" id="guideRecipient" placeholder="Ej. Unidad Vizcaya Real 2 o Casa" required enterkeyhint="send">
+                            <input type="text" id="guideRecipient" placeholder="Se completa automáticamente si la guía identifica la unidad" enterkeyhint="send">
                         </div>
 
                         <button type="submit" class="btn btn-success">➕ Guardar Parada en esta Ruta</button>
@@ -1965,30 +1965,40 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         async function processParsedGuide(parsed) {
             if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
-            document.getElementById('guideAddress').value = parsed.direccion;
+            const addressField = document.getElementById('guideAddress');
             const municipalityField = document.getElementById('guideMunicipality');
             const districtField = document.getElementById('guideDistrict');
-            if (municipalityField) municipalityField.value = parsed.municipio || '';
-            if (districtField) districtField.value = parsed.distrito || '';
-            document.getElementById('guideReference').value = parsed.referencia || '';
-            selectDestinationType(parsed.tipo || 'Residencial');
-            if (!parsed.municipio) throw new Error('La guía no indica el municipio. Completa el campo Municipio antes de registrar la parada.');
-            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
-            showToast(`Buscando: ${parsed.direccion}, ${parsed.municipio}...`, '📍');
+            const referenceField = document.getElementById('guideReference');
+            const recipientField = document.getElementById('guideRecipient');
+            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Valle de Aburrá', 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
+            showToast(`Buscando ubicación: ${parsed.direccion}...`, '📍');
             const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
             const geoData = geoRes.ok ? await geoRes.json() : [];
-            if (!geoData || !geoData.length) throw new Error('No se encontró una dirección válida en el municipio indicado. Revisa dirección, barrio y municipio.');
-            const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
-            await saveLocationAutomatically({
-                name: parsed.direccion,
+            const match = Array.isArray(geoData) ? geoData.find(item => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) : null;
+            if (!match) throw new Error('No se encontró una ubicación confiable para esta dirección. Verifica que la guía muestre la dirección completa.');
+            const municipality = parsed.municipio || match.municipality || '';
+            if (!municipality) throw new Error('No se pudo identificar el municipio de la dirección. No se guardó la parada.');
+            const lat = Number(match.latitude), lng = Number(match.longitude);
+            addressField.value = parsed.direccion;
+            if (municipalityField) municipalityField.value = municipality;
+            if (districtField) districtField.value = parsed.distrito || match.neighborhood || '';
+            if (referenceField) referenceField.value = parsed.referencia || '';
+            if (recipientField) recipientField.value = parsed.unidad || '';
+            selectDestinationType(parsed.tipo || 'Residencial');
+            if (map) map.setView([lat, lng], 17);
+            const saved = await saveLocationAutomatically({
+                name: parsed.unidad || parsed.direccion,
                 address: parsed.direccion,
                 latitude: lat,
                 longitude: lng,
-                neighborhood: parsed.distrito,
-                unit_number: parsed.referencia || 'Principal / Directa',
-                municipality: parsed.municipio,
-                route_id: activeRouteId
+                neighborhood: parsed.distrito || match.neighborhood || null,
+                unit_number: parsed.referencia || null,
+                municipality,
+                route_id: activeRouteId,
+                location_source: 'ocr_geocoded'
             });
+            if (!saved) throw new Error('La ubicación fue encontrada, pero no se pudo guardar la parada. Revisa la conexión e inténtalo de nuevo.');
+            return true;
         }
 
         async function handleGuideFormSubmit(e) {
