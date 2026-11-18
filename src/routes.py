@@ -1808,7 +1808,7 @@ def get_optimal_route(
 ):
     if (start_lat is None) != (start_lon is None):
         raise HTTPException(status_code=400, detail="Debes enviar latitud y longitud GPS.")
-    query = db.query(Location)
+    query = db.query(Location).outerjoin(DeliveryRoute, Location.route_id == DeliveryRoute.id).filter(or_(Location.route_id.is_(None), DeliveryRoute.is_active == True))
     if current_user.role == "driver":
         query = query.filter(Location.assigned_to_id == current_user.id)
     elif current_user.role == "operator":
