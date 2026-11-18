@@ -1970,7 +1970,17 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const districtField = document.getElementById('guideDistrict');
             const referenceField = document.getElementById('guideReference');
             const recipientField = document.getElementById('guideRecipient');
-            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Valle de Aburrá', 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
+            addressField.value = parsed.direccion;
+            if (municipalityField) municipalityField.value = parsed.municipio || '';
+            if (districtField) districtField.value = parsed.distrito || '';
+            if (referenceField) referenceField.value = parsed.referencia || '';
+            if (recipientField) recipientField.value = parsed.unidad || '';
+            selectDestinationType(parsed.tipo || 'Residencial');
+            if (!parsed.municipio) {
+                showToast('Dirección reconocida. Falta confirmar el municipio.', '⚠️');
+                throw new Error('La dirección fue leída, pero la guía no indica el municipio. Completa el municipio y guarda la parada para evitar ubicarla en otra ciudad.');
+            }
+            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
             showToast(`Buscando ubicación: ${parsed.direccion}...`, '📍');
             const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
             const geoData = geoRes.ok ? await geoRes.json() : [];
@@ -1979,12 +1989,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const municipality = parsed.municipio || match.municipality || '';
             if (!municipality) throw new Error('No se pudo identificar el municipio de la dirección. No se guardó la parada.');
             const lat = Number(match.latitude), lng = Number(match.longitude);
-            addressField.value = parsed.direccion;
             if (municipalityField) municipalityField.value = municipality;
             if (districtField) districtField.value = parsed.distrito || match.neighborhood || '';
-            if (referenceField) referenceField.value = parsed.referencia || '';
-            if (recipientField) recipientField.value = parsed.unidad || '';
-            selectDestinationType(parsed.tipo || 'Residencial');
             if (map) map.setView([lat, lng], 17);
             const saved = await saveLocationAutomatically({
                 name: parsed.unidad || parsed.direccion,
