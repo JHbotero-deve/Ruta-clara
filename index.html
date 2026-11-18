@@ -1664,41 +1664,67 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // ========================================================
         async function loadDeliveryRoutes() {
             try {
-                const res = await fetch('/delivery-routes');
-                if (res.ok) {
-                    availableRoutes = await res.json();
-                } else {
-                    availableRoutes = [{ id: 1, name: 'Ruta Principal 1', stops_count: 0 }];
-                }
-            } catch (e) {
-                availableRoutes = JSON.parse(localStorage.getItem('rc_routes') || '[{"id":1,"name":"Ruta Principal 1","stops_count":0}]');
+                const response = await fetch('/delivery-routes');
+                if (!response.ok) throw new Error('No se pudieron cargar las rutas.');
+                availableRoutes = await response.json();
+                localStorage.setItem('rc_routes', JSON.stringify(availableRoutes));
+            } catch (error) {
+                availableRoutes = JSON.parse(localStorage.getItem('rc_routes') || '[{"id":1,"name":"Ruta Principal 1","stops_count":0,"is_active":true}]');
             }
-
+            const activeRoutes = availableRoutes.filter(route => route.is_active !== false);
+            const savedRouteId = Number(localStorage.getItem('rc_active_route_id'));
+            const matched = activeRoutes.find(route => Number(route.id) === savedRouteId);
+            activeRouteId = matched ? matched.id : (activeRoutes[0]?.id ?? null);
+            activeRouteName = activeRoutes.find(route => Number(route.id) === Number(activeRouteId))?.name || 'Sin ruta activa';
+            if (activeRouteId) localStorage.setItem('rc_active_route_id', activeRouteId);
+            else localStorage.removeItem('rc_active_route_id');
             renderRouteSelector();
-
-            const savedRouteId = parseInt(localStorage.getItem('rc_active_route_id'));
-            const matched = availableRoutes.find(r => r.id === savedRouteId);
-            if (matched) {
-                activeRouteId = matched.id;
-                activeRouteName = matched.name;
-            } else if (availableRoutes.length > 0) {
-                activeRouteId = availableRoutes[0].id;
-                activeRouteName = availableRoutes[0].name;
-            }
-
-            document.getElementById('routeSelect').value = activeRouteId;
+            renderArchivedRoutes();
             updateRouteBadges();
-            loadRouteData();
+            await loadRouteData();
         }
 
         function renderRouteSelector() {
             const select = document.getElementById('routeSelect');
             select.innerHTML = '';
-            availableRoutes.forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r.id;
-                opt.textContent = `🚚 ${r.name} (${r.stops_count || 0} paradas)`;
-                select.appendChild(opt);
+            const activeRoutes = availableRoutes.filter(route => route.is_active !== false);
+            if (!activeRoutes.length) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'Sin rutas activas';
+                select.appendChild(option);
+                return;
+            }
+            activeRoutes.forEach(route => {
+                const option = document.createElement('option');
+                option.value = route.id;
+                option.textContent = '🚚 ' + route.name + ' (' + (route.stops_count || 0) + ' paradas)';
+                select.appendChild(option);
+            });
+            select.value = activeRouteId;
+        }
+
+        function renderArchivedRoutes() {
+            const panel = document.getElementById('archivedRoutesPanel');
+            const list = document.getElementById('archivedRoutesList');
+            const archived = availableRoutes.filter(route => route.is_active === false);
+            panel.style.display = archived.length ? 'block' : 'none';
+            list.innerHTML = '';
+            archived.forEach(route => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:#fff;border:1px solid #e2e8f0;border-radius:7px;';
+                const label = document.createElement('span');
+                label.textContent = route.name + ' · ' + (route.stops_count || 0) + ' pedidos conservados';
+                row.appendChild(label);
+                if (rutaUser?.role === 'admin') {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = 'Reabrir';
+                    button.style.cssText = 'border:0;border-radius:6px;padding:6px 9px;background:#2563eb;color:#fff;font-weight:700;';
+                    button.onclick = () => reopenArchivedRoute(route.id);
+                    row.appendChild(button);
+                }
+                list.appendChild(row);
             });
         }
 
@@ -1762,34 +1788,44 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         }
 
         async function promptRouteOptions() {
-            const action = prompt(`Opciones para "${activeRouteName}":\n\n1: Renombrar ruta\n2: Vaciar paradas de esta ruta\n3: Eliminar ruta completa\n\nEscribe 1, 2 o 3:`);
+            if (!activeRouteId || rutaUser?.role !== 'admin') return;
+            const action = prompt('Opciones para "' + activeRouteName + '":\n\n1: Renombrar ruta\n2: Cerrar y archivar ruta\n\nEscribe 1 o 2:');
             if (action === '1') {
                 const newName = prompt('Nuevo nombre:', activeRouteName);
-                if (newName && newName.trim()) {
-                    try {
-                        await fetch(`/delivery-routes/${activeRouteId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name: newName.trim() })
-                        });
-                    } catch (e) {}
-                    activeRouteName = newName.trim();
-                    const r = availableRoutes.find(x => x.id === activeRouteId);
-                    if (r) r.name = activeRouteName;
-                    renderRouteSelector();
-                    document.getElementById('routeSelect').value = activeRouteId;
-                    updateRouteBadges();
-                }
-            } else if (action === '2') {
-                clearCurrentRouteLocations();
-            } else if (action === '3') {
-                if (confirm(`¿Eliminar la ruta "${activeRouteName}" definitivamente?`)) {
-                    try {
-                        await fetch(`/delivery-routes/${activeRouteId}`, { method: 'DELETE' });
-                    } catch (e) {}
-                    await loadDeliveryRoutes();
-                }
-            }
+                if (!newName?.trim()) return;
+                const response = await fetch('/delivery-routes/' + activeRouteId, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newName.trim()})});
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) { alert(result.detail || 'No se pudo renombrar la ruta.'); return; }
+                const route = availableRoutes.find(item => item.id === activeRouteId);
+                if (route) route.name = newName.trim();
+                activeRouteName = newName.trim();
+                renderRouteSelector();
+                renderArchivedRoutes();
+                updateRouteBadges();
+            } else if (action === '2') await closeActiveRoute();
+        }
+
+        async function closeActiveRoute() {
+            if (!activeRouteId || rutaUser?.role !== 'admin') return;
+            if (!confirm('¿Cerrar y archivar "' + activeRouteName + '"? Los pedidos e historial se conservarán y no volverán a la navegación.')) return;
+            try {
+                const response = await fetch('/delivery-routes/' + activeRouteId, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:false})});
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.detail || 'No se pudo archivar la ruta.');
+                await loadDeliveryRoutes();
+                showToast('Ruta cerrada y archivada. Los pedidos quedaron conservados.', '✓');
+            } catch(error) { alert(error.message); }
+        }
+
+        async function reopenArchivedRoute(routeId) {
+            if (rutaUser?.role !== 'admin') return;
+            try {
+                const response = await fetch('/delivery-routes/' + routeId, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:true})});
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.detail || 'No se pudo reabrir la ruta.');
+                await loadDeliveryRoutes();
+                showToast('Ruta reabierta.', '✓');
+            } catch(error) { alert(error.message); }
         }
 
         // ========================================================
@@ -2696,18 +2732,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
 
-        async function clearCurrentRouteLocations() {
-            if (!confirm(`¿Vaciar todas las paradas de "${activeRouteName}"?`)) return;
-            try {
-                await fetch(`/locations?route_id=${activeRouteId}`, { method: 'DELETE' });
-                currentLocations = [];
-                renderNavigationGuide(currentLocations);
-                updateStopsCountInSelector();
-                showToast('Ruta vaciada', '🗑️');
-            } catch (e) {
-                alert('Error al vaciar ruta');
-            }
-        }
+        async function clearCurrentRouteLocations() { return closeActiveRoute(); }
 
 
         async function downloadReportFile(url){
