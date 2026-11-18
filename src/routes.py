@@ -394,6 +394,16 @@ def address_number_tokens_match(query: str, candidate_address: str) -> bool:
     return bool(expected) and all(token in actual for token in expected)
 
 
+def address_street_tokens_match(query: str, candidate_address: str) -> bool:
+    import re
+    pattern = r"\b(calle|carrera|diagonal|transversal|circular|avenida)\s+(\d+[a-z]?)\b"
+    expected = re.search(pattern, normalize_geocode_value(clean_address_for_geocoding(query)))
+    if not expected:
+        return True
+    actual = re.search(pattern, normalize_geocode_value(clean_address_for_geocoding(candidate_address)))
+    return bool(actual and expected.groups() == actual.groups())
+
+
 def clean_address_for_geocoding(raw_text: str) -> str:
     """Normaliza abreviaturas colombianas y conserva la nomenclatura (# y guion)."""
     import re
@@ -446,7 +456,7 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
 
             for candidate in data.get("candidates", []):
                 score = candidate.get("score", 0)
-                if score < 70:
+                if score < 85:
                     continue
                 point = candidate.get("location", {})
                 attrs = candidate.get("attributes", {})
@@ -466,7 +476,7 @@ def query_arcgis_geocoder(search_text: str, requested_muni: Optional[str] = None
                 if re.search(r"\d", search_text):
                     if address_type.casefold() not in {"pointaddress", "subaddress"}:
                         continue
-                    if not address_number_tokens_match(search_text, display_name):
+                    if not address_number_tokens_match(search_text, display_name) or not address_street_tokens_match(search_text, display_name):
                         continue
 
                 results.append({
@@ -555,7 +565,7 @@ def search_address(query: str = Query(..., min_length=3)):
                     if re.search(r"\d", cleaned_q):
                         if item_type in {"city", "town", "suburb", "neighbourhood", "administrative", "road", "residential"}:
                             continue
-                        if not address_number_tokens_match(cleaned_q, display_name):
+                        if not address_number_tokens_match(cleaned_q, display_name) or not address_street_tokens_match(cleaned_q, display_name):
                             continue
                     results.append({
                         "display_name": display_name,
@@ -825,14 +835,13 @@ def log_location_to_file(
 # ============================================================
 
 def get_or_create_default_route(db: Session) -> DeliveryRoute:
-    route = db.query(DeliveryRoute).filter(DeliveryRoute.is_active == True).first()
-    if not route:
-        route = db.query(DeliveryRoute).first()
-    if not route:
-        route = DeliveryRoute(name="Ruta Principal 1", is_active=True)
-        db.add(route)
-        db.commit()
-        db.refresh(route)
+    route = db.query(DeliveryRoute).filter(DeliveryRoute.is_active == True).order_by(DeliveryRoute.created_at.desc()).first()
+    if route:
+        return route
+    route = DeliveryRoute(name="Ruta Principal 1", is_active=True)
+    db.add(route)
+    db.commit()
+    db.refresh(route)
     return route
 
 
@@ -900,10 +909,16 @@ def update_delivery_route(
 
     if route_update.name is not None:
         route.name = route_update.name.strip()
+    if route_update.is_active is False and route.is_active:
+        pending = db.query(Location).filter(Location.route_id == route.id, Location.delivered == False, Location.status.in_(["pending", "assigned", "in_transit"])).count()
+        if pending:
+            raise HTTPException(status_code=409, detail=f"No se puede archivar la ruta: quedan {pending} pedido(s) pendientes. Entrégalos o reasígnalos primero.")
     if route_update.is_active is not None:
         route.is_active = route_update.is_active
 
     db.commit()
+    if route_update.is_active is False:
+        get_or_create_default_route(db)
     db.refresh(route)
     stops_count = db.query(Location).filter(Location.route_id == route.id).count()
     return DeliveryRouteResponse(
@@ -925,19 +940,15 @@ def delete_delivery_route(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin_user)
 ):
-    """Elimina una ruta completa y todas sus paradas asociadas."""
+    """Solo elimina rutas vacías; las rutas con pedidos se conservan mediante archivo."""
     route = db.query(DeliveryRoute).filter(DeliveryRoute.id == route_id).first()
     if not route:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
-
+    if db.query(Location).filter(Location.route_id == route.id).count():
+        raise HTTPException(status_code=409, detail="La ruta contiene pedidos y no se puede eliminar. Ciérrala y archívala para conservar el historial.")
     db.delete(route)
     db.commit()
-
-    # Si no quedan rutas, crear una por defecto
-    remaining = db.query(DeliveryRoute).count()
-    if remaining == 0:
-        get_or_create_default_route(db)
-
+    get_or_create_default_route(db)
     return None
 
 
@@ -979,7 +990,7 @@ def read_locations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    query = db.query(Location)
+    query = db.query(Location).outerjoin(DeliveryRoute, Location.route_id == DeliveryRoute.id).filter(or_(Location.route_id.is_(None), DeliveryRoute.is_active == True))
     if current_user.role == "driver":
         query = query.filter(Location.assigned_to_id == current_user.id)
     elif current_user.role == "operator":
@@ -1016,17 +1027,15 @@ def create_location(
     if not (-180 <= location.longitude <= 180):
         raise HTTPException(status_code=400, detail="Longitud inválida")
 
-    # Si no se especifica ruta, asignar a la ruta activa o por defecto
     target_route_id = location.route_id
     if target_route_id is None:
-        default_route = get_or_create_default_route(db)
-        target_route_id = default_route.id
+        target_route_id = get_or_create_default_route(db).id
     else:
-        # Validar que exista la ruta
         route_exists = db.query(DeliveryRoute).filter(DeliveryRoute.id == target_route_id).first()
         if not route_exists:
-            default_route = get_or_create_default_route(db)
-            target_route_id = default_route.id
+            raise HTTPException(status_code=404, detail="La ruta seleccionada ya no existe. Actualiza la lista de rutas.")
+        if not route_exists.is_active:
+            raise HTTPException(status_code=409, detail="La ruta está archivada. Selecciona una ruta activa para registrar el pedido.")
 
     db_location = Location(
         name=location.name,
@@ -1163,9 +1172,14 @@ def delete_location(
     if current_user.role != "admin" and (current_user.role != "operator" or location.created_by_id != current_user.id):
         raise HTTPException(status_code=403, detail="Solo el administrador o el operador que registró el pedido pueden eliminarlo.")
 
-    db.delete(location)
+    if location.status in {"delivered", "cancelled"} or location.delivered:
+        raise HTTPException(status_code=409, detail="El pedido ya está finalizado y se conserva en el historial.")
+    old_status = location.status
+    location.status = "cancelled"
+    location.delivered = False
+    location.status_updated_by_id = current_user.id
+    db.add(LocationStatusHistory(location_id=location.id, old_status=old_status, new_status="cancelled", changed_by_id=current_user.id))
     db.commit()
-
     return None
 
 
@@ -1179,13 +1193,18 @@ def clear_all_locations(
     current_user: User = Depends(get_current_active_user)
 ):
     if current_user.role == "driver":
-        raise HTTPException(status_code=403, detail="El repartidor no puede eliminar pedidos en bloque.")
-    query = db.query(Location)
+        raise HTTPException(status_code=403, detail="El repartidor no puede cerrar pedidos en bloque.")
+    query = db.query(Location).filter(Location.status.in_(["pending", "assigned", "in_transit"]), Location.delivered == False)
     if current_user.role == "operator":
         query = query.filter(Location.created_by_id == current_user.id)
     if route_id is not None:
         query = query.filter(Location.route_id == route_id)
-    query.delete(synchronize_session=False)
+    for location in query.all():
+        old_status = location.status
+        location.status = "cancelled"
+        location.delivered = False
+        location.status_updated_by_id = current_user.id
+        db.add(LocationStatusHistory(location_id=location.id, old_status=old_status, new_status="cancelled", changed_by_id=current_user.id))
     db.commit()
     return None
 
