@@ -2740,7 +2740,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 currentLocations = currentLocations.filter(l => l.id !== id);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
-                showToast('Parada eliminada', '🗑️');
+                showToast('Parada retirada de la ruta y conservada como cancelada en el historial.', '✓');
             } catch (err) {
                 alert('Error al eliminar');
             }
