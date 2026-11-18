@@ -1807,6 +1807,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         async function closeActiveRoute() {
             if (!activeRouteId || rutaUser?.role !== 'admin') return;
+            let offlinePending = [];
+            try { offlinePending = JSON.parse(localStorage.getItem('rc_offline_locations') || '[]').filter(item => String(item.route_id) === String(activeRouteId)); } catch(error) { alert('No se pudo comprobar la cola offline. Actualiza la conexión antes de cerrar la ruta.'); return; }
+            if (offlinePending.length) { alert('No se puede archivar: hay ' + offlinePending.length + ' pedido(s) guardados sin conexión que todavía no se han sincronizado.'); return; }
             if (!confirm('¿Cerrar y archivar "' + activeRouteName + '"? Los pedidos e historial se conservarán y no volverán a la navegación.')) return;
             try {
                 const response = await fetch('/delivery-routes/' + activeRouteId, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:false})});
