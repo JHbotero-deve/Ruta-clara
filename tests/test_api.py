@@ -160,9 +160,10 @@ def test_locations_crud_and_optimal_route():
     assert len(r_opt.json()) == 1
     assert r_opt.json()[0]["name"] == "Parque Poblado"
 
-    # Delete location
+    # Delivered orders remain in history and cannot be physically deleted
     r_del = client.delete(f"/locations/{loc1_id}", headers=headers)
-    assert r_del.status_code == 204
+    assert r_del.status_code == 409
+    assert client.get(f"/locations/{loc1_id}/history", headers=headers).status_code == 200
 
 
 def test_parse_delivery_label():
