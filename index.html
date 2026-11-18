@@ -2463,7 +2463,12 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             if (navigator.geolocation && !watchPositionId) {
                 watchPositionId = navigator.geolocation.watchPosition(
                     onUserPositionUpdate,
-                    err => console.warn(err),
+                    err => {
+                        const status = document.getElementById('routeStatus');
+                        const message = err.code === 1 ? 'Permite la ubicación del celular para mantener actualizado tu punto GPS.' : err.code === 3 ? 'El GPS tardó demasiado en actualizar. Activa la ubicación y vuelve a intentarlo.' : 'No se pudo actualizar tu ubicación GPS. Verifica los permisos del navegador.';
+                        if (status) status.innerText = message;
+                        console.warn('Error actualizando GPS:', err);
+                    },
                     { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
                 );
             }
