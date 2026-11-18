@@ -1405,7 +1405,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             document.getElementById("dashboardHeading").textContent=rutaUser.role==="admin"?"Supervisión de domiciliarios":"Mis pedidos";
             document.getElementById("menuUsersButton").style.display=rutaUser.role==="admin"?"block":"none";
             document.querySelectorAll(".route-bar .btn-route-action").forEach(button=>{if(rutaUser.role!=="admin")button.style.display="none";});
-            if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="clearCurrentRouteLocations()"]').forEach(button=>button.style.display="none");
+            if(rutaUser.role!=="admin")document.querySelectorAll('button[onclick="downloadWeeklyHistory()"],button[onclick="closeActiveRoute()"]').forEach(button=>button.style.display="none");
             if(typeof initMap==="function")initMap();
             if(message)showLoginError(message);
             showSection("dashboard");
@@ -1958,7 +1958,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'No se pudo leer la guía.');
                 await processParsedGuide(data);
-                showToast('Guía leída y parada registrada.', '✅');
             } catch (err) {
                 console.error('Error OCR:', err);
                 alert(err.message || 'No se pudo leer la guía. Acerca la cámara, enfoca y vuelve a capturar.');
@@ -2005,7 +2004,6 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.detail || 'No se pudo procesar la guía.');
                 await processParsedGuide(result);
-                showToast('Guía cargada y parada guardada.', '✅');
             } catch (error) {
                 console.error('Error cargando guía:', error);
                 alert(error.message || 'No se pudo cargar la guía. Verifica la imagen e inténtalo de nuevo.');
@@ -2166,6 +2164,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // ========================================================
         async function startProScanner() {
             const overlay = document.getElementById('proScannerOverlay');
+            lastScannedCode = null;
+            scannerProcessing = false;
             if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('La cámara requiere abrir Ruta Clara mediante HTTPS en un navegador compatible.');
                 return;
@@ -2214,7 +2214,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     if (barcodes && barcodes.length > 0) {
                         const raw = barcodes[0].rawValue;
                         const now = Date.now();
-                        if (raw && (raw !== lastScannedCode || (now - lastScanTimestamp) > 3000)) {
+                        if (raw && raw !== lastScannedCode) {
                             lastScannedCode = raw;
                             lastScanTimestamp = now;
                             onBarcodeDetected(raw);
