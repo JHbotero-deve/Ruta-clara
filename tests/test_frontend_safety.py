@@ -45,3 +45,14 @@ def test_scanner_does_not_geocode_or_save_without_detected_municipality():
     save = flow.index("saveLocationAutomatically")
     assert guard < geocode < save
     assert "Completa el municipio" in flow
+
+def test_scanner_requires_complete_colombian_street_number_before_geocoding():
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    start = index.index("async function processParsedGuide(parsed)")
+    end = index.index("async function handleGuideFormSubmit", start)
+    flow = index[start:end]
+    completeness = flow.index("const hasCompleteStreetNumber")
+    geocode = flow.index("fetch(`/geocode?query=")
+    save = flow.index("saveLocationAutomatically")
+    assert completeness < geocode < save
+    assert "No se guardó ninguna parada" in flow
