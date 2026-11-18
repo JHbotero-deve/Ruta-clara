@@ -1980,6 +1980,11 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 showToast('Dirección reconocida. Falta confirmar el municipio.', '⚠️');
                 throw new Error('La dirección fue leída, pero la guía no indica el municipio. Completa el municipio y guarda la parada para evitar ubicarla en otra ciudad.');
             }
+            const hasCompleteStreetNumber = /#\s*\d/.test(parsed.direccion) || /\d+\s*[-/]\s*\d+/.test(parsed.direccion);
+            if (!hasCompleteStreetNumber) {
+                showToast('La lectura de la dirección está incompleta. Corrígela antes de ubicarla.', '⚠️');
+                throw new Error(`El OCR leyó "${parsed.direccion}", pero no identificó la nomenclatura completa. Corrige la dirección en el formulario y vuelve a buscar la ubicación. No se guardó ninguna parada.`);
+            }
             const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
             showToast(`Buscando ubicación: ${parsed.direccion}...`, '📍');
             const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
