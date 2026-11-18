@@ -1012,15 +1012,15 @@
                 <option value="">Cargando rutas...</option>
             </select>
         </div>
-        <div style="display: flex; gap: 6px;">
-            <button class="btn-route-action" onclick="promptNewRoute()" title="Crear nueva ruta independiente">
-                Nueva ruta
-            </button>
-            <button class="btn-route-action btn-route-secondary" onclick="promptRouteOptions()" title="Opciones de ruta actual">
-                Opciones
-            </button>
+        <div id="routeManagementActions" style="display:flex; gap:6px;">
+            <button class="btn-route-action" onclick="promptNewRoute()" title="Crear nueva ruta independiente">Nueva ruta</button>
+            <button class="btn-route-action btn-route-secondary" onclick="promptRouteOptions()" title="Renombrar o archivar ruta">Opciones</button>
         </div>
     </div>
+    <details id="archivedRoutesPanel" style="display:none; padding:7px 14px; background:#f8fafc; border-bottom:1px solid #cbd5e1;">
+        <summary style="cursor:pointer; color:#475569; font-size:11px; font-weight:700;">Rutas archivadas</summary>
+        <div id="archivedRoutesList" style="display:grid; gap:6px; padding-top:8px;"></div>
+    </details>
 
     <!-- PESTAÑAS (ESCANER VS MAPA) -->
     <nav class="tab-navigation">
@@ -1136,13 +1136,16 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
                         <!-- Referencia / Indicaciones -->
                         <div class="form-group">
-                            <label for="guideReference" style="display:flex; justify-content:space-between; align-items:center;">
-                                <span>🏷️ Referencia / Apto / Indicación *</span>
-                                <button type="button" onclick="startVoiceDictation('guideReference')" style="background:#0284c7; color:white; border:none; border-radius:12px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:3px;">
-                                    🎤 Dictar
-                                </button>
+                            <label for="guideReference">Referencia / Apto / Indicación *</label>
+                            <input type="text" id="guideReference" placeholder="Ej. Torre 2 / Apto 200" required enterkeyhint="next">
+                        </div>
+                        <div class="form-group">
+                            <label for="guideEntrance">Portería o acceso *</label>
+                            <input type="text" id="guideEntrance" placeholder="Ej. Portería principal / Acceso directo" required>
+                            <label style="display:flex; align-items:center; gap:7px; margin-top:7px; text-transform:none;">
+                                <input type="checkbox" id="guideEntranceConfirmed" style="width:18px; min-height:18px;">
+                                Confirmo que esta es la entrada correcta
                             </label>
-                            <input type="text" id="guideReference" placeholder="Ej. Vizcaya real 2. 419 / Apto 200" required enterkeyhint="next">
                         </div>
 
                         <!-- Nombre del Cliente -->
@@ -1170,7 +1173,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                     </h2>
                     <div style="display:flex; gap:8px;">
                         <button onclick="loadRouteData()" style="background: none; border: none; color: var(--primary); font-size: 11px; font-weight: 700; cursor: pointer;">🔄 Actualizar</button>
-                        <button onclick="clearCurrentRouteLocations()" style="background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 700; cursor: pointer;">🗑️ Vaciar Ruta</button>
+                        <button onclick="closeActiveRoute()" style="background:none; border:none; color:#dc2626; font-size:11px; font-weight:700; cursor:pointer;">Cerrar y archivar</button>
                     </div>
                 </div>
 
@@ -1568,6 +1571,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         let mediaStream = null;
         let barcodeDetector = null;
         let barcodeScanInterval = null;
+        let scannerProcessing = false;
         let lastScannedCode = null;
         let lastScanTimestamp = 0;
 
@@ -1648,6 +1652,9 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             // Ningún toque, clic o gesto del mapa puede registrar o crear paradas.
 
             barcodeDetector = null;
+            if ("BarcodeDetector" in window) {
+                try { barcodeDetector = new BarcodeDetector({formats:["qr_code","code_128","code_39","ean_13","ean_8","upc_a","upc_e"]}); } catch(error) { barcodeDetector = null; }
+            }
 
             loadDeliveryRoutes();
         }
