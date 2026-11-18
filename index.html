@@ -2006,32 +2006,53 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             }
         }
 
+        function selectGeocodeCandidate(results, municipality) {
+            const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            const candidates = (results || []).filter(item => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude)) && normalize(item.municipality) === normalize(municipality));
+            if (!candidates.length) throw new Error('No hay una coincidencia exacta en el municipio indicado. No se guardó el pedido.');
+            let selected = candidates[0];
+            if (candidates.length > 1) {
+                const options = candidates.slice(0, 5).map((item, index) => (index + 1) + '. ' + item.display_name).join('\n');
+                const choice = prompt('Encontré varias ubicaciones. Selecciona la que coincide con la guía:\n\n' + options + '\n\nEscribe el número:', '1');
+                const index = Number(choice) - 1;
+                if (choice === null || !Number.isInteger(index) || index < 0 || index >= Math.min(candidates.length, 5)) throw new Error('Selección cancelada. El pedido no se guardó.');
+                selected = candidates[index];
+            }
+            if (!confirm('Verifica la dirección encontrada:\n\n' + selected.display_name + '\nMunicipio: ' + selected.municipality + '\n\n¿Confirmas que corresponde al domicilio de entrega?')) throw new Error('Ubicación no confirmada. El pedido no se guardó.');
+            return selected;
+        }
+
         async function processParsedGuide(parsed) {
             if (!parsed || !parsed.direccion) throw new Error('No se reconoció una dirección. Enfoca la etiqueta completa y vuelve a capturar.');
             document.getElementById('guideAddress').value = parsed.direccion;
             const municipalityField = document.getElementById('guideMunicipality');
             const districtField = document.getElementById('guideDistrict');
+            const entranceField = document.getElementById('guideEntrance');
+            const entranceConfirmed = document.getElementById('guideEntranceConfirmed');
             if (municipalityField) municipalityField.value = parsed.municipio || '';
             if (districtField) districtField.value = parsed.distrito || '';
             document.getElementById('guideReference').value = parsed.referencia || '';
             selectDestinationType(parsed.tipo || 'Residencial');
             if (!parsed.municipio) throw new Error('La guía no indica el municipio. Completa el campo Municipio antes de registrar la parada.');
+            let entrance = entranceField.value.trim();
+            if (!entrance || !entranceConfirmed.checked) {
+                entrance = prompt('Indica la portería o acceso correcto. Si es una casa directa, escribe "Acceso directo":');
+                if (!entrance || !entrance.trim()) throw new Error('Falta indicar la portería o acceso. La dirección quedó pendiente y no se guardó.');
+                if (!confirm('¿Confirmas la entrada: "' + entrance.trim() + '"?')) throw new Error('Entrada no confirmada. El pedido no se guardó.');
+                entranceField.value = entrance.trim();
+                entranceConfirmed.checked = true;
+            }
             const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
-            showToast(`Buscando: ${parsed.direccion}, ${parsed.municipio}...`, '📍');
-            const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-            const geoData = geoRes.ok ? await geoRes.json() : [];
-            if (!geoData || !geoData.length) throw new Error('No se encontró una dirección válida en el municipio indicado. Revisa dirección, barrio y municipio.');
-            const lat = Number(geoData[0].latitude), lng = Number(geoData[0].longitude);
-            await saveLocationAutomatically({
-                name: parsed.direccion,
-                address: parsed.direccion,
-                latitude: lat,
-                longitude: lng,
-                neighborhood: parsed.distrito,
-                unit_number: parsed.referencia || 'Principal / Directa',
-                municipality: parsed.municipio,
-                route_id: activeRouteId
-            });
+            showToast('Buscando: ' + parsed.direccion + ', ' + parsed.municipio + '...', '📍');
+            const geoRes = await fetch('/geocode?query=' + encodeURIComponent(searchGeo));
+            const geoData = await geoRes.json().catch(() => []);
+            if (!geoRes.ok) throw new Error(geoData.detail || 'No se encontró una dirección válida. Revisa nomenclatura y municipio.');
+            const candidate = selectGeocodeCandidate(geoData, parsed.municipio);
+            const saved = await saveLocationAutomatically({name:parsed.direccion,address:parsed.direccion,latitude:Number(candidate.latitude),longitude:Number(candidate.longitude),neighborhood:parsed.distrito,unit_number:parsed.referencia || 'Principal / Directa',entrance_name:entrance.trim(),entrance_confirmed:true,location_source:'ocr',municipality:parsed.municipio,route_id:activeRouteId});
+            if (!saved) throw new Error('El servidor no confirmó el registro. La parada no se marcó como guardada.');
+            showToast('Guía leída y parada registrada.', '✓');
+            goToMapFromScanner();
+            return true;
         }
 
         async function handleGuideFormSubmit(e) {
@@ -2042,44 +2063,30 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const dist = districtField ? districtField.value.trim() : '';
             const ref = document.getElementById('guideReference').value.trim() || 'Principal / Directa';
             const recip = document.getElementById('guideRecipient').value.trim();
-
+            const entrance = document.getElementById('guideEntrance').value.trim();
+            const entranceConfirmed = document.getElementById('guideEntranceConfirmed').checked;
             if (!addr) { alert('Ingresa la dirección.'); return; }
             if (!municipality) { alert('Ingresa el municipio para evitar ubicar la dirección en otra ciudad.'); return; }
-
+            if (!entrance || !entranceConfirmed) { alert('Indica la portería o acceso y confirma que corresponde al domicilio.'); return; }
             showToast('Geocodificando dirección...', '🔍');
             const searchGeo = [addr, dist, municipality, 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
-
             try {
-                const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-                const geoData = geoRes.ok ? await geoRes.json() : [];
-
-                if (geoData && geoData.length > 0) {
-                    const lat = Number(geoData[0].latitude);
-                    const lng = Number(geoData[0].longitude);
-
-                    await saveLocationAutomatically({
-                        name: recip || addr,
-                        address: addr,
-                        latitude: lat,
-                        longitude: lng,
-                        neighborhood: dist,
-                        unit_number: ref,
-                        municipality,
-                        route_id: activeRouteId
-                    });
-
-                    document.getElementById('guideAddress').value = '';
-                    document.getElementById('guideMunicipality').value = '';
-                    if (districtField) districtField.value = '';
-                    document.getElementById('guideReference').value = '';
-                    document.getElementById('guideRecipient').value = '';
-                    showToast('Parada guardada con éxito', '✅');
-                } else {
-                    alert('No se pudo ubicar la dirección. Revisa la nomenclatura y el distrito/barrio.');
-                }
-            } catch (e) {
-                alert('Error al contactar el servicio de mapas. Inténtalo de nuevo.');
-            }
+                const geoRes = await fetch('/geocode?query=' + encodeURIComponent(searchGeo));
+                const geoData = await geoRes.json().catch(() => []);
+                if (!geoRes.ok) throw new Error(geoData.detail || 'No se encontró la dirección.');
+                const candidate = selectGeocodeCandidate(geoData, municipality);
+                const saved = await saveLocationAutomatically({name:recip || addr,address:addr,latitude:Number(candidate.latitude),longitude:Number(candidate.longitude),neighborhood:dist,unit_number:ref,entrance_name:entrance,entrance_confirmed:true,location_source:'manual',municipality:municipality,route_id:activeRouteId});
+                if (!saved) throw new Error('El servidor no confirmó el registro.');
+                document.getElementById('guideAddress').value = '';
+                document.getElementById('guideMunicipality').value = '';
+                if (districtField) districtField.value = '';
+                document.getElementById('guideReference').value = '';
+                document.getElementById('guideRecipient').value = '';
+                document.getElementById('guideEntrance').value = '';
+                document.getElementById('guideEntranceConfirmed').checked = false;
+                showToast('Parada guardada y ruta actualizada.', '✓');
+                switchTab('map');
+            } catch (error) { alert(error.message || 'No se pudo registrar la parada.'); }
         }
 
         // ========================================================
