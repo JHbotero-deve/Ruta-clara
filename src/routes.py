@@ -750,7 +750,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     direccion = extract_field(r"d[i1l]recci[oó0]n(?:[ \t]+(?:exacta|principal|de[ \t]+entrega|de[ \t]+env[ií]o|(?:del[ \t]+)?destinatario|destino))?|domicilio|address")
     if not direccion and direccion_match:
         direccion = direccion_match.group(1).strip()
-    distrito = extract_field(r"distrito|barrio|sector|comuna")
+    distrito = extract_field(r"distrito|barrio|sector|comuna|rito")
     municipio = extract_field(r"municipio|ciudad|localidad")
     unidad = extract_field(r"unidad|conjunto|edificio|urbanizaci[oó]n|condominio|establecimiento")
     referencia = extract_field(r"referencia|indicaci[oó]n(?:es)?|apartamento|apto|torre|interior|local|bloque")
