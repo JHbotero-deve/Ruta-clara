@@ -348,11 +348,12 @@ def test_operator_scope_and_status_audit():
     assert len(client.get("/locations", headers=admin).json()) == 2
 
 
-def test_location_requires_confirmed_entrance():
+def test_location_can_be_created_without_manual_entrance_data():
     headers = admin_headers()
-    response = client.post("/locations", json={"name":"Sin portería","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30"}, headers=headers)
-    assert response.status_code == 422
-    assert "portería" in response.json()["detail"].lower()
+    response = client.post("/locations", json={"name":"Sin portería","latitude":6.2,"longitude":-75.5,"address":"Calle 10 # 20-30","location_source":"ocr_geocoded"}, headers=headers)
+    assert response.status_code == 201, response.text
+    assert response.json()["entrance_name"] is None
+    assert response.json()["entrance_confirmed"] is False
 
 
 def test_admin_can_create_all_three_roles_and_login_with_email():
