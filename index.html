@@ -1269,6 +1269,7 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         <div class="pro-scanner-viewfinder">
             <video id="cameraStream" autoplay playsinline></video>
+            <button type="button" onclick="refocusScannerCamera()" style="position:absolute;right:14px;bottom:18px;z-index:12;background:rgba(15,23,42,.82);color:white;border:1px solid rgba(255,255,255,.5);border-radius:22px;padding:9px 13px;font-weight:700;">◎ Reenfocar</button>
             <div id="scannerReticle" class="scanner-reticle">
                 <div class="scanner-corner sc-tl"></div>
                 <div class="scanner-corner sc-tr"></div>
@@ -1276,14 +1277,15 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
                 <div class="scanner-corner sc-br"></div>
                 <div class="scanner-laser"></div>
                 <span id="scannerHint" style="font-size:11px; color:rgba(255,255,255,0.85); background:rgba(0,0,0,0.65); padding:4px 10px; border-radius:6px; position:absolute; bottom:12px; text-align:center;">
-                    Enfoca la dirección de la guía y captura
+                    Centra la dirección completa. Toca Reenfocar si pierde nitidez.
                 </span>
             </div>
         </div>
 
         <div class="pro-scanner-bottom">
-            <button class="btn-capture-big" onclick="captureAndReadGuide()">
-                📷 Leer guía con cámara (OCR)
+            <div id="scannerLiveStatus" style="color:white;text-align:center;font-size:12px;font-weight:700;padding:5px 8px;">Cámara lista · Enfoca la dirección completa</div>
+            <button id="captureGuideButton" class="btn-capture-big" onclick="captureAndReadGuide()">
+                📷 CAPTURAR GUÍA
             </button>
             <button onclick="goToMapFromScanner()" style="background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:8px; font-size:12px; font-weight:700; cursor:pointer;">
                 🗺️ Finalizar y Ver Ruta en Mapa Propio ➡️
@@ -1566,6 +1568,8 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         // Estado del Escáner Continuo
         let mediaStream = null;
+        let scannerCaptureBusy = false;
+        let scannerCameraRecoveryBusy = false;
         let barcodeDetector = null;
         let barcodeScanInterval = null;
         let lastScannedCode = null;
@@ -1888,29 +1892,45 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
 
         async function captureAndReadGuide() {
             const video = document.getElementById('cameraStream');
+            const button = document.getElementById('captureGuideButton');
+            const status = document.getElementById('scannerLiveStatus');
+            if (scannerCaptureBusy) return;
             if (!mediaStream || !video || video.readyState < 2 || !video.videoWidth) {
-                alert('La cámara aún no está lista. Espera a que aparezca la imagen y vuelve a intentar.');
+                showToast('La cámara se está preparando. Pulsa Reenfocar y espera la imagen.', '⚠️');
+                if (status) status.textContent = 'Esperando imagen de cámara...';
                 return;
             }
-            const canvas = document.createElement('canvas');
-            const scale = Math.min(1, 1600 / video.videoWidth);
-            canvas.width = Math.round(video.videoWidth * scale);
-            canvas.height = Math.round(video.videoHeight * scale);
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            showToast('Leyendo texto de la guía...', '🔎');
+            scannerCaptureBusy = true;
+            if (button) { button.disabled = true; button.textContent = '⌛ LEYENDO GUÍA...'; }
+            if (status) status.textContent = 'Leyendo dirección · No cierres el escáner';
             try {
+                const canvas = document.createElement('canvas');
+                const scale = Math.min(1, 2000 / video.videoWidth);
+                canvas.width = Math.round(video.videoWidth * scale);
+                canvas.height = Math.round(video.videoHeight * scale);
+                const context = canvas.getContext('2d', { willReadFrequently: false });
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const res = await fetch('/ocr-delivery-label', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9) })
+                    body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.94) })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'No se pudo leer la guía.');
                 await processParsedGuide(data);
-                showToast('Guía leída y parada registrada.', '✅');
+                showToast('Parada guardada. Presenta la siguiente guía.', '✅');
+                if (status) status.textContent = 'Guía guardada · Cámara activa · Lista para la siguiente';
+                const reticle = document.getElementById('scannerReticle');
+                if (reticle) { reticle.classList.add('detected'); setTimeout(() => reticle.classList.remove('detected'), 650); }
+                await applyScannerFocus();
             } catch (err) {
                 console.error('Error OCR:', err);
-                alert(err.message || 'No se pudo leer la guía. Acerca la cámara, enfoca y vuelve a capturar.');
+                showToast(err.message || 'No se pudo leer la guía. Ajusta el enfoque e inténtalo otra vez.', '⚠️');
+                if (status) status.textContent = 'No se guardó · Ajusta la guía y pulsa CAPTURAR GUÍA otra vez';
+                await applyScannerFocus();
+            } finally {
+                scannerCaptureBusy = false;
+                if (button) { button.disabled = false; button.textContent = '📷 CAPTURAR SIGUIENTE GUÍA'; }
             }
         }
 
@@ -2124,6 +2144,67 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         // ========================================================
         // ESCÁNER CONTINUO PROFESIONAL (CÁMARA + QR + GPS)
         // ========================================================
+        async function applyScannerFocus() {
+            if (!mediaStream) return false;
+            const track = mediaStream.getVideoTracks()[0];
+            if (!track || track.readyState !== 'live') return false;
+            try {
+                const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+                const advanced = [];
+                if (!capabilities.focusMode || capabilities.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+                if (capabilities.exposureMode && capabilities.exposureMode.includes('continuous')) advanced.push({ exposureMode: 'continuous' });
+                if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.includes('continuous')) advanced.push({ whiteBalanceMode: 'continuous' });
+                if (advanced.length) await track.applyConstraints({ advanced });
+            } catch (error) {
+                console.debug('El dispositivo no permite ajustar el enfoque por software:', error);
+            }
+            const video = document.getElementById('cameraStream');
+            if (video && video.paused) await video.play().catch(() => {});
+            return true;
+        }
+
+        async function refocusScannerCamera() {
+            const status = document.getElementById('scannerLiveStatus');
+            try {
+                if (!mediaStream || mediaStream.getVideoTracks().every(track => track.readyState !== 'live')) {
+                    await recoverScannerCamera();
+                } else {
+                    await applyScannerFocus();
+                }
+                if (status) status.textContent = 'Enfoque automático solicitado · Mantén quieta la guía un instante';
+                showToast('Enfoque actualizado. Mantén la guía quieta.', '📷');
+            } catch (error) {
+                if (status) status.textContent = 'No se pudo recuperar la cámara. Pulsa Reenfocar nuevamente.';
+                showToast(error.message || 'No se pudo recuperar la cámara.', '⚠️');
+            }
+        }
+
+        async function recoverScannerCamera() {
+            if (scannerCameraRecoveryBusy) return;
+            scannerCameraRecoveryBusy = true;
+            try {
+                if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } }
+                });
+                mediaStream = stream;
+                const video = document.getElementById('cameraStream');
+                video.srcObject = stream;
+                await video.play();
+                await applyScannerFocus();
+                const track = stream.getVideoTracks()[0];
+                track.addEventListener('ended', () => {
+                    if (document.getElementById('proScannerOverlay').style.display !== 'none') {
+                        const status = document.getElementById('scannerLiveStatus');
+                        if (status) status.textContent = 'Cámara interrumpida · Pulsa Reenfocar para continuar';
+                    }
+                });
+            } finally {
+                scannerCameraRecoveryBusy = false;
+            }
+        }
+
         async function startProScanner() {
             const overlay = document.getElementById('proScannerOverlay');
             if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -2133,36 +2214,44 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             overlay.style.display = 'flex';
             updateRouteBadges();
             updateStopsCountInSelector();
-
-            const video = document.getElementById('cameraStream');
+            const status = document.getElementById('scannerLiveStatus');
+            if (status) status.textContent = 'Iniciando cámara trasera...';
             try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
-                    audio: false
+                await recoverScannerCamera();
+                if (status) status.textContent = 'Cámara lista · Puedes leer varias guías sin salir';
+                const video = document.getElementById('cameraStream');
+                video.addEventListener('click', refocusScannerCamera);
+                document.addEventListener('visibilitychange', async function resumeScannerCamera() {
+                    if (document.visibilityState === 'visible' && overlay.style.display !== 'none' && mediaStream) {
+                        await applyScannerFocus();
+                    }
                 });
-                video.srcObject = mediaStream;
-                await video.play();
             } catch (err) {
                 const message = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
                     ? 'Permite el acceso a la cámara en los permisos del navegador para usar el escáner.'
-                    : 'No se pudo iniciar la cámara. Verifica que no esté siendo usada por otra aplicación y vuelve a intentar.';
-                alert(message);
+                    : 'No se pudo iniciar la cámara. Verifica los permisos y vuelve a pulsar Reenfocar.';
+                if (status) status.textContent = message;
+                showToast(message, '⚠️');
                 stopProScanner();
-                return;
-            }
-
-            if (barcodeDetector) {
-                startBarcodeDetectionLoop(video);
             }
         }
 
         function stopProScanner() {
             if (barcodeScanInterval) clearInterval(barcodeScanInterval);
+            const video = document.getElementById('cameraStream');
+            if (video) {
+                video.pause();
+                video.srcObject = null;
+                video.removeEventListener('click', refocusScannerCamera);
+            }
             if (mediaStream) {
-                mediaStream.getTracks().forEach(t => t.stop());
+                mediaStream.getTracks().forEach(track => track.stop());
                 mediaStream = null;
             }
             document.getElementById('proScannerOverlay').style.display = 'none';
+            scannerCaptureBusy = false;
+            const button = document.getElementById('captureGuideButton');
+            if (button) { button.disabled = false; button.textContent = '📷 CAPTURAR GUÍA'; }
         }
 
         function startBarcodeDetectionLoop(video) {
