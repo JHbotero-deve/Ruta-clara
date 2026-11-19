@@ -1098,7 +1098,7 @@
                         </button>
                     </div>
                     <label for="guideImageFile" style="display:block; margin:10px 0 5px; color:var(--text-main);">📷 Cargar guía directamente desde el dispositivo</label>
-                    <input id="guideImageFile" type="file" accept="image/*" onchange="processUploadedGuide(this.files[0])" style="margin-bottom:8px;">
+                    <input id="guideImageFile" type="file" accept="image/*" multiple onchange="processUploadedGuide(this.files[0])" style="margin-bottom:8px;">
                     <small style="display:block; color:var(--text-muted); margin-bottom:8px;">Selecciona una foto o imagen de la guía. Se leerá y registrará automáticamente.</small>
                     <textarea id="rawLabelInput" rows="3" placeholder="Ejemplo:
 Direccion: Carrera 32b 10-110, Medellín
@@ -1970,14 +1970,22 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
             const districtField = document.getElementById('guideDistrict');
             const referenceField = document.getElementById('guideReference');
             const recipientField = document.getElementById('guideRecipient');
-            const searchGeo = [parsed.direccion, parsed.distrito, parsed.municipio, 'Valle de Aburrá', 'Antioquia', 'Colombia'].filter(Boolean).join(', ');
+            const queries = [
+                [parsed.direccion, parsed.distrito, parsed.municipio].filter(Boolean).join(', '),
+                [parsed.direccion, parsed.municipio, 'Antioquia', 'Colombia'].filter(Boolean).join(', '),
+                [parsed.direccion, 'Valle de Aburrá', 'Antioquia', 'Colombia'].join(', ')
+            ].filter((query, index, all) => query.length >= 3 && all.indexOf(query) === index);
             showToast(`Buscando ubicación: ${parsed.direccion}...`, '📍');
-            const geoRes = await fetch(`/geocode?query=${encodeURIComponent(searchGeo)}`);
-            const geoData = geoRes.ok ? await geoRes.json() : [];
-            const match = Array.isArray(geoData) ? geoData.find(item => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) : null;
-            if (!match) throw new Error('No se encontró una ubicación confiable para esta dirección. Verifica que la guía muestre la dirección completa.');
-            const municipality = parsed.municipio || match.municipality || '';
-            if (!municipality) throw new Error('No se pudo identificar el municipio de la dirección. No se guardó la parada.');
+            let match = null;
+            for (const query of queries) {
+                const geoRes = await fetch(`/geocode?query=${encodeURIComponent(query)}`);
+                if (!geoRes.ok) continue;
+                const geoData = await geoRes.json();
+                match = Array.isArray(geoData) ? geoData.find(item => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude)) && Math.abs(Number(item.latitude)) <= 90 && Math.abs(Number(item.longitude)) <= 180) : null;
+                if (match) break;
+            }
+            if (!match) throw new Error('No se encontró una ubicación confiable para esta dirección. Verifica la nomenclatura o agrega el barrio y municipio.');
+            const municipality = parsed.municipio || match.municipality || null;
             const lat = Number(match.latitude), lng = Number(match.longitude);
             addressField.value = parsed.direccion;
             if (municipalityField) municipalityField.value = municipality;
