@@ -597,3 +597,40 @@ def test_parser_does_not_use_sender_address_when_recipient_is_missing():
     label = "REMITENTE\nNombre: Empresa\nDirección: Calle 10 #20-30\nMunicipio: Bello"
     response = client.post("/parse-delivery-label", json={"text":label}, headers=headers)
     assert response.status_code == 422
+
+
+def test_real_mercado_flex_fixture_selects_recipient_address_and_ignores_sender():
+    from pathlib import Path
+
+    headers = admin_headers()
+    label = (Path(__file__).parent / "fixtures" / "mercado_flex_impreso.txt").read_text(encoding="utf-8")
+    response = client.post("/parse-delivery-label", json={"text": label}, headers=headers)
+    assert response.status_code == 200, response.text
+    parsed = response.json()
+    assert parsed["direccion"].casefold() == "carrera 51d #58-43"
+    assert parsed["municipio"].casefold() == "medellín"
+    assert parsed["distrito"].casefold() == "prado"
+    assert parsed["tipo"] == "Residencial"
+    assert "calle 52" not in parsed["direccion"].casefold()
+    assert not any(value in str(parsed) for value in ("VIVIANA", "DATOS PERSONALES", "CÓDIGO OMITIDO"))
+
+
+def test_real_handwritten_fixture_extracts_unit_and_does_not_guess_city():
+    from pathlib import Path
+
+    headers = admin_headers()
+    label = (Path(__file__).parent / "fixtures" / "etiqueta_manuscrita.txt").read_text(encoding="utf-8")
+    response = client.post("/parse-delivery-label", json={"text": label}, headers=headers)
+    assert response.status_code == 200, response.text
+    parsed = response.json()
+    assert parsed["direccion"].casefold() == "calle 34 a #80b-20"
+    assert parsed["distrito"].casefold() == "laureles"
+    assert parsed["referencia"].casefold() == "apt 608"
+    assert parsed["municipio"] == ""
+    assert not any(value in str(parsed) for value in ("DATO OMITIDO", "CELULAR", "TOTAL A CANCELAR"))
+
+def test_geocoder_matches_colombian_address_numbers_with_spaced_suffixes():
+    assert address_number_tokens_match("Carrera 51D #58-43", "Carrera 51 D # 58 - 43, Medellín")
+    assert address_number_tokens_match("Calle 34A #80B-20", "Calle 34 A # 80 B - 20, Medellín")
+    assert not address_number_tokens_match("Carrera 51D #58-43", "Carrera 51D #58-44, Medellín")
+    assert not address_number_tokens_match("Calle 34A #80B-20", "Calle 34A #80-20, Medellín")

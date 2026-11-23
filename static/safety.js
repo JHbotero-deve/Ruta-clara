@@ -64,38 +64,12 @@ async function lookupCandidates(parsed){
 const query=[parsed.direccion,parsed.distrito,parsed.municipio,'Antioquia','Colombia'].filter(Boolean).join(', ');
 try{const response=await fetch('/geocode?query='+encodeURIComponent(query));if(!response.ok)return[];const data=await response.json();return Array.isArray(data)?data:[];}catch(error){return[];}
 }
-window.processParsedGuide=async function(parsed){
-if(!parsed||!parsed.direccion)throw new Error('No se reconoció una dirección física. QR, códigos de barras y números de seguimiento no se usan como dirección.');
-if(!parsed.municipio)throw new Error('La guía no indica municipio. Completa el municipio antes de ubicar la entrega.');
-document.getElementById('guideAddress').value=parsed.direccion;
-document.getElementById('guideMunicipality').value=parsed.municipio||'';
-document.getElementById('guideDistrict').value=parsed.distrito||'';
-document.getElementById('guideReference').value=parsed.referencia||'';
-document.getElementById('guideRecipient').value=parsed.unidad||'';
-const candidates=await lookupCandidates(parsed);
-if(!candidates.length&&!navigator.onLine){const status=await fetch('/offline-map/status').then(r=>r.ok?r.json():{installed:false}).catch(()=>({installed:false}));if(!status.installed)throw new Error('Sin internet no hay mapa offline instalado para ubicar la portería. La guía no se guardó.');}
-showToast('Revisa la dirección y marca la portería exacta.','📍');
-await openEntranceReview(parsed,candidates);
-};
-window.handleGuideFormSubmit=async function(event){
-event.preventDefault();
-const parsed={direccion:document.getElementById('guideAddress').value.trim(),municipio:document.getElementById('guideMunicipality').value.trim(),distrito:document.getElementById('guideDistrict').value.trim(),referencia:document.getElementById('guideReference').value.trim(),unidad:document.getElementById('guideRecipient').value.trim(),tipo:'Residencial'};
-if(!parsed.direccion||!parsed.municipio){alert('La dirección y el municipio son obligatorios.');return;}
-try{await window.processParsedGuide(parsed);document.getElementById('deliveryGuideForm').reset();showToast('Portería confirmada y parada guardada.','✅');}catch(error){alert(error.message);}
-};
-const originalSaveLocation=window.saveLocationAutomatically;
-if(typeof originalSaveLocation==='function'){
-window.saveLocationAutomatically=async function(data){
-if(!data||data.entrance_confirmed!==true||!String(data.entrance_name||'').trim()){showToast('Falta confirmar la portería y el punto exacto en el mapa.','⚠️');return false;}
-return originalSaveLocation(data);
-};
-}
 window.captureContinuousStop=function(){
 showToast('La ubicación GPS sola no registra entregas. Ingresa la dirección y confirma la portería en el mapa.','⚠️');
 const field=document.getElementById('guideAddress');if(field)field.focus();
 };
 async function syncOfflineLocations(){
-if(!navigator.onLine||!sessionStorage.getItem('ruta_clara_token'))return;
+if(!navigator.onLine||!localStorage.getItem('ruta_clara_token'))return;
 let queue;try{queue=JSON.parse(localStorage.getItem('rc_offline_locations')||'[]');}catch(error){queue=[];}
 if(!queue.length)return;
 const remaining=[];
