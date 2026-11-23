@@ -47,6 +47,8 @@ def test_scanner_retries_geocoding_and_requires_valid_location_before_saving():
     save = flow.index("saveLocationAutomatically")
     assert queries < retries < coordinates < municipality < save
     assert "if (!municipality) throw new Error" in flow
+
+
 def test_scanner_requires_complete_colombian_street_number_before_geocoding():
     index = (ROOT / "index.html").read_text(encoding="utf-8")
     start = index.index("async function processParsedGuide(parsed)")
