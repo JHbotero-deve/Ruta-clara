@@ -35,16 +35,19 @@ def test_live_gps_errors_are_visible_to_the_driver():
     assert "Error actualizando GPS:" in index
     assert "Permite la ubicación del celular" in index
 
-def test_scanner_does_not_geocode_or_save_without_detected_municipality():
+def test_scanner_retries_geocoding_and_requires_valid_location_before_saving():
     index = (ROOT / "index.html").read_text(encoding="utf-8")
     start = index.index("async function processParsedGuide(parsed)")
     end = index.index("async function handleGuideFormSubmit", start)
     flow = index[start:end]
-    guard = flow.index("if (!parsed.municipio)")
-    geocode = flow.index("fetch(`/geocode?query=")
+    queries = flow.index("const queries = [")
+    retries = flow.index("for (const query of queries)")
+    coordinates = flow.index("Number.isFinite(lat)")
+    municipality = flow.index("const municipality = parsed.municipio || match.municipality ||")
     save = flow.index("saveLocationAutomatically")
-    assert guard < geocode < save
-    assert "Completa el municipio" in flow
+    assert queries < retries < coordinates < municipality < save
+    assert "if (!municipality) throw new Error" in flow
+
 
 def test_scanner_requires_complete_colombian_street_number_before_geocoding():
     index = (ROOT / "index.html").read_text(encoding="utf-8")

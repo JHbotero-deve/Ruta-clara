@@ -790,7 +790,7 @@ def parse_delivery_label_endpoint(payload: dict, current_user: User = Depends(ge
     if unit_match:
         direccion = direccion[:unit_match.start()] + direccion[unit_match.end():]
     if municipio:
-        direccion = re.sub(rf",?\s*{re.escape(municipio)}(?:,\s*Antioquia)?$", "", direccion, flags=re.IGNORECASE)
+        direccion = re.sub(rf"(?:[,.;]\s*|\s+){re.escape(municipio)}(?:,\s*Antioquia)?$", "", direccion, flags=re.IGNORECASE).strip(" ,.-")
     direccion = re.sub(r"\bS?/?N\b", "", direccion, flags=re.IGNORECASE)
     direccion = direccion.strip(" ,.-")
     compact = re.match(r"^(Carrera|Calle)\s*(\d+)([a-z]?)\s*(?:#\s*)?(\d{1,3})\s*-\s*(\d{1,3})$", direccion, re.IGNORECASE)
