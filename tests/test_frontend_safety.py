@@ -79,3 +79,20 @@ def test_continuous_scanner_requests_continuous_focus_and_camera_recovery():
     assert "async function recoverScannerCamera()" in index
     assert "video.addEventListener('click', refocusScannerCamera)" in index
     assert "visibilitychange" in index
+
+def test_delete_location_checks_server_response_before_removing_local_stop():
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    start = index.index("async function deleteLocation(id)")
+    end = index.index("async function clearCurrentRouteLocations()", start)
+    flow = index[start:end]
+    assert "if (!response.ok)" in flow
+    assert flow.index("if (!response.ok)") < flow.index("currentLocations = currentLocations.filter")
+
+
+def test_clear_route_checks_server_response_before_clearing_local_stops():
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    start = index.index("async function clearCurrentRouteLocations()")
+    end = index.index("async function", start + 10)
+    flow = index[start:end]
+    assert "if (!response.ok)" in flow
+    assert flow.index("if (!response.ok)") < flow.index("currentLocations = []")
