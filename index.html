@@ -2801,26 +2801,34 @@ Destinatario: Lucrecia Inés Vasquez"></textarea>
         async function deleteLocation(id) {
             if (!confirm('¿Eliminar esta parada de la ruta?')) return;
             try {
-                await fetch(`/locations/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/locations/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'El servidor no confirmó la eliminación.');
+                }
                 currentLocations = currentLocations.filter(l => l.id !== id);
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
                 showToast('Parada eliminada', '🗑️');
             } catch (err) {
-                alert('Error al eliminar');
+                alert(err.message || 'Error al eliminar');
             }
         }
 
         async function clearCurrentRouteLocations() {
             if (!confirm(`¿Vaciar todas las paradas de "${activeRouteName}"?`)) return;
             try {
-                await fetch(`/locations?route_id=${activeRouteId}`, { method: 'DELETE' });
+                const response = await fetch(`/locations?route_id=${activeRouteId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'El servidor no confirmó el vaciado de la ruta.');
+                }
                 currentLocations = [];
                 renderNavigationGuide(currentLocations);
                 updateStopsCountInSelector();
                 showToast('Ruta vaciada', '🗑️');
-            } catch (e) {
-                alert('Error al vaciar ruta');
+            } catch (error) {
+                alert(error.message || 'Error al vaciar ruta');
             }
         }
 
