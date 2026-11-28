@@ -58,6 +58,20 @@ def test_health_check():
     assert response.json() == {"status": "ok", "version": "1.1.0"}
 
 
+
+def test_initial_admin_can_choose_a_valid_email():
+    response = client.post("/register", json={"email": "initial-admin@example.com", "password": "Password123!"})
+    assert response.status_code == 201, response.text
+    assert response.json()["email"] == "initial-admin@example.com"
+    assert response.json()["role"] == "admin"
+    login = client.post("/token", data={"username": "initial-admin@example.com", "password": "Password123!"})
+    assert login.status_code == 200
+
+
+def test_initial_admin_registration_rejects_invalid_email():
+    response = client.post("/register", json={"email": "correo-invalido", "password": "Password123!"})
+    assert response.status_code == 422
+
 def test_user_registration_and_login():
     reg_payload = {
         "email": "jorgebotero190@gmail.com",
