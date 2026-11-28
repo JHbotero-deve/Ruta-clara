@@ -215,8 +215,8 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).count() > 0:
         raise HTTPException(status_code=403, detail="La cuenta inicial ya fue creada. Inicia sesión o solicita al administrador que cree tu usuario.")
     email = (user_in.email or "").strip().lower()
-    if email != "jorgebotero190@gmail.com":
-        raise HTTPException(status_code=403, detail="El registro inicial está reservado al correo autorizado.")
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=422, detail="Ingresa un correo electrónico válido.")
     if len(user_in.password) < 8:
         raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres.")
     username = (user_in.username or email).strip()
